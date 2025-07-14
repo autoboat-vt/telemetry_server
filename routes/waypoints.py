@@ -3,8 +3,8 @@ from flask_sqlalchemy import SQLAlchemy
 
 waypoints_page = Blueprint('waypoints_page', __name__, url_prefix='/waypoints')
 
-storedWaypoints = set()
-storedNewWaypoints = set()
+storedWaypoints = {}
+storedNewWaypoints = {}
 
 # @route   GET waypoints/test
 # @desc    Tests route
@@ -18,7 +18,7 @@ def test_waypoints():
 # @access  Public
 @waypoints_page.route('/get')
 def get_waypoints():
-    return str(storedWaypoints)
+    return storedWaypoints
 
 # @route   GET waypoints/get_new
 # @desc    Gets latest entry if the latest entry hasn't already been seen. 
@@ -29,8 +29,8 @@ def get_waypoints():
 @waypoints_page.route('/get_new')
 def get_new_waypoints():
     global storedNewWaypoints
-    toReturn = str(storedNewWaypoints)
-    storedNewWaypoints = set()
+    toReturn = storedNewWaypoints
+    storedNewWaypoints = {}
     return toReturn
 
 # @route   POST waypoints/set
@@ -44,8 +44,8 @@ def set_waypoints():
     try:
         data = request.get_json()
         newWaypoints = data.get('value')
-        storedWaypoints = str(newWaypoints)
-        storedNewWaypoints = str(newWaypoints)
+        storedWaypoints = newWaypoints
+        storedNewWaypoints = newWaypoints
         return "waypoints updated successfully: " + str(storedWaypoints)
     except:
         return "waypoints not updated successfully"
@@ -57,6 +57,6 @@ def set_waypoints():
 def delete_waypoints():
     global storedWaypoints
     global storedNewWaypoints
-    storedWaypoints = set()
-    storedNewWaypoints = set()
+    storedWaypoints = {}
+    storedNewWaypoints = {}
     return "waypoints deleted successfully!"

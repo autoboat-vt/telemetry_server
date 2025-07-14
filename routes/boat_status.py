@@ -3,8 +3,8 @@ from flask_sqlalchemy import SQLAlchemy
 
 boat_status_page = Blueprint('boat_status_page', __name__, url_prefix='/boat_status')
 
-storedBoatStatus = set()
-storedNewBoatStatus = set()
+storedBoatStatus = {}
+storedNewBoatStatus = {}
 
 # @route   GET boat_status/test
 # @desc    Tests route
@@ -18,7 +18,7 @@ def test_boat_status():
 # @access  Public
 @boat_status_page.route('/get')
 def get_boat_status():
-    return str(storedBoatStatus)
+    return storedBoatStatus
 
 # @route   GET boat_status/get_new
 # @desc    Gets latest entry if the latest entry hasn't already been seen. 
@@ -29,8 +29,8 @@ def get_boat_status():
 @boat_status_page.route('/get_new')
 def get_new_boat_status():
     global storedNewBoatStatus
-    toReturn = str(storedNewBoatStatus)
-    storedNewBoatStatus = set()
+    toReturn = storedNewBoatStatus
+    storedNewBoatStatus = {}
     return toReturn
 
 # @route   POST boat_status/set
@@ -44,8 +44,8 @@ def set_boat_status():
     try:
         data = request.get_json()
         newBoatStatus = data.get('value')
-        storedBoatStatus = str(newBoatStatus)
-        storedNewBoatStatus = str(newBoatStatus)
+        storedBoatStatus = newBoatStatus
+        storedNewBoatStatus = newBoatStatus
         return "boat_status updated successfully: " + str(storedBoatStatus)
     except:
         return "boat_status not updated successfully"

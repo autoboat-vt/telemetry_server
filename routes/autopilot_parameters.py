@@ -3,8 +3,8 @@ from flask_sqlalchemy import SQLAlchemy
 
 autopilot_parameters_page = Blueprint('autopilot_parameters_page', __name__, url_prefix='/autopilot_parameters')
 
-storedAutopilotParameters = set()
-storedNewAutopilotParameters = set()
+storedAutopilotParameters = {}
+storedNewAutopilotParameters = {}
 
 # @route   GET autopilot_parameters/test
 # @desc    Tests route
@@ -18,7 +18,7 @@ def test_autopilot_parameters():
 # @access  Public
 @autopilot_parameters_page.route('/get')
 def get_autopilot_parameters():
-    return str(storedAutopilotParameters)
+    return storedAutopilotParameters
 
 # @route   GET autopilot_parameters/get_new
 # @desc    Gets latest entry if the latest entry hasn't already been seen. 
@@ -29,8 +29,8 @@ def get_autopilot_parameters():
 @autopilot_parameters_page.route('/get_new')
 def get_new_autopilot_parameters():
     global storedNewAutopilotParameters
-    toReturn = str(storedNewAutopilotParameters)
-    storedNewAutopilotParameters = set()
+    toReturn = storedNewAutopilotParameters
+    storedNewAutopilotParameters = {}
     return toReturn
 
 # @route   POST autopilot_parameters/set
@@ -44,8 +44,8 @@ def set_autopilot_parameters():
     try:
         data = request.get_json()
         newAutopilotParameters = data.get('value')
-        storedAutopilotParameters = str(newAutopilotParameters)
-        storedNewAutopilotParameters = str(newAutopilotParameters)
+        storedAutopilotParameters = newAutopilotParameters
+        storedNewAutopilotParameters = newAutopilotParameters
         return "autopilot_parameters updated successfully: " + str(storedAutopilotParameters)
     except:
         return "autopilot_parameters not updated successfully"
@@ -57,6 +57,6 @@ def set_autopilot_parameters():
 def delete_autopilot_parameters():
     global storedAutopilotParameters
     global storedNewAutopilotParameters
-    storedAutopilotParameters = set()
-    storedNewAutopilotParameters = set()
+    storedAutopilotParameters = {}
+    storedNewAutopilotParameters = {}
     return "autopilot_parameters deleted successfully!"
