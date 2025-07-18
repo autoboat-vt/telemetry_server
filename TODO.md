@@ -6,6 +6,6 @@ make the API more RESTful and have everything be stored in a database instead of
 
 create a route for storing the images
 
-add a default parameters route so that we can send the default parameters for a boat at the start of the transmission
+HIGH PRIORITY: add a default parameters route so that we can send the default parameters for a boat at the start of the transmission. Once the default parameters have been set up, then make it so that the autopilot_parameters/get gives you all of the parameters including the parameters that have not been changed yet. Currently, whenever you do autopilot_parameters/get, it gives you the parameters that have changed and not all of the parameters. This is not ideal
 
 create a domain name that redirects to this server
