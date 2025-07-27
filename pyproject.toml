@@ -1,6 +1,7 @@
 [project]
 name         = "autoboat_telemetry_server"
 version      = "0.1.0"
+readme       = "README.md"
 dependencies = ["flask", "gunicorn", "SQLAlchemy", "flask_sqlalchemy"]
 
 [project.urls]
