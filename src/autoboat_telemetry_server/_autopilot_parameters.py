@@ -67,21 +67,21 @@ class AutopilotParametersEndpoint:
             return self.autopilot_parameters
 
         @self._blueprint.route("/get_new", methods=["GET"])
-        def get_new_route() -> dict | None:
+        def get_new_route() -> dict:
             """
             Get the latest autopilot parameters if they haven't been seen yet.
 
             Returns
             -------
-            dict | None
-                The latest autopilot parameters if they are new, otherwise None.
+            dict
+                The latest autopilot parameters if they are new, otherwise an empty dictionary.
             """
 
             if self.new_flag:
                 self.new_flag = False
                 return self.autopilot_parameters
             else:
-                return None
+                return {}
 
         @self._blueprint.route("/set", methods=["POST"])
         def set_route() -> str:

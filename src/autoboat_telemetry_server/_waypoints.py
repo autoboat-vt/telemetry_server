@@ -18,7 +18,7 @@ class WaypointEndpoint:
 
     def __init__(self) -> None:
         self._blueprint = Blueprint("waypoints_page", __name__, url_prefix="/waypoints")
-        self.waypoints: dict[str, list[list[float]]] = {"waypoints": []}
+        self.waypoints: list[list[float]] = []
         self.new_flag: bool = False
         self._register_routes()
 
@@ -51,27 +51,27 @@ class WaypointEndpoint:
             return "waypoints route testing!"
 
         @self._blueprint.route("/get", methods=["GET"])
-        def get_route() -> dict[str, list[list[float]]]:
+        def get_route() -> list[list[float]]:
             """
             Get the current waypoints.
 
             Returns
             -------
-            dict[str, list[list[float]]]
+            list[list[float]]
                 The current waypoints stored in the endpoint.
             """
 
             return self.waypoints
 
         @self._blueprint.route("/get_new", methods=["GET"])
-        def get_new_route() -> dict[str, list[list[float]]] | dict:
+        def get_new_route() -> list[list[float]] | list:
             """
             Get the latest waypoints if they haven't been seen yet.
 
             Returns
             -------
-            dict[str, list[list[float]]] | dict
-                The latest waypoints if they are new, otherwise an empty dictionary.
+            list[list[float]] | list
+                The latest waypoints if they are new, otherwise an empty list.
             """
 
             if self.new_flag:
@@ -79,7 +79,7 @@ class WaypointEndpoint:
                 return self.waypoints
 
             else:
-                return {}
+                return []
 
         @self._blueprint.route("/set", methods=["POST"])
         def set_route() -> str:
@@ -95,7 +95,7 @@ class WaypointEndpoint:
             try:
                 data = request.get_json()
                 new_waypoints = data.get("value")
-                self.waypoints["waypoints"] = new_waypoints
+                self.waypoints = new_waypoints
                 self.new_flag = True
 
             except Exception as e:

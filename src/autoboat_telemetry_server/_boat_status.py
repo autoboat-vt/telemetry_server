@@ -66,14 +66,14 @@ class BoatStatusEndpoint:
             return self.boat_status
 
         @self._blueprint.route("/get_new", methods=["GET"])
-        def get_new_route() -> dict | None:
+        def get_new_route() -> dict:
             """
             Get the latest boat status if it hasn't been seen yet.
 
             Returns
             -------
-            dict | None
-                The latest boat status if it is new, otherwise None.
+            dict
+                The latest boat status if it is new, otherwise an empty dictionary.
             """
 
             if self.new_flag:
@@ -81,7 +81,7 @@ class BoatStatusEndpoint:
                 return self.boat_status
 
             else:
-                return None
+                return {}
 
         @self._blueprint.route("/set", methods=["POST"])
         def set_route() -> str:
