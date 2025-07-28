@@ -12,14 +12,24 @@ autoboat_telemetry_server/
 ├── _waypoints.py             # Blueprint: waypoints
 ```
 
-## How to run
+## 🚀 Quick Start
 
-From inside the folder you cloned from Github, run the following:
+### Installation
 
 ```bash
 pip install .
 ```
 
+### Running the server
+
+1. Production ([Gunicorn](https://gunicorn.org/)):
+
 ```bash
 gunicorn "autoboat_telemetry_server:create_app()"
+```
+
+2. Development (Flask):
+
+```bash
+flask run
 ```
