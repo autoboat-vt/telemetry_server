@@ -1,0 +1,15 @@
+[project]
+name         = "autoboat_telemetry_server"
+version      = "0.1.0"
+readme       = "README.md"
+dependencies = ["flask", "gunicorn", "SQLAlchemy", "flask_sqlalchemy"]
+
+[project.urls]
+repository = "https://github.com/autoboat-vt/telemetry_server"
+
+[build-system]
+requires      = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+target-version = "py312"
