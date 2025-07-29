@@ -16,3 +16,5 @@ Make the default parameters files in the autopilot package contain the parameter
 
 
 Move relevant code outside of the \_\_init\_\_.py file
+
+potentially have the telemetry server create a websocket connection to the groundstation for quicker latency of data
