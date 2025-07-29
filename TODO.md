@@ -13,3 +13,6 @@ create a domain name that redirects to this server
 create a way to tell the boat to pull from github and reset systemctl from the groundstation. Make a separate version control node that communicates with the telemetry node to do version control from the groundstation. This will help limit the amount of times we need to ssh especially if we get ros2 working over lte
 
 Make the default parameters files in the autopilot package contain the parameters' descriptions, types, display names, etc and send that entire file through the default parameters route so that the groundstation doesn't have to separately store the same parameters and their descriptions/ default values.
+
+
+Move relevant code outside of the \_\_init\_\_.py file
