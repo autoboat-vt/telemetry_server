@@ -17,7 +17,7 @@ autoboat_telemetry_server/
 ### Installation
 
 ```bash
-pip install .
+pip install -e .
 ```
 
 ### Running the server
