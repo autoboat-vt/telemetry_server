@@ -95,9 +95,7 @@ class AutopilotParametersEndpoint:
             """
 
             try:
-                data = request.get_json()
-                new_autopilot_parameters = data.get("value")
-                self.autopilot_parameters = new_autopilot_parameters
+                self.autopilot_parameters = request.get_json()
                 self.new_flag = True
 
             except Exception as e:

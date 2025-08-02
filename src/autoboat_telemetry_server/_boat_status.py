@@ -96,8 +96,7 @@ class BoatStatusEndpoint:
 
             try:
                 data = request.get_json()
-                new_boat_status = data.get("value")
-                self.boat_status = new_boat_status
+                self.boat_status = data.get("value")
                 self.new_flag = True
 
             except Exception as e:
