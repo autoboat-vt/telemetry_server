@@ -5,3 +5,4 @@
 instance
 build
 *.egg-info
+venv
