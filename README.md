@@ -24,12 +24,23 @@ pip install -e .
 
 1. Production ([Gunicorn](https://gunicorn.org/)):
 
-```bash
-gunicorn "autoboat_telemetry_server:create_app()"
-```
+    ```bash
+    gunicorn "autoboat_telemetry_server:create_app()"
+    ```
 
 2. Development (Flask):
 
+    ```bash
+    flask run
+    ```
+
+## Server (Long term)
+
+### Installation
+
 ```bash
-flask run
+git clone https://github.com/autoboat-vt/telemetry_server
+cd telemetry_server
+chmod +x server_files/install.sh
+./server_files/install.sh
 ```
