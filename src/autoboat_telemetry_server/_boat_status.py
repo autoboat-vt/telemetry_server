@@ -63,7 +63,7 @@ class BoatStatusEndpoint:
                 The current boat status stored in the endpoint.
             """
 
-            return self.boat_status
+            return {"value": self.boat_status}
 
         @self._blueprint.route("/get_new", methods=["GET"])
         def get_new_route() -> dict:
@@ -78,7 +78,7 @@ class BoatStatusEndpoint:
 
             if self.new_flag:
                 self.new_flag = False
-                return self.boat_status
+                return {"value": self.boat_status}
 
             else:
                 return {}
