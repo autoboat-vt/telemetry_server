@@ -1,25 +1,33 @@
 #!/usr/bin/env bash
+set -e
 
 sudo apt update && sudo apt upgrade -y
 
-# install nginx and supervisor
-sudo apt install -y nginx supervisor
+# install necessary packages
+sudo apt install -y nginx supervisor certbot python3 python3-venv python3-certbot-nginx
 
-# install python stuff
-sudo apt install -y python3 python3-venv
+# create a virtual environment for the Python application and install packages
+(
+  python3 -m venv ~/telemetry_server/venv
+  source ~/telemetry_server/venv/bin/activate
+  pip install --upgrade pip
+  pip install ~/telemetry_server
+  deactivate
+)
 
-# create a virtual environment for the Python application
-python3 -m venv ~/telemetry_server/venv
-source ~/telemetry_server/venv/bin/activate
-
-# install required Python packages
-pip install --upgrade pip
-pip install ~/telemetry_server
+# generate SSL certificates using certbot
+sudo certbot --nginx -d vt-autoboat-telemetry.uk -d www.vt-autoboat-telemetry.uk --non-interactive --agree-tos --email autoboat@vt.edu
 
 # configure nginx
 sudo cp ~/telemetry_server/nginx/telemetry_server.conf /etc/nginx/sites-available/
-sudo ln -s /etc/nginx/sites-available/telemetry_server.conf /etc/nginx/sites-enabled/
+if [ ! -L /etc/nginx/sites-enabled/telemetry_server.conf ]; then
+  sudo ln -s /etc/nginx/sites-available/telemetry_server.conf /etc/nginx/sites-enabled/
+fi
 sudo nginx -t && sudo systemctl restart nginx
+
+# ensure supervisor is enabled and started
+sudo systemctl enable supervisor
+sudo systemctl start supervisor
 
 # configure supervisor
 sudo cp ~/telemetry_server/supervisor/telemetry_server.conf /etc/supervisor/conf.d/
@@ -27,9 +35,6 @@ sudo supervisorctl reread
 sudo supervisorctl update
 sudo supervisorctl start telemetry_server
 
-# cleanup
-deactivate
 echo "Installation complete. Please check the status of the services."
 sudo systemctl status nginx
 sudo supervisorctl status telemetry_server
-
