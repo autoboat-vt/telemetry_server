@@ -19,9 +19,9 @@ sudo apt install -y nginx supervisor certbot python3 python3-venv python3-certbo
 sudo certbot --nginx -d vt-autoboat-telemetry.uk -d www.vt-autoboat-telemetry.uk --non-interactive --agree-tos --email autoboat@vt.edu
 
 # configure nginx
-sudo cp ~/telemetry_server/nginx/telemetry_server.conf /etc/nginx/sites-available/
-if [ ! -L /etc/nginx/sites-enabled/telemetry_server.conf ]; then
-  sudo ln -s /etc/nginx/sites-available/telemetry_server.conf /etc/nginx/sites-enabled/
+sudo cp ~/telemetry_server/server_files/nginx_autoboat.conf /etc/nginx/sites-available/
+if [ ! -L /etc/nginx/sites-enabled/nginx_autoboat.conf ]; then
+  sudo ln -s /etc/nginx/sites-available/nginx_autoboat.conf /etc/nginx/sites-enabled/
 fi
 sudo nginx -t && sudo systemctl restart nginx
 
@@ -30,7 +30,7 @@ sudo systemctl enable supervisor
 sudo systemctl start supervisor
 
 # configure supervisor
-sudo cp ~/telemetry_server/supervisor/telemetry_server.conf /etc/supervisor/conf.d/
+sudo cp ~/telemetry_server/server_files/supervisor_autoboat.conf /etc/supervisor/conf.d/
 sudo supervisorctl reread
 sudo supervisorctl update
 sudo supervisorctl start telemetry_server
