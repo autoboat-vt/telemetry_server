@@ -6,6 +6,23 @@ sudo apt update && sudo apt upgrade -y
 # install necessary packages
 sudo apt install -y nginx supervisor certbot python3 python3-venv python3-certbot-nginx
 
+# initial config for nginx to get ssl working
+sudo cp ~/telemetry_server/server_files/nginx_autoboat_nossl.conf /etc/nginx/sites-available/
+if [ ! -L /etc/nginx/sites-enabled/nginx_autoboat.conf ]; then
+  sudo ln -s /etc/nginx/sites-available/nginx_autoboat_nossl.conf /etc/nginx/sites-enabled/nginx_autoboat.conf
+fi
+sudo nginx -t
+sudo systemctl reload nginx
+
+# generate SSL certificates using certbot
+sudo certbot --nginx -d vt-autoboat-telemetry.uk -d www.vt-autoboat-telemetry.uk --non-interactive --agree-tos --email autoboat@vt.edu
+
+# update nginx configuration for SSL
+sudo cp ~/telemetry_server/server_files/nginx_autoboat_ssl.conf /etc/nginx/sites-available/
+sudo ln -sf /etc/nginx/sites-available/nginx_autoboat_ssl.conf /etc/nginx/sites-enabled/nginx_autoboat.conf
+sudo nginx -t
+sudo systemctl reload nginx
+
 # create a virtual environment for the Python application and install packages
 (
   python3 -m venv ~/telemetry_server/venv
@@ -14,16 +31,6 @@ sudo apt install -y nginx supervisor certbot python3 python3-venv python3-certbo
   pip install ~/telemetry_server
   deactivate
 )
-
-# generate SSL certificates using certbot
-sudo certbot --nginx -d vt-autoboat-telemetry.uk -d www.vt-autoboat-telemetry.uk --non-interactive --agree-tos --email autoboat@vt.edu
-
-# configure nginx
-sudo cp ~/telemetry_server/server_files/nginx_autoboat.conf /etc/nginx/sites-available/
-if [ ! -L /etc/nginx/sites-enabled/nginx_autoboat.conf ]; then
-  sudo ln -s /etc/nginx/sites-available/nginx_autoboat.conf /etc/nginx/sites-enabled/
-fi
-sudo nginx -t && sudo systemctl restart nginx
 
 # ensure supervisor is enabled and started
 sudo systemctl enable supervisor
