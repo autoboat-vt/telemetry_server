@@ -1,16 +1,6 @@
-"""
-Routes
-------
-- `/boat_status/test`: Test route for boat status.
-- `/boat_status/get`: Get the current boat status.
-- `/boat_status/get_new`: Get the latest boat status if it hasn't been seen yet.
-- `/boat_status/set`: Set the boat status from the request data.
-"""
-
-from flask import request, Blueprint
+from flask import Blueprint, request
 from typing import Literal
-
-__all__ = ["BoatStatusEndpoint"]
+from autoboat_telemetry_server.models import BoatStatus, db
 
 
 class BoatStatusEndpoint:
@@ -20,7 +10,6 @@ class BoatStatusEndpoint:
         self._blueprint = Blueprint(
             "boat_status_page", __name__, url_prefix="/boat_status"
         )
-        self.boat_status = {}
         self.new_flag: bool = False
         self._register_routes()
 
@@ -63,7 +52,10 @@ class BoatStatusEndpoint:
                 The current boat status stored in the endpoint.
             """
 
-            return self.boat_status
+            entry: BoatStatus = BoatStatus.query.order_by(
+                BoatStatus.timestamp.desc()
+            ).first()
+            return entry.to_dict() if entry else {}
 
         @self._blueprint.route("/get_new", methods=["GET"])
         def get_new_route() -> dict:
@@ -77,11 +69,13 @@ class BoatStatusEndpoint:
             """
 
             if self.new_flag:
+                entry: BoatStatus = BoatStatus.query.order_by(
+                    BoatStatus.timestamp.desc()
+                ).first()
                 self.new_flag = False
-                return self.boat_status
+                return entry.to_dict() if entry else {}
 
-            else:
-                return {}
+            return {}
 
         @self._blueprint.route("/set", methods=["POST"])
         def set_route() -> str:
@@ -95,13 +89,16 @@ class BoatStatusEndpoint:
             """
 
             try:
-                self.boat_status = request.get_json()
+                data = request.get_json()
+                entry = BoatStatus(data=data)
+                db.session.add(entry)
+                db.session.commit()
                 self.new_flag = True
 
             except Exception as e:
                 return f"boat_status not updated successfully: {e!s}"
 
-            return f"boat_status updated successfully: {self.boat_status}"
+            return f"boat_status updated successfully: {entry.to_dict()}"
 
         return (
             f"boat_status paths registered successfully: {self._blueprint.url_prefix}"

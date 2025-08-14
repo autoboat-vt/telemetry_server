@@ -1,16 +1,6 @@
-"""
-Routes
-------
-- `/autopilot_parameters/test`: Test route for autopilot parameters.
-- `/autopilot_parameters/get`: Get the current autopilot parameters.
-- `/autopilot_parameters/get_new`: Get the latest autopilot parameters if they haven't been seen yet.
-- `/autopilot_parameters/set`: Set the autopilot parameters from the request data
-"""
-
 from flask import request, Blueprint
 from typing import Literal
-
-__all__ = ["AutopilotParametersEndpoint"]
+from autoboat_telemetry_server.models import db, AutopilotParameters
 
 
 class AutopilotParametersEndpoint:
@@ -20,7 +10,6 @@ class AutopilotParametersEndpoint:
         self._blueprint = Blueprint(
             "autopilot_parameters_page", __name__, url_prefix="/autopilot_parameters"
         )
-        self.autopilot_parameters = {}
         self.new_flag: bool = False
         self._register_routes()
 
@@ -64,7 +53,11 @@ class AutopilotParametersEndpoint:
                 The current autopilot parameters stored in the endpoint.
             """
 
-            return self.autopilot_parameters
+            entry: AutopilotParameters = AutopilotParameters.query.order_by(
+                AutopilotParameters.timestamp.desc()
+            ).first()
+
+            return entry.to_dict() if entry else {}
 
         @self._blueprint.route("/get_new", methods=["GET"])
         def get_new_route() -> dict:
@@ -78,8 +71,13 @@ class AutopilotParametersEndpoint:
             """
 
             if self.new_flag:
+                entry: AutopilotParameters = AutopilotParameters.query.order_by(
+                    AutopilotParameters.timestamp.desc()
+                ).first()
+
                 self.new_flag = False
-                return self.autopilot_parameters
+                return entry.to_dict() if entry else {}
+
             else:
                 return {}
 
@@ -95,12 +93,15 @@ class AutopilotParametersEndpoint:
             """
 
             try:
-                self.autopilot_parameters = request.get_json()
+                data = request.get_json()
+                entry = AutopilotParameters(data=data)
+                db.session.add(entry)
+                db.session.commit()
                 self.new_flag = True
 
             except Exception as e:
                 return f"autopilot_parameters not updated successfully: {e!s}"
 
-            return f"autopilot_parameters updated successfully: {self.autopilot_parameters}"
+            return f"autopilot_parameters updated successfully: {entry.to_dict()}"
 
         return f"autopilot_parameters paths registered successfully: {self._blueprint.url_prefix}"

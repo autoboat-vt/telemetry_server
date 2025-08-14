@@ -1,14 +1,12 @@
 """Telemetry server for Autoboat at Virginia Tech."""
 
-from typing import Literal
 from flask import Flask as _flask
-# from flask_sqlalchemy import SQLAlchemy
-
-from autoboat_telemetry_server._autopilot_parameters import (
+from .models import db
+from autoboat_telemetry_server.routes import (
     AutopilotParametersEndpoint,
+    BoatStatusEndpoint,
+    WaypointEndpoint,
 )
-from autoboat_telemetry_server._boat_status import BoatStatusEndpoint
-from autoboat_telemetry_server._waypoints import WaypointEndpoint
 
 __all__ = ["create_app"]
 
@@ -22,24 +20,28 @@ def create_app() -> _flask:
     """
 
     app = _flask(__name__, instance_relative_config=True)
-    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///project.db"
-    # db = SQLAlchemy(app)
+    app.config.from_pyfile("config.py", silent=True)
+
+    db.init_app(app)
+
+    with app.app_context():
+        db.create_all()
 
     app.register_blueprint(AutopilotParametersEndpoint().blueprint)
     app.register_blueprint(BoatStatusEndpoint().blueprint)
     app.register_blueprint(WaypointEndpoint().blueprint)
 
     @app.route("/")
-    def index() -> Literal["Autoboat Telemetry Server is running."]:
+    def index() -> str:
         """
         Root route for the telemetry server.
 
         Returns
         -------
-        Literal["Autoboat Telemetry Server is running."]
-            Confirmation message indicating the server is running.
+        str
+            A string showing information about the current state of the server.
         """
 
-        return "Autoboat Telemetry Server is running."
+        return "Autoboat Telemetry Server is running!"
 
     return app

@@ -1,16 +1,6 @@
-"""
-Routes
-------
-- `/waypoints/test`: Test route for waypoints.
-- `/waypoints/get`: Get the current waypoints.
-- `/waypoints/get_new`: Get the latest waypoints if they haven't been seen yet.
-- `/waypoints/set`: Set the waypoints from the request data.
-"""
-
 from flask import request, Blueprint
 from typing import Literal
-
-__all__ = ["WaypointEndpoint"]
+from autoboat_telemetry_server.models import Waypoints, db
 
 
 class WaypointEndpoint:
@@ -18,7 +8,6 @@ class WaypointEndpoint:
 
     def __init__(self) -> None:
         self._blueprint = Blueprint("waypoints_page", __name__, url_prefix="/waypoints")
-        self.waypoints: list[list[float]] = []
         self.new_flag: bool = False
         self._register_routes()
 
@@ -61,7 +50,10 @@ class WaypointEndpoint:
                 The current waypoints stored in the endpoint.
             """
 
-            return self.waypoints
+            entry: Waypoints = Waypoints.query.order_by(
+                Waypoints.timestamp.desc()
+            ).first()
+            return entry.to_list() if entry else []
 
         @self._blueprint.route("/get_new", methods=["GET"])
         def get_new_route() -> list[list[float]] | list:
@@ -75,8 +67,11 @@ class WaypointEndpoint:
             """
 
             if self.new_flag:
+                entry: Waypoints = Waypoints.query.order_by(
+                    Waypoints.timestamp.desc()
+                ).first()
                 self.new_flag = False
-                return self.waypoints
+                return entry.to_list() if entry else []
 
             else:
                 return []
@@ -94,13 +89,14 @@ class WaypointEndpoint:
 
             try:
                 data = request.get_json()
-                new_waypoints = data.get("value")
-                self.waypoints = new_waypoints
+                entry = Waypoints(data=data)
+                db.session.add(entry)
+                db.session.commit()
                 self.new_flag = True
 
             except Exception as e:
                 return f"waypoints not updated successfully: {e!s}"
 
-            return f"waypoints updated successfully: {self.waypoints}"
+            return f"waypoints updated successfully: {entry.to_list()}"
 
         return f"waypoints paths registered successfully: {self._blueprint.url_prefix}"
