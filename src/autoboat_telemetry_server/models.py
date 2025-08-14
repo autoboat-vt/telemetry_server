@@ -21,7 +21,7 @@ class AutopilotParameters(db.Model):
             The autopilot parameters data as a dictionary.
         """
 
-        return dict(self.data.items())
+        return list(self.data.values())[0] if self.data else {}
 
 
 class BoatStatus(db.Model):
@@ -41,7 +41,7 @@ class BoatStatus(db.Model):
             The boat status data as a dictionary.
         """
 
-        return dict(self.data.items())
+        return list(self.data.values())[0] if self.data else {}
 
 
 class Waypoints(db.Model):
