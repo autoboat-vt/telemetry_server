@@ -41,7 +41,7 @@ class BoatStatus(db.Model):
             The boat status data as a dictionary.
         """
 
-        return list(self.data.values())[0] if self.data else {}
+        return dict(self.data) if self.data else {}
 
 
 class Waypoints(db.Model):
