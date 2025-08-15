@@ -1,5 +1,6 @@
 """Telemetry server for Autoboat at Virginia Tech."""
 
+import os
 from flask import Flask as _flask
 from .models import db
 from autoboat_telemetry_server.routes import (
@@ -19,8 +20,12 @@ def create_app() -> _flask:
         Flask: Configured Flask application instance.
     """
 
-    app = _flask(__name__, instance_relative_config=True)
-    app.config.from_pyfile("config.py", silent=True)
+    app = _flask(__name__)
+
+    INSTANCE_DIR = "/home/ubuntu/telemetry_server/src/instance"
+    CONFIG_PATH = os.path.join(INSTANCE_DIR, "config.py")
+
+    app.config.from_pyfile(CONFIG_PATH)
 
     db.init_app(app)
 
