@@ -1,64 +1,102 @@
+"""
+This module defines the TelemetryTable model for the autoboat telemetry server.
+It includes the database schema and methods for interacting with telemetry data.
+"""
+
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import Integer, JSON
 from datetime import datetime
+from typing import Any
+from autoboat_telemetry_server.types import (
+    AutopilotParametersType,
+    BoatStatusType,
+    WaypointsType,
+)
+
 
 db = SQLAlchemy()
 
 
-class AutopilotParameters(db.Model):
-    __tablename__ = "autopilot_parameters"
+class TelemetryTable(db.Model):
+    """
+    Database model for storing telemetry data.
 
-    id = db.Column(db.Integer, primary_key=True)
-    data = db.Column(db.JSON, nullable=False)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    Inherits
+    -------
+    db.Model
+        SQLAlchemy base model for database interaction.
 
-    def to_dict(self) -> dict:
+    Attributes
+    ----------
+    instance_id : int
+        Unique identifier for each telemetry instance.
+
+    autopilot_parameters : AutopilotParametersType
+        Autopilot parameters associated with the telemetry instance.
+    autopilot_parameters_new_flag : bool
+        Flag indicating if there are new autopilot parameters.
+
+    boat_status : BoatStatusType
+        Current status of the boat.
+    boat_status_new_flag : bool
+        Flag indicating if there is a new boat status.
+
+    waypoints : WaypointsType
+        List of waypoints for the boat.
+    waypoints_new_flag : bool
+        Flag indicating if there are new waypoints.
+
+    created_at : datetime
+        Timestamp when the telemetry instance was created.
+    updated_at : datetime
+        Timestamp when the telemetry instance was last updated.
+    """
+
+    __tablename__ = "telemetry_table"
+
+    instance_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    autopilot_parameters: Mapped[AutopilotParametersType] = mapped_column(JSON, nullable=False)
+    autopilot_parameters_new_flag: Mapped[bool] = mapped_column(default=False, nullable=False)
+
+    boat_status: Mapped[BoatStatusType] = mapped_column(JSON, nullable=False)
+    boat_status_new_flag: Mapped[bool] = mapped_column(default=False, nullable=False)
+
+    waypoints: Mapped[WaypointsType] = mapped_column(JSON, nullable=False)
+    waypoints_new_flag: Mapped[bool] = mapped_column(default=False, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(db.DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    @classmethod
+    def get_all_ids(cls) -> list[int]:
         """
-        Convert the autopilot parameters data to a dictionary.
+        Retrieve all instance IDs from the database.
 
         Returns
         -------
-        dict
-            The autopilot parameters data as a dictionary.
+        list[int]
+            A list of all instance IDs.
         """
 
-        return list(self.data.values())[0] if self.data else {}
+        return db.session.execute(db.select(cls.instance_id)).scalars().all()
 
-
-class BoatStatus(db.Model):
-    __tablename__ = "boat_status"
-
-    id = db.Column(db.Integer, primary_key=True)
-    data = db.Column(db.JSON, nullable=False)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
-
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """
-        Convert the boat status data to a dictionary.
+        Convert the telemetry instance to a dictionary.
 
         Returns
         -------
-        dict
-            The boat status data as a dictionary.
+        dict[str, Any]
+            A dictionary representation of the telemetry instance.
         """
 
-        return dict(self.data) if self.data else {}
-
-
-class Waypoints(db.Model):
-    __tablename__ = "waypoints"
-
-    id = db.Column(db.Integer, primary_key=True)
-    data = db.Column(db.JSON, nullable=False)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
-
-    def to_list(self) -> list[list[float]]:
-        """
-        Convert the waypoints data to a list of lists.
-
-        Returns
-        -------
-        list[list[float]]
-            The waypoints data as a list of lists.
-        """
-
-        return list(self.data.values())[0]
+        return {
+            "instance_id": self.instance_id,
+            "autopilot_parameters": self.autopilot_parameters,
+            "boat_status": self.boat_status,
+            "waypoints": self.waypoints,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+        }

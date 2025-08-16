@@ -1,16 +1,14 @@
-from flask import Blueprint, request
+from flask import Blueprint, request, jsonify
 from typing import Literal
-from autoboat_telemetry_server.models import BoatStatus, db
+from autoboat_telemetry_server.types import BoatStatusType
+from autoboat_telemetry_server.models import TelemetryTable, db
 
 
 class BoatStatusEndpoint:
     """Endpoint for handling boat status."""
 
     def __init__(self) -> None:
-        self._blueprint = Blueprint(
-            "boat_status_page", __name__, url_prefix="/boat_status"
-        )
-        self.new_flag: bool = False
+        self._blueprint = Blueprint("boat_status_page", __name__, url_prefix="/boat_status")
         self._register_routes()
 
     @property
@@ -41,65 +39,119 @@ class BoatStatusEndpoint:
 
             return "boat_status route testing!"
 
-        @self._blueprint.route("/get", methods=["GET"])
-        def get_route() -> dict:
+        @self._blueprint.route("/get/<int:instance_id>", methods=["GET"])
+        def get_route(instance_id: int) -> tuple[BoatStatusType, int]:
             """
-            Get the current boat status.
+            Get the boat status for a specific telemetry instance.
+
+            Method: GET
+
+            Parameters
+            ----------
+            instance_id
+                The ID of the telemetry instance to retrieve the boat status for.
 
             Returns
             -------
-            dict
-                The current boat status stored in the endpoint.
-            """
-
-            entry: BoatStatus = BoatStatus.query.order_by(
-                BoatStatus.timestamp.desc()
-            ).first()
-            return entry.to_dict() if entry else {}
-
-        @self._blueprint.route("/get_new", methods=["GET"])
-        def get_new_route() -> dict:
-            """
-            Get the latest boat status if it hasn't been seen yet.
-
-            Returns
-            -------
-            dict
-                The latest boat status if it is new, otherwise an empty dictionary.
-            """
-
-            if self.new_flag:
-                entry: BoatStatus = BoatStatus.query.order_by(
-                    BoatStatus.timestamp.desc()
-                ).first()
-                self.new_flag = False
-                return entry.to_dict() if entry else {}
-
-            return {}
-
-        @self._blueprint.route("/set", methods=["POST"])
-        def set_route() -> str:
-            """
-            Set the boat status from the request data.
-
-            Returns
-            -------
-            str
-                Confirmation message indicating the boat status has been set.
+            tuple[BoatStatusType, int]
+                A tuple containing the boat status and a status code of 200 if successful,
+                or an error message and a status code of 404 if the instance is not found.
             """
 
             try:
-                data = request.get_json()
-                entry = BoatStatus(data=data)
-                db.session.add(entry)
-                db.session.commit()
-                self.new_flag = True
+                telemetry_instance: TelemetryTable | None = TelemetryTable.query.get(instance_id)
+                if telemetry_instance is None:
+                    raise ValueError("Instance not found.")
+
+                return jsonify(telemetry_instance.boat_status), 200
+
+            except ValueError as e:
+                return jsonify({"error": str(e)}), 404
 
             except Exception as e:
-                return f"boat_status not updated successfully: {e!s}"
+                return jsonify({"error": str(e)}), 500
 
-            return f"boat_status updated successfully: {entry.to_dict()}"
+        @self._blueprint.route("/get_new/<int:instance_id>", methods=["GET"])
+        def get_new_route(instance_id: int) -> tuple[BoatStatusType, int]:
+            """
+            Gets the boat status for a specific telemetry instance if it hasn't already been
+            requested since the last update.
 
-        return (
-            f"boat_status paths registered successfully: {self._blueprint.url_prefix}"
-        )
+            Method: GET
+
+            Parameters
+            ----------
+            instance_id
+                The ID of the telemetry instance to retrieve the new boat status for.
+
+            Returns
+            -------
+            tuple[BoatStatusType, int]
+                A tuple containing the new boat status and a status code of 200 if successful,
+                or an error message and a status code of 404 if the instance is not found.
+            """
+
+            try:
+                telemetry_instance: TelemetryTable | None = TelemetryTable.query.get(instance_id)
+                if telemetry_instance is None:
+                    raise ValueError("Instance not found.")
+
+                if telemetry_instance.boat_status_new_flag is False:
+                    return jsonify({}), 200
+
+                telemetry_instance.boat_status_new_flag = False
+                db.session.commit()
+
+                return jsonify(telemetry_instance.boat_status), 200
+
+            except ValueError as e:
+                return jsonify({"error": str(e)}), 404
+
+            except Exception as e:
+                return jsonify({"error": str(e)}), 500
+
+        @self._blueprint.route("/set/<int:instance_id>", methods=["POST"])
+        def set_route(instance_id: int) -> tuple[dict[str, str], int]:
+            """
+            Set the boat status for a specific telemetry instance.
+
+            Method: POST
+
+            Parameters
+            ----------
+            instance_id
+                The ID of the telemetry instance to set the boat status for.
+
+            Returns
+            -------
+            tuple[dict[str, str], int]
+                A tuple containing a success message and a status code of 200 if successful,
+                or an error message and a status code of 404 if the instance is not found.
+            """
+
+            try:
+                telemetry_instance: TelemetryTable | None = TelemetryTable.query.get(instance_id)
+                if telemetry_instance is None:
+                    raise ValueError("Instance not found.")
+
+                new_status = request.json.get("boat_status")
+                if not isinstance(new_status, dict):
+                    raise TypeError("Invalid boat status format. Expected a dictionary.")
+
+                telemetry_instance.boat_status = new_status
+                telemetry_instance.boat_status_new_flag = True
+                db.session.commit()
+
+                return jsonify({"message": "Boat status updated successfully."}), 200
+
+            except ValueError as e:
+                return jsonify({"error": str(e)}), 404
+
+            except TypeError as e:
+                return jsonify({"error": str(e)}), 400
+
+            except Exception as e:
+                db.session.rollback()
+                return jsonify({"error": str(e)}), 500
+
+        return f"boat_status paths registered successfully: {self._blueprint.url_prefix}"
