@@ -1,6 +1,5 @@
-from flask import request, Blueprint, jsonify
+from flask import Blueprint, Response, jsonify, request
 from typing import Literal
-from autoboat_telemetry_server.types import WaypointsType
 from autoboat_telemetry_server.models import TelemetryTable, db
 
 
@@ -40,7 +39,7 @@ class WaypointEndpoint:
             return "waypoints route testing!"
 
         @self._blueprint.route("/get/<int:instance_id>", methods=["GET"])
-        def get_route(instance_id: int) -> tuple[WaypointsType, int]:
+        def get_route(instance_id: int) -> tuple[Response, int]:
             """
             Get the current waypoints for a specific telemetry instance.
 
@@ -53,9 +52,9 @@ class WaypointEndpoint:
 
             Returns
             -------
-            tuple[WaypointsType, int]
-                A tuple containing the waypoints and a status code of 200 if successful,
-                or an error message and a status code of 404 if the instance is not found.
+            tuple[Response, int]
+                A tuple containing a JSON response with the waypoints for the specified telemetry instance,
+                or an error message if the instance is not found.
             """
 
             try:
@@ -72,7 +71,7 @@ class WaypointEndpoint:
                 return jsonify({"error": str(e)}), 500
 
         @self._blueprint.route("/get_new/<int:instance_id>", methods=["GET"])
-        def get_new_route(instance_id: int) -> tuple[WaypointsType, int]:
+        def get_new_route(instance_id: int) -> tuple[Response, int]:
             """
             Gets the waypoints for a specific telemetry instance if it hasn't already been
             requested since the last update.
@@ -86,9 +85,9 @@ class WaypointEndpoint:
 
             Returns
             -------
-            tuple[WaypointsType, int]
-                A tuple containing the waypoints and a status code of 200 if successful,
-                or an error message and a status code of 404 if the instance is not found.
+            tuple[Response, int]
+                A tuple containing a JSON response with the waypoints for the specified telemetry instance,
+                or an empty response if there are no new waypoints.
             """
 
             try:
@@ -111,7 +110,7 @@ class WaypointEndpoint:
                 return jsonify({"error": str(e)}), 500
 
         @self._blueprint.route("/set/<int:instance_id>", methods=["POST"])
-        def set_route(instance_id: int) -> tuple[dict[str, str], int]:
+        def set_route(instance_id: int) -> tuple[Response, int]:
             """
             Set the waypoints from the request data.
 
@@ -124,9 +123,9 @@ class WaypointEndpoint:
 
             Returns
             -------
-            tuple[dict[str, str], int]
-                A tuple containing a success message and a status code of 200 if successful,
-                or an error message and a status code of 404 if the instance is not found.
+            tuple[Response, int]
+                A tuple containing a JSON response confirming the waypoints have been updated successfully,
+                or an error message if the instance is not found or if the input format is invalid.
             """
 
             try:

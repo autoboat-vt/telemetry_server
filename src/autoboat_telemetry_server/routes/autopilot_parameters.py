@@ -1,7 +1,6 @@
-from flask import request, Blueprint, jsonify
+from flask import Blueprint, Response, jsonify, request
 from typing import Literal
-from autoboat_telemetry_server.types import AutopilotParametersType
-from autoboat_telemetry_server.models import db, TelemetryTable
+from autoboat_telemetry_server.models import TelemetryTable, db
 
 
 class AutopilotParametersEndpoint:
@@ -41,7 +40,7 @@ class AutopilotParametersEndpoint:
             return "autopilot_parameters route testing!"
 
         @self._blueprint.route("/get/<int:instance_id>", methods=["GET"])
-        def get_route(instance_id: int) -> tuple[AutopilotParametersType, int]:
+        def get_route(instance_id: int) -> tuple[Response, int]:
             """
             Get the current autopilot parameters.
 
@@ -55,9 +54,9 @@ class AutopilotParametersEndpoint:
 
             Returns
             -------
-            tuple[AutopilotParametersType, int]
-                A tuple containing the autopilot parameters and a status code of 200 if successful,
-                or an error message and a status code of 404 if the instance is not found.
+            tuple[Response, int]
+                A tuple containing a JSON response with the autopilot parameters for the specified telemetry instance,
+                or an error message if the instance is not found.
             """
 
             try:
@@ -74,7 +73,7 @@ class AutopilotParametersEndpoint:
                 return jsonify({"error": str(e)}), 500
 
         @self._blueprint.route("/get_new/<int:instance_id>", methods=["GET"])
-        def get_new_route(instance_id: int) -> tuple[AutopilotParametersType, int]:
+        def get_new_route(instance_id: int) -> tuple[Response, int]:
             """
             Get the latest autopilot parameters if they haven't been seen yet.
 
@@ -87,9 +86,9 @@ class AutopilotParametersEndpoint:
 
             Returns
             -------
-            tuple[AutopilotParametersType, int]
-                A tuple containing the new autopilot parameters and a status code of 200 if successful,
-                or an error message and a status code of 404 if the instance is not found.
+            tuple[Response, int]
+                A tuple containing a JSON response with the new autopilot parameters if available,
+                or a 204 status if no new parameters are available.
             """
 
             try:
@@ -112,7 +111,7 @@ class AutopilotParametersEndpoint:
                 return jsonify({"error": str(e)}), 500
 
         @self._blueprint.route("/set/<int:instance_id>", methods=["POST"])
-        def set_route(instance_id: int) -> tuple[dict[str, str], int]:
+        def set_route(instance_id: int) -> tuple[Response, int]:
             """
             Set the autopilot parameters from the request data.
 
@@ -125,9 +124,9 @@ class AutopilotParametersEndpoint:
 
             Returns
             -------
-            tuple[dict[str, str], int]
-                A tuple containing a success message and a status code of 200 if successful,
-                or an error message and a status code of 404 if the instance is not found.
+            tuple[Response, int]
+                A tuple containing a JSON response confirming the autopilot parameters have been updated successfully,
+                or an error message if the instance is not found or if the input format is invalid.
             """
 
             try:

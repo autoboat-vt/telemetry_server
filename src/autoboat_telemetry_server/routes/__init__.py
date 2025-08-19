@@ -22,6 +22,9 @@ Waypoint Routes:
 Instance Manager Routes:
 - `/instance_manager/create_instance`: Create a new telemetry instance.
 - `/instance_manager/delete_instance/<int:instance_id>`: Delete a telemetry instance by ID.
+- `/instance_manager/set_name/<int:instance_id>/<instance_name>`: Set the name of a telemetry instance.
+- `/instance_manager/get_name/<int:instance_id>`: Get the name of a telemetry instance.
+- `/instance_manager/get_id/<instance_name>`: Get the ID of a telemetry instance by name.
 - `/instance_manager/get_ids`: Get all telemetry instance IDs.
 """
 

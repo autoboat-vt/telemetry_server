@@ -1,6 +1,5 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, Response, jsonify, request
 from typing import Literal
-from autoboat_telemetry_server.types import BoatStatusType
 from autoboat_telemetry_server.models import TelemetryTable, db
 
 
@@ -40,7 +39,7 @@ class BoatStatusEndpoint:
             return "boat_status route testing!"
 
         @self._blueprint.route("/get/<int:instance_id>", methods=["GET"])
-        def get_route(instance_id: int) -> tuple[BoatStatusType, int]:
+        def get_route(instance_id: int) -> tuple[Response, int]:
             """
             Get the boat status for a specific telemetry instance.
 
@@ -53,9 +52,9 @@ class BoatStatusEndpoint:
 
             Returns
             -------
-            tuple[BoatStatusType, int]
-                A tuple containing the boat status and a status code of 200 if successful,
-                or an error message and a status code of 404 if the instance is not found.
+            tuple[Response, int]
+                A tuple containing a JSON response with the boat status for the specified telemetry instance,
+                or an error message if the instance is not found.
             """
 
             try:
@@ -72,7 +71,7 @@ class BoatStatusEndpoint:
                 return jsonify({"error": str(e)}), 500
 
         @self._blueprint.route("/get_new/<int:instance_id>", methods=["GET"])
-        def get_new_route(instance_id: int) -> tuple[BoatStatusType, int]:
+        def get_new_route(instance_id: int) -> tuple[Response, int]:
             """
             Gets the boat status for a specific telemetry instance if it hasn't already been
             requested since the last update.
@@ -86,9 +85,9 @@ class BoatStatusEndpoint:
 
             Returns
             -------
-            tuple[BoatStatusType, int]
-                A tuple containing the new boat status and a status code of 200 if successful,
-                or an error message and a status code of 404 if the instance is not found.
+            tuple[Response, int]
+                A tuple containing a JSON response with the new boat status if available,
+                or a 204 status if no new status is available.
             """
 
             try:
@@ -97,7 +96,7 @@ class BoatStatusEndpoint:
                     raise ValueError("Instance not found.")
 
                 if telemetry_instance.boat_status_new_flag is False:
-                    return jsonify({}), 200
+                    return jsonify({}), 204
 
                 telemetry_instance.boat_status_new_flag = False
                 db.session.commit()
@@ -111,7 +110,7 @@ class BoatStatusEndpoint:
                 return jsonify({"error": str(e)}), 500
 
         @self._blueprint.route("/set/<int:instance_id>", methods=["POST"])
-        def set_route(instance_id: int) -> tuple[dict[str, str], int]:
+        def set_route(instance_id: int) -> tuple[Response, int]:
             """
             Set the boat status for a specific telemetry instance.
 
@@ -124,9 +123,9 @@ class BoatStatusEndpoint:
 
             Returns
             -------
-            tuple[dict[str, str], int]
-                A tuple containing a success message and a status code of 200 if successful,
-                or an error message and a status code of 404 if the instance is not found.
+            tuple[Response, int]
+                A tuple containing a JSON response confirming the boat status has been updated successfully,
+                or an error message if the instance is not found or if the input format is invalid.
             """
 
             try:

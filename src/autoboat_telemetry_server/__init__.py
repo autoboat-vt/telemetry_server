@@ -18,8 +18,8 @@ def create_app() -> _flask:
 
     app = _flask(__name__)
 
-    # instance_dir = "/home/ubuntu/telemetry_server/src/instance"
-    instance_dir = "/Users/bwise/important_files/projects/autoboat/telemetry_server/src/instance"
+    instance_dir = "/home/ubuntu/telemetry_server/src/instance"
+    # instance_dir = "/Users/bwise/important_files/projects/autoboat/telemetry_server/src/instance"
     config_path = os.path.join(instance_dir, "config.py")
 
     app.config.from_pyfile(config_path)

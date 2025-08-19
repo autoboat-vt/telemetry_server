@@ -5,7 +5,7 @@ It includes the database schema and methods for interacting with telemetry data.
 
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy import Integer, JSON
+from sqlalchemy import Integer, String, Boolean, JSON
 from datetime import datetime
 from typing import Any
 from autoboat_telemetry_server.types import (
@@ -31,6 +31,8 @@ class TelemetryTable(db.Model):
     ----------
     instance_id : int
         Unique identifier for each telemetry instance.
+    instance_identifier : str
+        Optional identifier for the telemetry instance, can be used for custom naming.
 
     autopilot_parameters : AutopilotParametersType
         Autopilot parameters associated with the telemetry instance.
@@ -56,15 +58,16 @@ class TelemetryTable(db.Model):
     __tablename__ = "telemetry_table"
 
     instance_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    instance_identifier: Mapped[str] = mapped_column(String, default="", nullable=True)
 
     autopilot_parameters: Mapped[AutopilotParametersType] = mapped_column(JSON, nullable=False)
-    autopilot_parameters_new_flag: Mapped[bool] = mapped_column(default=False, nullable=False)
+    autopilot_parameters_new_flag: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     boat_status: Mapped[BoatStatusType] = mapped_column(JSON, nullable=False)
-    boat_status_new_flag: Mapped[bool] = mapped_column(default=False, nullable=False)
+    boat_status_new_flag: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     waypoints: Mapped[WaypointsType] = mapped_column(JSON, nullable=False)
-    waypoints_new_flag: Mapped[bool] = mapped_column(default=False, nullable=False)
+    waypoints_new_flag: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(db.DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -94,6 +97,7 @@ class TelemetryTable(db.Model):
 
         return {
             "instance_id": self.instance_id,
+            "instance_identifier": self.instance_identifier,
             "autopilot_parameters": self.autopilot_parameters,
             "boat_status": self.boat_status,
             "waypoints": self.waypoints,
