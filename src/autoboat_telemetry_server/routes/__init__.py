@@ -25,6 +25,7 @@ Instance Manager Routes:
 - `/instance_manager/set_name/<int:instance_id>/<instance_name>`: Set the name of a telemetry instance.
 - `/instance_manager/get_name/<int:instance_id>`: Get the name of a telemetry instance.
 - `/instance_manager/get_id/<instance_name>`: Get the ID of a telemetry instance by name.
+- `/instance_manager/get_instance_info/<int:instance_id>`: Get the telemetry instance information by ID.
 - `/instance_manager/get_ids`: Get all telemetry instance IDs.
 """
 

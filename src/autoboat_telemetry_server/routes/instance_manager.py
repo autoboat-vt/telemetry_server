@@ -162,6 +162,30 @@ class InstanceManagerEndpoint:
 
             return jsonify({"instance_id": telemetry_instance.instance_id}), 200
 
+        @self._blueprint.route("/get_instance_info/<int:instance_id>", methods=["GET"])
+        def get_instance_info(instance_id: int) -> Response:
+            """
+            Get detailed information about a telemetry instance by its ID.
+
+            Method: GET
+
+            Parameters
+            ----------
+            instance_id
+                The ID of the telemetry instance to retrieve information for.
+
+            Returns
+            -------
+            Response
+                A JSON response containing the instance details or an error message if the instance is not found.
+            """
+
+            telemetry_instance: TelemetryTable | None = TelemetryTable.query.get(instance_id)
+            if telemetry_instance is None:
+                return jsonify({"error": "Instance not found."}), 404
+
+            return jsonify(telemetry_instance.to_dict()), 200
+
         @self._blueprint.route("/get_ids", methods=["GET"])
         def get_ids() -> tuple[Response, int]:
             """
