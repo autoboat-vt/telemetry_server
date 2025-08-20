@@ -3,11 +3,7 @@
 import os
 from flask import Flask as _flask
 from .models import db
-from autoboat_telemetry_server.routes import (
-    AutopilotParametersEndpoint,
-    BoatStatusEndpoint,
-    WaypointEndpoint,
-)
+from autoboat_telemetry_server.routes import AutopilotParametersEndpoint, BoatStatusEndpoint, WaypointEndpoint, InstanceManagerEndpoint
 
 __all__ = ["create_app"]
 
@@ -22,16 +18,17 @@ def create_app() -> _flask:
 
     app = _flask(__name__)
 
-    INSTANCE_DIR = "/home/ubuntu/telemetry_server/src/instance"
-    CONFIG_PATH = os.path.join(INSTANCE_DIR, "config.py")
+    instance_dir = "/home/ubuntu/telemetry_server/src/instance"
+    config_path = os.path.join(instance_dir, "config.py")
 
-    app.config.from_pyfile(CONFIG_PATH)
+    app.config.from_pyfile(config_path)
 
     db.init_app(app)
 
     with app.app_context():
         db.create_all()
 
+    app.register_blueprint(InstanceManagerEndpoint().blueprint)
     app.register_blueprint(AutopilotParametersEndpoint().blueprint)
     app.register_blueprint(BoatStatusEndpoint().blueprint)
     app.register_blueprint(WaypointEndpoint().blueprint)

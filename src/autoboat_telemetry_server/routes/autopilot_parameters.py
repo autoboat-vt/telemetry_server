@@ -1,16 +1,13 @@
-from flask import request, Blueprint
+from flask import Blueprint, Response, jsonify, request
 from typing import Literal
-from autoboat_telemetry_server.models import db, AutopilotParameters
+from autoboat_telemetry_server.models import TelemetryTable, db
 
 
 class AutopilotParametersEndpoint:
     """Endpoint for handling autopilot parameters."""
 
     def __init__(self) -> None:
-        self._blueprint = Blueprint(
-            "autopilot_parameters_page", __name__, url_prefix="/autopilot_parameters"
-        )
-        self.new_flag: bool = False
+        self._blueprint = Blueprint("autopilot_parameters_page", __name__, url_prefix="/autopilot_parameters")
         self._register_routes()
 
     @property
@@ -42,66 +39,119 @@ class AutopilotParametersEndpoint:
 
             return "autopilot_parameters route testing!"
 
-        @self._blueprint.route("/get", methods=["GET"])
-        def get_route() -> dict:
+        @self._blueprint.route("/get/<int:instance_id>", methods=["GET"])
+        def get_route(instance_id: int) -> tuple[Response, int]:
             """
             Get the current autopilot parameters.
 
-            Returns
-            -------
-            dict
-                The current autopilot parameters stored in the endpoint.
-            """
+            Method: GET
 
-            entry: AutopilotParameters = AutopilotParameters.query.order_by(
-                AutopilotParameters.timestamp.desc()
-            ).first()
+            Parameters
+            ----------
+            instance_id
+                The ID of the telemetry instance to retrieve the autopilot parameters for.
 
-            return entry.to_dict() if entry else {}
-
-        @self._blueprint.route("/get_new", methods=["GET"])
-        def get_new_route() -> dict:
-            """
-            Get the latest autopilot parameters if they haven't been seen yet.
 
             Returns
             -------
-            dict
-                The latest autopilot parameters if they are new, otherwise an empty dictionary.
-            """
-
-            if self.new_flag:
-                entry: AutopilotParameters = AutopilotParameters.query.order_by(
-                    AutopilotParameters.timestamp.desc()
-                ).first()
-
-                self.new_flag = False
-                return entry.to_dict() if entry else {}
-
-            else:
-                return {}
-
-        @self._blueprint.route("/set", methods=["POST"])
-        def set_route() -> str:
-            """
-            Set the autopilot parameters from the request data.
-
-            Returns
-            -------
-            str
-                Confirmation message indicating the autopilot parameters were updated successfully.
+            tuple[Response, int]
+                A tuple containing a JSON response with the autopilot parameters for the specified telemetry instance,
+                or an error message if the instance is not found.
             """
 
             try:
-                data = request.get_json()
-                entry = AutopilotParameters(data=data)
-                db.session.add(entry)
-                db.session.commit()
-                self.new_flag = True
+                telemetry_instance: TelemetryTable | None = TelemetryTable.query.get(instance_id)
+                if telemetry_instance is None:
+                    raise ValueError("Instance not found.")
+
+                return jsonify(telemetry_instance.autopilot_parameters), 200
+
+            except ValueError as e:
+                return jsonify({"error": str(e)}), 404
 
             except Exception as e:
-                return f"autopilot_parameters not updated successfully: {e!s}"
+                return jsonify({"error": str(e)}), 500
 
-            return f"autopilot_parameters updated successfully: {entry.to_dict()}"
+        @self._blueprint.route("/get_new/<int:instance_id>", methods=["GET"])
+        def get_new_route(instance_id: int) -> tuple[Response, int]:
+            """
+            Get the latest autopilot parameters if they haven't been seen yet.
+
+            Method: GET
+
+            Parameters
+            ----------
+            instance_id
+                The ID of the telemetry instance to retrieve the new autopilot parameters for.
+
+            Returns
+            -------
+            tuple[Response, int]
+                A tuple containing a JSON response with the new autopilot parameters if available,
+                or a 204 status if no new parameters are available.
+            """
+
+            try:
+                telemetry_instance: TelemetryTable | None = TelemetryTable.query.get(instance_id)
+                if telemetry_instance is None:
+                    raise ValueError("Instance not found.")
+
+                if telemetry_instance.autopilot_parameters_new_flag is False:
+                    return jsonify(telemetry_instance.autopilot_parameters), 200
+
+                telemetry_instance.autopilot_parameters_new_flag = False
+                db.session.commit()
+
+                return jsonify(telemetry_instance.autopilot_parameters), 200
+
+            except ValueError as e:
+                return jsonify({"error": str(e)}), 404
+
+            except Exception as e:
+                return jsonify({"error": str(e)}), 500
+
+        @self._blueprint.route("/set/<int:instance_id>", methods=["POST"])
+        def set_route(instance_id: int) -> tuple[Response, int]:
+            """
+            Set the autopilot parameters from the request data.
+
+            Method: POST
+
+            Parameters
+            ----------
+            instance_id
+                The ID of the telemetry instance to set the autopilot parameters for.
+
+            Returns
+            -------
+            tuple[Response, int]
+                A tuple containing a JSON response confirming the autopilot parameters have been updated successfully,
+                or an error message if the instance is not found or if the input format is invalid.
+            """
+
+            try:
+                telemetry_instance: TelemetryTable | None = TelemetryTable.query.get(instance_id)
+                if telemetry_instance is None:
+                    raise ValueError("Instance not found.")
+
+                new_parameters = request.json.get("autopilot_parameters")
+                if not isinstance(new_parameters, dict):
+                    raise TypeError("Invalid autopilot parameters format. Expected a dictionary.")
+
+                telemetry_instance.autopilot_parameters = new_parameters
+                telemetry_instance.autopilot_parameters_new_flag = True
+                db.session.commit()
+
+                return jsonify({"message": "Autopilot parameters updated successfully."}), 200
+
+            except ValueError as e:
+                return jsonify({"error": str(e)}), 404
+
+            except TypeError as e:
+                return jsonify({"error": str(e)}), 400
+
+            except Exception as e:
+                db.session.rollback()
+                return jsonify({"error": str(e)}), 500
 
         return f"autopilot_parameters paths registered successfully: {self._blueprint.url_prefix}"
