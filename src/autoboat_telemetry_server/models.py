@@ -4,8 +4,9 @@ It includes the database schema and methods for interacting with telemetry data.
 """
 
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy import Integer, String, Boolean, JSON
+from sqlalchemy.orm import Mapped, mapped_column, Mapper
+from sqlalchemy import Integer, String, Boolean, JSON, event
+from sqlalchemy.engine import Connection
 from datetime import datetime
 from typing import Any
 from autoboat_telemetry_server.types import (
@@ -104,3 +105,32 @@ class TelemetryTable(db.Model):
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
+
+
+@event.listens_for(TelemetryTable, "after_insert")
+def set_instance_identifier(mapper: Mapper, connection: Connection, target: TelemetryTable) -> None:
+    """
+    Event listener to set the instance_identifier after a TelemetryTable row is inserted.
+
+    Parameters
+    ----------
+    mapper
+        SQLAlchemy mapper for the model.
+    connection
+        Database connection used for the update.
+    target
+        The instance of TelemetryTable that was inserted.
+
+    Returns
+    -------
+    None
+    """
+
+    new_identifier = f"Unnamed instance #{target.instance_id}"
+    if not target.instance_identifier:
+        connection.execute(
+            TelemetryTable.__table__.update()
+            .where(TelemetryTable.instance_id == target.instance_id)
+            .values(instance_identifier=new_identifier)
+        )
+        target.instance_identifier = new_identifier
