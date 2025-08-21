@@ -62,7 +62,7 @@ class WaypointEndpoint:
                 if telemetry_instance is None:
                     raise ValueError("Instance not found.")
 
-                return jsonify(telemetry_instance.waypoints), 200
+                return jsonify({"waypoints": telemetry_instance.waypoints}), 200
 
             except ValueError as e:
                 return jsonify({"error": str(e)}), 404
@@ -101,7 +101,7 @@ class WaypointEndpoint:
                 telemetry_instance.waypoints_new_flag = False
                 db.session.commit()
 
-                return jsonify(telemetry_instance.waypoints), 200
+                return jsonify({"waypoints": telemetry_instance.waypoints}), 200
 
             except ValueError as e:
                 return jsonify({"error": str(e)}), 404
