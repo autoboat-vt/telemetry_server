@@ -60,17 +60,17 @@ class AutopilotParametersEndpoint:
             """
 
             try:
-                telemetry_instance: TelemetryTable | None = TelemetryTable.query.get(instance_id)
-                if telemetry_instance is None:
-                    raise ValueError("Instance not found.")
+                telemetry_instance = TelemetryTable.query.get(instance_id)
+                if not isinstance(telemetry_instance, TelemetryTable):
+                    raise TypeError("Instance not found.")
 
                 return jsonify(telemetry_instance.autopilot_parameters), 200
 
-            except ValueError as e:
-                return jsonify({"error": str(e)}), 404
+            except TypeError as e:
+                return jsonify(str(e)), 404
 
             except Exception as e:
-                return jsonify({"error": str(e)}), 500
+                return jsonify(str(e)), 500
 
         @self._blueprint.route("/get_new/<int:instance_id>", methods=["GET"])
         def get_new_route(instance_id: int) -> tuple[Response, int]:
@@ -92,9 +92,9 @@ class AutopilotParametersEndpoint:
             """
 
             try:
-                telemetry_instance: TelemetryTable | None = TelemetryTable.query.get(instance_id)
-                if telemetry_instance is None:
-                    raise ValueError("Instance not found.")
+                telemetry_instance = TelemetryTable.query.get(instance_id)
+                if not isinstance(telemetry_instance, TelemetryTable):
+                    raise TypeError("Instance not found.")
 
                 if telemetry_instance.autopilot_parameters_new_flag is False:
                     return jsonify({}), 204
@@ -104,11 +104,11 @@ class AutopilotParametersEndpoint:
 
                 return jsonify(telemetry_instance.autopilot_parameters), 200
 
-            except ValueError as e:
-                return jsonify({"error": str(e)}), 404
+            except TypeError as e:
+                return jsonify(str(e)), 404
 
             except Exception as e:
-                return jsonify({"error": str(e)}), 500
+                return jsonify(str(e)), 500
 
         @self._blueprint.route("/get_default/<int:instance_id>", methods=["GET"])
         def get_default_route(instance_id: int) -> tuple[Response, int]:
@@ -130,17 +130,17 @@ class AutopilotParametersEndpoint:
             """
 
             try:
-                telemetry_instance: TelemetryTable | None = TelemetryTable.query.get(instance_id)
-                if telemetry_instance is None:
-                    raise ValueError("Instance not found.")
+                telemetry_instance = TelemetryTable.query.get(instance_id)
+                if not isinstance(telemetry_instance, TelemetryTable):
+                    raise TypeError("Instance not found.")
 
                 return jsonify(telemetry_instance.default_autopilot_parameters), 200
 
-            except ValueError as e:
-                return jsonify({"error": str(e)}), 404
+            except TypeError as e:
+                return jsonify(str(e)), 404
 
             except Exception as e:
-                return jsonify({"error": str(e)}), 500
+                return jsonify(str(e)), 500
 
         @self._blueprint.route("/set/<int:instance_id>", methods=["POST"])
         def set_route(instance_id: int) -> tuple[Response, int]:
@@ -162,9 +162,9 @@ class AutopilotParametersEndpoint:
             """
 
             try:
-                telemetry_instance: TelemetryTable | None = TelemetryTable.query.get(instance_id)
-                if telemetry_instance is None:
-                    raise ValueError("Instance not found.")
+                telemetry_instance = TelemetryTable.query.get(instance_id)
+                if not isinstance(telemetry_instance, TelemetryTable):
+                    raise TypeError("Instance not found.")
 
                 new_parameters = request.json.get("autopilot_parameters")
                 if not isinstance(new_parameters, dict):
@@ -185,15 +185,12 @@ class AutopilotParametersEndpoint:
 
                 return jsonify({"message": "Autopilot parameters updated successfully."}), 200
 
-            except ValueError as e:
-                return jsonify({"error": str(e)}), 404
-
             except TypeError as e:
-                return jsonify({"error": str(e)}), 400
+                return jsonify(str(e)), 400
 
             except Exception as e:
                 db.session.rollback()
-                return jsonify({"error": str(e)}), 500
+                return jsonify(str(e)), 500
 
         @self._blueprint.route("/set_default/<int:instance_id>", methods=["POST"])
         def set_default_route(instance_id: int) -> tuple[Response, int]:
@@ -215,9 +212,9 @@ class AutopilotParametersEndpoint:
             """
 
             try:
-                telemetry_instance: TelemetryTable | None = TelemetryTable.query.get(instance_id)
-                if telemetry_instance is None:
-                    raise ValueError("Instance not found.")
+                telemetry_instance = TelemetryTable.query.get(instance_id)
+                if not isinstance(telemetry_instance, TelemetryTable):
+                    raise TypeError("Instance not found.")
 
                 new_parameters = request.json.get("default_autopilot_parameters")
                 if not isinstance(new_parameters, dict):
@@ -228,14 +225,11 @@ class AutopilotParametersEndpoint:
 
                 return jsonify({"message": "Default autopilot parameters updated successfully."}), 200
 
-            except ValueError as e:
-                return jsonify({"error": str(e)}), 404
-
             except TypeError as e:
-                return jsonify({"error": str(e)}), 400
+                return jsonify(str(e)), 400
 
             except Exception as e:
                 db.session.rollback()
-                return jsonify({"error": str(e)}), 500
+                return jsonify(str(e)), 500
 
         return f"autopilot_parameters paths registered successfully: {self._blueprint.url_prefix}"

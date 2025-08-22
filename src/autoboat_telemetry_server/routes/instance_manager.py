@@ -38,16 +38,21 @@ class InstanceManagerEndpoint:
                 A tuple containing a JSON response with the new instance ID and a status code of 200.
             """
 
-            new_instance = TelemetryTable(
-                default_autopilot_parameters={},
-                autopilot_parameters={},
-                boat_status={},
-                waypoints=[],
-            )
-            db.session.add(new_instance)
-            db.session.commit()
+            try:
+                new_instance = TelemetryTable(
+                    default_autopilot_parameters={},
+                    autopilot_parameters={},
+                    boat_status={},
+                    waypoints=[],
+                )
+                db.session.add(new_instance)
+                db.session.commit()
 
-            return jsonify({"id": new_instance.instance_id}), 200
+                return jsonify(new_instance.instance_id), 200
+
+            except Exception as e:
+                db.session.rollback()
+                return jsonify(str(e)), 500
 
         @self._blueprint.route("/delete/<int:instance_id>", methods=["DELETE"])
         def delete_instance(instance_id: int) -> tuple[Response, int]:
@@ -63,20 +68,20 @@ class InstanceManagerEndpoint:
             """
 
             try:
-                instance = TelemetryTable.query.get(instance_id)
-                if not instance:
-                    raise ValueError("Instance not found.")
+                telemetry_instance = TelemetryTable.query.get(instance_id)
+                if not isinstance(telemetry_instance, TelemetryTable):
+                    raise TypeError("Instance not found.")
 
-                db.session.delete(instance)
+                db.session.delete(telemetry_instance)
                 db.session.commit()
-                return jsonify({"message": f"Successfully deleted instance {instance_id}."}), 204
+                return jsonify(f"Successfully deleted instance {instance_id}."), 204
 
-            except ValueError as e:
-                return jsonify({"error": str(e)}), 404
+            except TypeError as e:
+                return jsonify(str(e)), 404
 
             except Exception as e:
                 db.session.rollback()
-                return jsonify({"error": str(e)}), 500
+                return jsonify(str(e)), 500
 
         @self._blueprint.route("/set_name/<int:instance_id>/<instance_name>", methods=["POST"])
         def set_instance_name(instance_id: int, instance_name: str) -> tuple[Response, int]:
@@ -99,9 +104,9 @@ class InstanceManagerEndpoint:
             """
 
             try:
-                telemetry_instance: TelemetryTable | None = TelemetryTable.query.get(instance_id)
-                if telemetry_instance is None:
-                    raise ValueError("Instance not found.")
+                telemetry_instance = TelemetryTable.query.get(instance_id)
+                if not isinstance(telemetry_instance, TelemetryTable):
+                    raise TypeError("Instance not found.")
 
                 for instance in TelemetryTable.query.all():
                     if instance.instance_identifier == instance_name and instance.instance_id != instance_id:
@@ -110,14 +115,17 @@ class InstanceManagerEndpoint:
                 telemetry_instance.instance_identifier = instance_name
                 db.session.commit()
 
-                return jsonify({"message": f"Instance {instance_id} name set to {instance_name}."}), 200
+                return jsonify(f"Instance {instance_id} name set to {instance_name}."), 200
+
+            except TypeError as e:
+                return jsonify(str(e)), 404
 
             except ValueError as e:
-                return jsonify({"error": str(e)}), 404
+                return jsonify(str(e)), 400
 
             except Exception as e:
                 db.session.rollback()
-                return jsonify({"error": str(e)}), 500
+                return jsonify(str(e)), 500
 
         @self._blueprint.route("/get_name/<int:instance_id>", methods=["GET"])
         def get_instance_name(instance_id: int) -> Response:
@@ -137,11 +145,18 @@ class InstanceManagerEndpoint:
                 A JSON response containing the instance name or an error message if the instance is not found.
             """
 
-            telemetry_instance: TelemetryTable | None = TelemetryTable.query.get(instance_id)
-            if telemetry_instance is None:
-                return jsonify({"error": "Instance not found."}), 404
+            try:
+                telemetry_instance = TelemetryTable.query.get(instance_id)
+                if not isinstance(telemetry_instance, TelemetryTable):
+                    raise TypeError("Instance not found.")
 
-            return jsonify({"instance_name": telemetry_instance.instance_identifier}), 200
+                return jsonify(telemetry_instance.instance_identifier), 200
+
+            except TypeError as e:
+                return jsonify(str(e)), 404
+
+            except Exception as e:
+                return jsonify(str(e)), 500
 
         @self._blueprint.route("/get_id/<instance_name>", methods=["GET"])
         def get_instance_id(instance_name: str) -> Response:
@@ -161,11 +176,18 @@ class InstanceManagerEndpoint:
                 A JSON response containing the instance ID or an error message if the instance is not found.
             """
 
-            telemetry_instance: TelemetryTable | None = TelemetryTable.query.filter_by(instance_identifier=instance_name).first()
-            if telemetry_instance is None:
-                return jsonify({"error": "Instance not found."}), 404
+            try:
+                telemetry_instance: TelemetryTable | None = TelemetryTable.query.filter_by(instance_identifier=instance_name).first()
+                if not isinstance(telemetry_instance, TelemetryTable):
+                    raise TypeError("Instance not found.")
 
-            return jsonify({"instance_id": telemetry_instance.instance_id}), 200
+                return jsonify(telemetry_instance.instance_id), 200
+
+            except TypeError as e:
+                return jsonify(str(e)), 404
+
+            except Exception as e:
+                return jsonify(str(e)), 500
 
         @self._blueprint.route("/get_instance_info/<int:instance_id>", methods=["GET"])
         def get_instance_info(instance_id: int) -> Response:
@@ -185,11 +207,18 @@ class InstanceManagerEndpoint:
                 A JSON response containing the instance details or an error message if the instance is not found.
             """
 
-            telemetry_instance: TelemetryTable | None = TelemetryTable.query.get(instance_id)
-            if telemetry_instance is None:
-                return jsonify({"error": "Instance not found."}), 404
+            try:
+                telemetry_instance = TelemetryTable.query.get(instance_id)
+                if not isinstance(telemetry_instance, TelemetryTable):
+                    raise TypeError("Instance not found.")
 
-            return jsonify(telemetry_instance.to_dict()), 200
+                return jsonify(telemetry_instance.to_dict()), 200
+
+            except TypeError as e:
+                return jsonify(str(e)), 404
+
+            except Exception as e:
+                return jsonify(str(e)), 500
 
         @self._blueprint.route("/get_all_instance_info", methods=["GET"])
         def get_all_instance_info() -> Response:
@@ -204,10 +233,14 @@ class InstanceManagerEndpoint:
                 A JSON response containing the details of all instances.
             """
 
-            telemetry_instances = TelemetryTable.query.all()
-            instances_info = [instance.to_dict() for instance in telemetry_instances]
+            try:
+                telemetry_instances = TelemetryTable.query.all()
+                instances_info = [instance.to_dict() for instance in telemetry_instances]
 
-            return jsonify({"instances": instances_info}), 200
+                return jsonify(instances_info), 200
+
+            except Exception as e:
+                return jsonify(str(e)), 500
 
         @self._blueprint.route("/get_ids", methods=["GET"])
         def get_ids() -> tuple[Response, int]:
@@ -222,6 +255,10 @@ class InstanceManagerEndpoint:
                 A tuple containing a JSON response with a list of IDs and a 200 status.
             """
 
-            return jsonify({"ids": TelemetryTable.get_all_ids()}), 200
+            try:
+                return jsonify(TelemetryTable.get_all_ids()), 200
+
+            except Exception as e:
+                return jsonify(str(e)), 500
 
         return f"instance_manager routes registered successfully: {self._blueprint.url_prefix}"

@@ -58,17 +58,17 @@ class WaypointEndpoint:
             """
 
             try:
-                telemetry_instance: TelemetryTable | None = TelemetryTable.query.get(instance_id)
-                if telemetry_instance is None:
-                    raise ValueError("Instance not found.")
+                telemetry_instance = TelemetryTable.query.get(instance_id)
+                if not isinstance(telemetry_instance, TelemetryTable):
+                    raise TypeError("Instance not found.")
 
-                return jsonify({"waypoints": telemetry_instance.waypoints}), 200
+                return jsonify(telemetry_instance.waypoints), 200
 
-            except ValueError as e:
-                return jsonify({"error": str(e)}), 404
+            except TypeError as e:
+                return jsonify(str(e)), 404
 
             except Exception as e:
-                return jsonify({"error": str(e)}), 500
+                return jsonify(str(e)), 500
 
         @self._blueprint.route("/get_new/<int:instance_id>", methods=["GET"])
         def get_new_route(instance_id: int) -> tuple[Response, int]:
@@ -91,9 +91,9 @@ class WaypointEndpoint:
             """
 
             try:
-                telemetry_instance: TelemetryTable | None = TelemetryTable.query.get(instance_id)
-                if telemetry_instance is None:
-                    raise ValueError("Instance not found.")
+                telemetry_instance = TelemetryTable.query.get(instance_id)
+                if not isinstance(telemetry_instance, TelemetryTable):
+                    raise TypeError("Instance not found.")
 
                 if telemetry_instance.waypoints_new_flag is False:
                     return jsonify({}), 204
@@ -101,13 +101,13 @@ class WaypointEndpoint:
                 telemetry_instance.waypoints_new_flag = False
                 db.session.commit()
 
-                return jsonify({"waypoints": telemetry_instance.waypoints}), 200
+                return jsonify(telemetry_instance.waypoints), 200
 
-            except ValueError as e:
-                return jsonify({"error": str(e)}), 404
+            except TypeError as e:
+                return jsonify(str(e)), 404
 
             except Exception as e:
-                return jsonify({"error": str(e)}), 500
+                return jsonify(str(e)), 500
 
         @self._blueprint.route("/set/<int:instance_id>", methods=["POST"])
         def set_route(instance_id: int) -> tuple[Response, int]:
@@ -129,11 +129,11 @@ class WaypointEndpoint:
             """
 
             try:
-                telemetry_instance: TelemetryTable | None = TelemetryTable.query.get(instance_id)
-                if telemetry_instance is None:
-                    raise ValueError("Instance not found.")
+                telemetry_instance = TelemetryTable.query.get(instance_id)
+                if not isinstance(telemetry_instance, TelemetryTable):
+                    raise TypeError("Instance not found.")
 
-                waypoints_data = request.json.get("waypoints", [])
+                waypoints_data = request.json
                 if not isinstance(waypoints_data, list):
                     raise TypeError("Invalid waypoints data format. Expected a list.")
 
@@ -143,14 +143,11 @@ class WaypointEndpoint:
 
                 return jsonify({"message": "Waypoints updated successfully."}), 200
 
-            except ValueError as e:
-                return jsonify({"error": str(e)}), 404
-
             except TypeError as e:
-                return jsonify({"error": str(e)}), 400
+                return jsonify(str(e)), 400
 
             except Exception as e:
                 db.session.rollback()
-                return jsonify({"error": str(e)}), 500
+                return jsonify(str(e)), 500
 
         return f"waypoints paths registered successfully: {self._blueprint.url_prefix}"
