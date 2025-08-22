@@ -35,6 +35,8 @@ class TelemetryTable(db.Model):
     instance_identifier : str
         Optional identifier for the telemetry instance, can be used for custom naming.
 
+    default_autopilot_parameters : AutopilotParametersType
+        Default autopilot parameters for the telemetry instance.
     autopilot_parameters : AutopilotParametersType
         Autopilot parameters associated with the telemetry instance.
     autopilot_parameters_new_flag : bool
@@ -61,6 +63,7 @@ class TelemetryTable(db.Model):
     instance_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     instance_identifier: Mapped[str] = mapped_column(String, default="", nullable=True)
 
+    default_autopilot_parameters: Mapped[AutopilotParametersType] = mapped_column(JSON, nullable=False)
     autopilot_parameters: Mapped[AutopilotParametersType] = mapped_column(JSON, nullable=False)
     autopilot_parameters_new_flag: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 

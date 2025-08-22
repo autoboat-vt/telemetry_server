@@ -5,7 +5,9 @@ Autopilot Routes:
 - `/autopilot_parameters/test`: Test route for autopilot parameters.
 - `/autopilot_parameters/get/<int:instance_id>`: Get the current autopilot parameters.
 - `/autopilot_parameters/get_new/<int:instance_id>`: Get the latest autopilot parameters if they haven't been seen yet.
+- `/autopilot_parameters/get_default/<int:instance_id>`: Get the default autopilot parameters.
 - `/autopilot_parameters/set/<int:instance_id>`: Set the autopilot parameters from the request data.
+- `/autopilot_parameters/set_default/<int:instance_id>`: Set the default autopilot parameters from the request data.
 
 Boat Status Routes:
 - `/boat_status/test`: Test route for boat status.
@@ -26,6 +28,7 @@ Instance Manager Routes:
 - `/instance_manager/get_name/<int:instance_id>`: Get the name of a telemetry instance.
 - `/instance_manager/get_id/<instance_name>`: Get the ID of a telemetry instance by name.
 - `/instance_manager/get_instance_info/<int:instance_id>`: Get the telemetry instance information by ID.
+- `/instance_manager/get_all_instance_info`: Get information for all telemetry instances.
 - `/instance_manager/get_ids`: Get all telemetry instance IDs.
 """
 

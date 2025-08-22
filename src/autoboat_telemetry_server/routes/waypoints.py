@@ -96,7 +96,7 @@ class WaypointEndpoint:
                     raise ValueError("Instance not found.")
 
                 if telemetry_instance.waypoints_new_flag is False:
-                    return jsonify({}), 200
+                    return jsonify({}), 204
 
                 telemetry_instance.waypoints_new_flag = False
                 db.session.commit()

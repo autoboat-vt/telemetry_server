@@ -97,12 +97,44 @@ class AutopilotParametersEndpoint:
                     raise ValueError("Instance not found.")
 
                 if telemetry_instance.autopilot_parameters_new_flag is False:
-                    return jsonify(telemetry_instance.autopilot_parameters), 200
+                    return jsonify({}), 204
 
                 telemetry_instance.autopilot_parameters_new_flag = False
                 db.session.commit()
 
                 return jsonify(telemetry_instance.autopilot_parameters), 200
+
+            except ValueError as e:
+                return jsonify({"error": str(e)}), 404
+
+            except Exception as e:
+                return jsonify({"error": str(e)}), 500
+
+        @self._blueprint.route("/get_default/<int:instance_id>", methods=["GET"])
+        def get_default_route(instance_id: int) -> tuple[Response, int]:
+            """
+            Get the default autopilot parameters.
+
+            Method: GET
+
+            Parameters
+            ----------
+            instance_id
+                The ID of the telemetry instance to retrieve the default autopilot parameters for.
+
+            Returns
+            -------
+            tuple[Response, int]
+                A tuple containing a JSON response with the default autopilot parameters for the specified telemetry instance,
+                or an error message if the instance is not found.
+            """
+
+            try:
+                telemetry_instance: TelemetryTable | None = TelemetryTable.query.get(instance_id)
+                if telemetry_instance is None:
+                    raise ValueError("Instance not found.")
+
+                return jsonify(telemetry_instance.default_autopilot_parameters), 200
 
             except ValueError as e:
                 return jsonify({"error": str(e)}), 404
@@ -138,11 +170,63 @@ class AutopilotParametersEndpoint:
                 if not isinstance(new_parameters, dict):
                     raise TypeError("Invalid autopilot parameters format. Expected a dictionary.")
 
-                telemetry_instance.autopilot_parameters = new_parameters
+                new_parameters_keys = list(new_parameters.keys())
+                if len(new_parameters_keys) == 1 and new_parameters_keys[0] in telemetry_instance.default_autopilot_parameters:
+                    telemetry_instance.autopilot_parameters[new_parameters_keys[0]] = new_parameters[new_parameters_keys[0]]
+
+                elif new_parameters_keys == list(telemetry_instance.default_autopilot_parameters.keys()):
+                    telemetry_instance.autopilot_parameters = new_parameters
+
+                else:
+                    raise ValueError("Invalid keys in autopilot parameters.")
+
                 telemetry_instance.autopilot_parameters_new_flag = True
                 db.session.commit()
 
                 return jsonify({"message": "Autopilot parameters updated successfully."}), 200
+
+            except ValueError as e:
+                return jsonify({"error": str(e)}), 404
+
+            except TypeError as e:
+                return jsonify({"error": str(e)}), 400
+
+            except Exception as e:
+                db.session.rollback()
+                return jsonify({"error": str(e)}), 500
+
+        @self._blueprint.route("/set_default/<int:instance_id>", methods=["POST"])
+        def set_default_route(instance_id: int) -> tuple[Response, int]:
+            """
+            Set the default autopilot parameters from the request data.
+
+            Method: POST
+
+            Parameters
+            ----------
+            instance_id
+                The ID of the telemetry instance to set the default autopilot parameters for.
+
+            Returns
+            -------
+            tuple[Response, int]
+                A tuple containing a JSON response confirming the default autopilot parameters have been updated successfully,
+                or an error message if the instance is not found or if the input format is invalid.
+            """
+
+            try:
+                telemetry_instance: TelemetryTable | None = TelemetryTable.query.get(instance_id)
+                if telemetry_instance is None:
+                    raise ValueError("Instance not found.")
+
+                new_parameters = request.json.get("default_autopilot_parameters")
+                if not isinstance(new_parameters, dict):
+                    raise TypeError("Invalid default autopilot parameters format. Expected a dictionary.")
+
+                telemetry_instance.default_autopilot_parameters = new_parameters
+                db.session.commit()
+
+                return jsonify({"message": "Default autopilot parameters updated successfully."}), 200
 
             except ValueError as e:
                 return jsonify({"error": str(e)}), 404

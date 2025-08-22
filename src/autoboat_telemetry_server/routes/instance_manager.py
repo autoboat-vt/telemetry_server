@@ -186,6 +186,24 @@ class InstanceManagerEndpoint:
 
             return jsonify(telemetry_instance.to_dict()), 200
 
+        @self._blueprint.route("/get_all_instance_info", methods=["GET"])
+        def get_all_instance_info() -> Response:
+            """
+            Get detailed information about all telemetry instances.
+
+            Method: GET
+
+            Returns
+            -------
+            Response
+                A JSON response containing the details of all instances.
+            """
+
+            telemetry_instances = TelemetryTable.query.all()
+            instances_info = [instance.to_dict() for instance in telemetry_instances]
+
+            return jsonify({"instances": instances_info}), 200
+
         @self._blueprint.route("/get_ids", methods=["GET"])
         def get_ids() -> tuple[Response, int]:
             """
