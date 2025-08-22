@@ -35,14 +35,19 @@ class InstanceManagerEndpoint:
             Returns
             -------
             tuple[Response, int]
-                A tuple containing a JSON response with the new instance ID and a status code of 201.
+                A tuple containing a JSON response with the new instance ID and a status code of 200.
             """
 
-            new_instance = TelemetryTable()
+            new_instance = TelemetryTable(
+                default_autopilot_parameters={},
+                autopilot_parameters={},
+                boat_status={},
+                waypoints=[],
+            )
             db.session.add(new_instance)
             db.session.commit()
 
-            return jsonify({"id": new_instance.instance_id}), 201
+            return jsonify({"id": new_instance.instance_id}), 200
 
         @self._blueprint.route("/delete/<int:instance_id>", methods=["DELETE"])
         def delete_instance(instance_id: int) -> tuple[Response, int]:

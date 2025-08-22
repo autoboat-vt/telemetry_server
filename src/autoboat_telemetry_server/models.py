@@ -63,14 +63,14 @@ class TelemetryTable(db.Model):
     instance_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     instance_identifier: Mapped[str] = mapped_column(String, default="", nullable=True)
 
-    default_autopilot_parameters: Mapped[AutopilotParametersType] = mapped_column(JSON, default={}, nullable=False)
-    autopilot_parameters: Mapped[AutopilotParametersType] = mapped_column(JSON, default={}, nullable=False)
+    default_autopilot_parameters: Mapped[AutopilotParametersType] = mapped_column(JSON, nullable=False)
+    autopilot_parameters: Mapped[AutopilotParametersType] = mapped_column(JSON, nullable=False)
     autopilot_parameters_new_flag: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
-    boat_status: Mapped[BoatStatusType] = mapped_column(JSON, default={}, nullable=False)
+    boat_status: Mapped[BoatStatusType] = mapped_column(JSON, nullable=False)
     boat_status_new_flag: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
-    waypoints: Mapped[WaypointsType] = mapped_column(JSON, default=[], nullable=False)
+    waypoints: Mapped[WaypointsType] = mapped_column(JSON, nullable=False)
     waypoints_new_flag: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(db.DateTime, default=datetime.utcnow)
