@@ -38,7 +38,7 @@ class InstanceManagerEndpoint:
                 A tuple containing a JSON response with the new instance ID and a status code of 201.
             """
 
-            new_instance = TelemetryTable(autopilot_parameters={}, boat_status={}, waypoints=[])
+            new_instance = TelemetryTable()
             db.session.add(new_instance)
             db.session.commit()
 
