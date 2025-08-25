@@ -87,7 +87,7 @@ class WaypointEndpoint:
             -------
             tuple[Response, int]
                 A tuple containing a JSON response with the waypoints for the specified telemetry instance,
-                or an empty response if there are no new waypoints.
+                or an empty dictionary if there are no new waypoints, or an error message if the instance is not found.
             """
 
             try:
@@ -96,7 +96,7 @@ class WaypointEndpoint:
                     raise TypeError("Instance not found.")
 
                 if telemetry_instance.waypoints_new_flag is False:
-                    return jsonify({}), 204
+                    return jsonify({}), 200
 
                 telemetry_instance.waypoints_new_flag = False
                 db.session.commit()

@@ -86,8 +86,8 @@ class BoatStatusEndpoint:
             Returns
             -------
             tuple[Response, int]
-                A tuple containing a JSON response with the new boat status if available,
-                or a 204 status if no new status is available.
+                A tuple containing a JSON response with the boat status for the specified telemetry instance,
+                or an empty dictionary if there is no new boat status, or an error message if the instance is not found.
             """
 
             try:
@@ -96,7 +96,7 @@ class BoatStatusEndpoint:
                     raise TypeError("Instance not found.")
 
                 if telemetry_instance.boat_status_new_flag is False:
-                    return jsonify({}), 204
+                    return jsonify({}), 200
 
                 telemetry_instance.boat_status_new_flag = False
                 db.session.commit()

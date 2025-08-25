@@ -87,8 +87,8 @@ class AutopilotParametersEndpoint:
             Returns
             -------
             tuple[Response, int]
-                A tuple containing a JSON response with the new autopilot parameters if available,
-                or a 204 status if no new parameters are available.
+                A tuple containing a JSON response with the new autopilot parameters for the specified telemetry instance,
+                or an empty dictionary if there are no new parameters, or an error message if the instance is not found.
             """
 
             try:
@@ -97,7 +97,7 @@ class AutopilotParametersEndpoint:
                     raise TypeError("Instance not found.")
 
                 if telemetry_instance.autopilot_parameters_new_flag is False:
-                    return jsonify({}), 204
+                    return jsonify({}), 200
 
                 telemetry_instance.autopilot_parameters_new_flag = False
                 db.session.commit()
