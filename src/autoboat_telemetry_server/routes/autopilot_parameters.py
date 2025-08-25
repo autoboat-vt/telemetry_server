@@ -166,7 +166,7 @@ class AutopilotParametersEndpoint:
                 if not isinstance(telemetry_instance, TelemetryTable):
                     raise TypeError("Instance not found.")
 
-                new_parameters = request.json.get("autopilot_parameters")
+                new_parameters = request.json
                 if not isinstance(new_parameters, dict):
                     raise TypeError("Invalid autopilot parameters format. Expected a dictionary.")
 
@@ -216,7 +216,7 @@ class AutopilotParametersEndpoint:
                 if not isinstance(telemetry_instance, TelemetryTable):
                     raise TypeError("Instance not found.")
 
-                new_parameters = request.json.get("default_autopilot_parameters")
+                new_parameters = request.json
                 if not isinstance(new_parameters, dict):
                     raise TypeError("Invalid default autopilot parameters format. Expected a dictionary.")
 
