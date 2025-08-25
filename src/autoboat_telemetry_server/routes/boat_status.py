@@ -133,7 +133,7 @@ class BoatStatusEndpoint:
                 if not isinstance(telemetry_instance, TelemetryTable):
                     raise TypeError("Instance not found.")
 
-                new_status = request.json.get("boat_status")
+                new_status = request.json
                 if not isinstance(new_status, dict):
                     raise TypeError("Invalid boat status format. Expected a dictionary.")
 
