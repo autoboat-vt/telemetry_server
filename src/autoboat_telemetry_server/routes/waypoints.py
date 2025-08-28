@@ -141,7 +141,7 @@ class WaypointEndpoint:
                 telemetry_instance.waypoints_new_flag = True
                 db.session.commit()
 
-                return jsonify({"message": "Waypoints updated successfully."}), 200
+                return jsonify("Waypoints updated successfully."), 200
 
             except TypeError as e:
                 return jsonify(str(e)), 400

@@ -141,7 +141,7 @@ class BoatStatusEndpoint:
                 telemetry_instance.boat_status_new_flag = True
                 db.session.commit()
 
-                return jsonify({"message": "Boat status updated successfully."}), 200
+                return jsonify("Boat status updated successfully."), 200
 
             except TypeError as e:
                 return jsonify(str(e)), 400

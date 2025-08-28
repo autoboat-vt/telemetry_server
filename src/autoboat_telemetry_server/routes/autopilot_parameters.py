@@ -170,20 +170,24 @@ class AutopilotParametersEndpoint:
                 if not isinstance(new_parameters, dict):
                     raise TypeError("Invalid autopilot parameters format. Expected a dictionary.")
 
-                new_parameters_keys = list(new_parameters.keys())
-                if len(new_parameters_keys) == 1 and new_parameters_keys[0] in telemetry_instance.default_autopilot_parameters:
-                    telemetry_instance.autopilot_parameters[new_parameters_keys[0]] = new_parameters[new_parameters_keys[0]]
+                if telemetry_instance.default_autopilot_parameters != {}:
+                    new_parameters_keys = list(new_parameters.keys())
+                    if len(new_parameters_keys) == 1 and new_parameters_keys[0] in telemetry_instance.default_autopilot_parameters:
+                        telemetry_instance.autopilot_parameters[new_parameters_keys[0]] = new_parameters[new_parameters_keys[0]]
 
-                elif new_parameters_keys == list(telemetry_instance.default_autopilot_parameters.keys()):
-                    telemetry_instance.autopilot_parameters = new_parameters
+                    elif new_parameters_keys == list(telemetry_instance.default_autopilot_parameters.keys()):
+                        telemetry_instance.autopilot_parameters = new_parameters
+
+                    else:
+                        raise ValueError("Invalid keys in autopilot parameters.")
 
                 else:
-                    raise ValueError("Invalid keys in autopilot parameters.")
+                    telemetry_instance.autopilot_parameters = new_parameters
 
                 telemetry_instance.autopilot_parameters_new_flag = True
                 db.session.commit()
 
-                return jsonify({"message": "Autopilot parameters updated successfully."}), 200
+                return jsonify("Autopilot parameters updated successfully."), 200
 
             except TypeError as e:
                 return jsonify(str(e)), 400
@@ -220,10 +224,18 @@ class AutopilotParametersEndpoint:
                 if not isinstance(new_parameters, dict):
                     raise TypeError("Invalid default autopilot parameters format. Expected a dictionary.")
 
+                if new_parameters != {}:
+                    filtered_autopilot_parameters = {}
+                    for key in new_parameters:
+                        if key in telemetry_instance.default_autopilot_parameters:
+                            filtered_autopilot_parameters[key] = new_parameters[key]
+
+                    telemetry_instance.autopilot_parameters = filtered_autopilot_parameters
+
                 telemetry_instance.default_autopilot_parameters = new_parameters
                 db.session.commit()
 
-                return jsonify({"message": "Default autopilot parameters updated successfully."}), 200
+                return jsonify("Default autopilot parameters updated successfully."), 200
 
             except TypeError as e:
                 return jsonify(str(e)), 400
