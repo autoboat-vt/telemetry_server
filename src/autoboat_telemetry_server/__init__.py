@@ -2,7 +2,6 @@
 
 import os
 from flask import Flask as _flask
-from typing import Literal
 from autoboat_telemetry_server.routes import AutopilotParametersEndpoint, BoatStatusEndpoint, WaypointEndpoint
 
 __all__ = ["create_app"]
@@ -30,16 +29,16 @@ def create_app() -> _flask:
     app.register_blueprint(WaypointEndpoint().blueprint)
 
     @app.route("/")
-    def index() -> Literal["Autoboat Telemetry Server is running."]:
+    def index() -> str:
         """
         Root route for the telemetry server.
 
         Returns
         -------
-        Literal["Autoboat Telemetry Server is running."]
-            Confirmation message indicating the server is running.
+        str
+            Confirmation message indicating which server is running.
         """
 
-        return "Autoboat Telemetry Server is running."
+        return "This is the production telemetry server. It is running!"
 
     return app

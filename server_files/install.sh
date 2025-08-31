@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 set -e
 
+# ------------------------
+# System update + packages
+# ------------------------
 sudo apt update && sudo apt upgrade -y
+sudo apt install -y nginx supervisor certbot python3 python3-venv python3-certbot-nginx git
 
-# install necessary packages
-sudo apt install -y nginx supervisor certbot python3 python3-venv python3-certbot-nginx
-
-# initial config for nginx to get ssl working
+# ------------------------
+# Nginx initial config
+# ------------------------
 sudo cp ~/telemetry_server/server_files/nginx_autoboat_nossl.conf /etc/nginx/sites-available/
 if [ ! -L /etc/nginx/sites-enabled/nginx_autoboat.conf ]; then
   sudo ln -s /etc/nginx/sites-available/nginx_autoboat_nossl.conf /etc/nginx/sites-enabled/nginx_autoboat.conf
@@ -14,16 +17,22 @@ fi
 sudo nginx -t
 sudo systemctl reload nginx
 
-# generate SSL certificates using certbot
+# ------------------------
+# SSL certificates
+# ------------------------
 sudo certbot --nginx -d vt-autoboat-telemetry.uk -d www.vt-autoboat-telemetry.uk --non-interactive --agree-tos --email autoboat@vt.edu
 
-# update nginx configuration for SSL
+# ------------------------
+# Update Nginx for SSL
+# ------------------------
 sudo cp ~/telemetry_server/server_files/nginx_autoboat_ssl.conf /etc/nginx/sites-available/
 sudo ln -sf /etc/nginx/sites-available/nginx_autoboat_ssl.conf /etc/nginx/sites-enabled/nginx_autoboat.conf
 sudo nginx -t
 sudo systemctl reload nginx
 
-# create a virtual environment for the Python application and install packages
+# ------------------------
+# Python virtual envs + install
+# ------------------------
 (
   python3 -m venv ~/telemetry_server/venv
   source ~/telemetry_server/venv/bin/activate
@@ -32,7 +41,9 @@ sudo systemctl reload nginx
   deactivate
 )
 
-# also set up the testing instance
+# ------------------------
+# Testing branch setup
+# ------------------------
 if [ ! -d ~/telemetry_server_testing ]; then
   git clone https://github.com/autoboat-vt/telemetry_server ~/telemetry_server_testing
   cd ~/telemetry_server_testing
@@ -46,24 +57,23 @@ if [ ! -d ~/telemetry_server_testing ]; then
   )
 fi
 
-# ensure supervisor is enabled and started
-sudo systemctl enable supervisor
-sudo systemctl start supervisor
-
+# ------------------------
+# Permissions
+# ------------------------
 sudo chown -R ubuntu:ubuntu /home/ubuntu/telemetry_server/src/instance
 sudo chmod 755 /home/ubuntu/telemetry_server/src/instance
-
 sudo chown -R ubuntu:ubuntu /home/ubuntu/telemetry_server_testing/src/instance
 sudo chmod 755 /home/ubuntu/telemetry_server_testing/src/instance
 
-# configure supervisor
+# ------------------------
+# Supervisor setup
+# ------------------------
+sudo systemctl enable supervisor
+sudo systemctl start supervisor
 
-# check if running already
-if sudo supervisorctl status | grep -q 'telemetry_server'; then
-  echo "Stopping existing telemetry_server instances..."
-  sudo supervisorctl stop telemetry_server
-  sudo supervisorctl stop telemetry_server_testing
-fi
+# stop any running instances
+sudo supervisorctl stop telemetry_server || true
+sudo supervisorctl stop telemetry_server_testing || true
 
 sudo cp ~/telemetry_server/server_files/supervisor_autoboat.conf /etc/supervisor/conf.d/
 sudo supervisorctl reread
@@ -71,7 +81,10 @@ sudo supervisorctl update
 sudo supervisorctl start telemetry_server
 sudo supervisorctl start telemetry_server_testing
 
-echo "Installation complete. Please check the status of the services."
+# ------------------------
+# Final status
+# ------------------------
+echo "Installation complete. Services running:"
 sudo systemctl status nginx
 sudo supervisorctl status telemetry_server
 sudo supervisorctl status telemetry_server_testing
