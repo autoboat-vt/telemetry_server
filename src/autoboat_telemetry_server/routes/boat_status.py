@@ -30,6 +30,8 @@ class BoatStatusEndpoint:
             """
             Test route for boat status.
 
+            Method: GET
+
             Returns
             -------
             Literal["boat_status route testing!"]

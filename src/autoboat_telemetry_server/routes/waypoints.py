@@ -30,6 +30,8 @@ class WaypointEndpoint:
             """
             Test route for waypoints.
 
+            Method: GET
+
             Returns
             -------
             Literal["waypoints route testing!"]

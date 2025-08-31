@@ -31,6 +31,8 @@ class AutopilotParametersEndpoint:
             """
             Test route for autopilot parameters.
 
+            Method: GET
+
             Returns
             -------
             Literal["autopilot_parameters route testing!"]
@@ -50,7 +52,6 @@ class AutopilotParametersEndpoint:
             ----------
             instance_id
                 The ID of the telemetry instance to retrieve the autopilot parameters for.
-
 
             Returns
             -------
@@ -192,6 +193,9 @@ class AutopilotParametersEndpoint:
             except TypeError as e:
                 return jsonify(str(e)), 400
 
+            except ValueError as e:
+                return jsonify(str(e)), 400
+
             except Exception as e:
                 db.session.rollback()
                 return jsonify(str(e)), 500
@@ -224,6 +228,7 @@ class AutopilotParametersEndpoint:
                 if not isinstance(new_parameters, dict):
                     raise TypeError("Invalid default autopilot parameters format. Expected a dictionary.")
 
+                # if default parameters are being updated, remove any existing keys that will no longer be valid
                 if new_parameters != {}:
                     filtered_autopilot_parameters = {}
                     for key in new_parameters:
