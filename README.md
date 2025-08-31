@@ -6,10 +6,15 @@ A lightweight Flask-based web server to collect, display, and manage telemetry d
 
 ```txt
 autoboat_telemetry_server/
-├── init.py                   # App factory
-├── _autopilot_parameters.py  # Blueprint: autopilot params
-├── _boat_status.py           # Blueprint: boat status
-├── _waypoints.py             # Blueprint: waypoints
+├── __init__.py                   # App factory
+├── routes
+    ├── __init__.py               # Routes initialization
+    ├── autopilot_parameters.py   # Autopilot parameters routes
+    ├── boat_status.py            # Boat status routes
+    ├── waypoints.py              # Waypoints management routes
+
+instance/
+    ├── config.py                 # Configuration file
 ```
 
 ## 🚀 Quick Start
