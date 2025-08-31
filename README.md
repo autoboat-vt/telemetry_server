@@ -50,6 +50,5 @@ pip install -e .
 ```bash
 git clone https://github.com/autoboat-vt/telemetry_server
 cd telemetry_server
-chmod +x server_files/install.sh
 ./server_files/install.sh
 ```
