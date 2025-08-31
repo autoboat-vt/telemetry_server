@@ -57,6 +57,14 @@ sudo chown -R ubuntu:ubuntu /home/ubuntu/telemetry_server_testing/src/instance
 sudo chmod 755 /home/ubuntu/telemetry_server_testing/src/instance
 
 # configure supervisor
+
+# check if running already
+if sudo supervisorctl status | grep -q 'telemetry_server'; then
+  echo "Stopping existing telemetry_server instances..."
+  sudo supervisorctl stop telemetry_server
+  sudo supervisorctl stop telemetry_server_testing
+fi
+
 sudo cp ~/telemetry_server/server_files/supervisor_autoboat.conf /etc/supervisor/conf.d/
 sudo supervisorctl reread
 sudo supervisorctl update
