@@ -36,6 +36,9 @@ sudo systemctl reload nginx
 sudo systemctl enable supervisor
 sudo systemctl start supervisor
 
+sudo chown -R ubuntu:ubuntu /home/ubuntu/telemetry_server/src/instance
+sudo chmod 755 /home/ubuntu/telemetry_server/src/instance
+
 # configure supervisor
 sudo cp ~/telemetry_server/server_files/supervisor_autoboat.conf /etc/supervisor/conf.d/
 sudo supervisorctl reread

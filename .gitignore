@@ -2,7 +2,6 @@
 **/__pycache__/**
 *.pyc
 .python-version
-instance
 build
 *.egg-info
 venv
