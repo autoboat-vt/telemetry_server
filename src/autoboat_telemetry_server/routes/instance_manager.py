@@ -83,6 +83,28 @@ class InstanceManagerEndpoint:
                 db.session.rollback()
                 return jsonify(str(e)), 500
 
+        @self._blueprint.route("/delete_all", methods=["DELETE"])
+        def delete_all_instances() -> tuple[Response, int]:
+            """
+            Delete all telemetry instances.
+
+            Method: DELETE
+
+            Returns
+            -------
+            tuple[Response, int]
+                A tuple containing a JSON response with confirmation or error message and a status code.
+            """
+
+            try:
+                num_deleted = db.session.query(TelemetryTable).delete()
+                db.session.commit()
+                return jsonify(f"Successfully deleted {num_deleted} instances."), 204
+
+            except Exception as e:
+                db.session.rollback()
+                return jsonify(str(e)), 500
+
         @self._blueprint.route("/set_name/<int:instance_id>/<instance_name>", methods=["POST"])
         def set_instance_name(instance_id: int, instance_name: str) -> tuple[Response, int]:
             """
