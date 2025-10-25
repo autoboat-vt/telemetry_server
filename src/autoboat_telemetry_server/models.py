@@ -7,7 +7,7 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import Mapped, mapped_column, Mapper
 from sqlalchemy import Integer, String, Boolean, JSON, event
 from sqlalchemy.engine import Connection
-from datetime import datetime
+from datetime import datetime, timezone, UTC
 from typing import Any
 from autoboat_telemetry_server.types import (
     AutopilotParametersType,
@@ -73,8 +73,10 @@ class TelemetryTable(db.Model):
     waypoints: Mapped[WaypointsType] = mapped_column(JSON, nullable=False)
     waypoints_new_flag: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
-    created_at: Mapped[datetime] = mapped_column(db.DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(db.DateTime, default=datetime.now(tz=UTC), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        db.DateTime, default=datetime.now(tz=UTC), onupdate=datetime.now(tz=UTC), nullable=False
+    )
 
     @classmethod
     def get_all_ids(cls) -> list[int]:
