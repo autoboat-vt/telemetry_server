@@ -145,6 +145,37 @@ class InstanceManagerEndpoint:
                 db.session.rollback()
                 return jsonify(str(e)), 500
 
+        @self._blueprint.route("/get_user/<int:instance_id>", methods=["GET"])
+        def get_instance_user(instance_id: int) -> Response:
+            """
+            Get the user of a telemetry instance by its ID.
+
+            Method: GET
+
+            Parameters
+            ----------
+            instance_id
+                The ID of the telemetry instance to retrieve the user for.
+
+            Returns
+            -------
+            Response
+                A JSON response containing the instance user or an error message if the instance is not found.
+            """
+
+            try:
+                telemetry_instance = TelemetryTable.query.get(instance_id)
+                if not isinstance(telemetry_instance, TelemetryTable):
+                    raise TypeError("Instance not found.")
+
+                return jsonify(telemetry_instance.user), 200
+
+            except TypeError as e:
+                return jsonify(str(e)), 404
+
+            except Exception as e:
+                return jsonify(str(e)), 500
+
         @self._blueprint.route("/set_name/<int:instance_id>/<instance_name>", methods=["POST"])
         def set_instance_name(instance_id: int, instance_name: str) -> tuple[Response, int]:
             """
