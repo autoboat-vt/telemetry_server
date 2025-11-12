@@ -105,6 +105,46 @@ class InstanceManagerEndpoint:
                 db.session.rollback()
                 return jsonify(str(e)), 500
 
+        @self._blueprint.route("/set_user/<int:instance_id>/<user_name>", methods=["POST"])
+        def set_instance_user(instance_id: int, user_name: str) -> tuple[Response, int]:
+            """
+            Set the user of a telemetry instance.
+
+            Method: POST
+
+            Parameters
+            ----------
+            instance_id
+                The ID of the telemetry instance to set the user for.
+            user_name
+                The user name to assign to the telemetry instance.
+
+            Returns
+            -------
+            tuple[Response, int]
+                A tuple containing a JSON response confirming the user has been set and a status code of 200.
+            """
+
+            try:
+                telemetry_instance = TelemetryTable.query.get(instance_id)
+                if not isinstance(telemetry_instance, TelemetryTable):
+                    raise TypeError("Instance not found.")
+
+                telemetry_instance.user = user_name
+                db.session.commit()
+
+                return jsonify(f"Instance {instance_id} user set to {user_name}."), 200
+
+            except TypeError as e:
+                return jsonify(str(e)), 404
+
+            except ValueError as e:
+                return jsonify(str(e)), 400
+
+            except Exception as e:
+                db.session.rollback()
+                return jsonify(str(e)), 500
+
         @self._blueprint.route("/set_name/<int:instance_id>/<instance_name>", methods=["POST"])
         def set_instance_name(instance_id: int, instance_name: str) -> tuple[Response, int]:
             """

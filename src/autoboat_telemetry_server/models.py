@@ -4,10 +4,10 @@ It includes the database schema and methods for interacting with telemetry data.
 """
 
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy.orm import Mapped, mapped_column, Mapper
+from sqlalchemy.orm import Mapped, mapped_column, Mapper, validates
 from sqlalchemy import Integer, String, Boolean, JSON, event
 from sqlalchemy.engine import Connection
-from datetime import datetime, timezone, UTC
+from datetime import datetime, UTC
 from typing import Any
 from autoboat_telemetry_server.types import (
     AutopilotParametersType,
@@ -34,6 +34,10 @@ class TelemetryTable(db.Model):
         Unique identifier for each telemetry instance.
     instance_identifier : str
         Optional identifier for the telemetry instance, can be used for custom naming.
+    user : str
+        User associated with the telemetry instance.
+        Should be set by the telemetry node in the simulation.
+        Can only be changed once when the instance is created.
 
     default_autopilot_parameters : AutopilotParametersType
         Default autopilot parameters for the telemetry instance.
@@ -62,6 +66,7 @@ class TelemetryTable(db.Model):
 
     instance_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     instance_identifier: Mapped[str] = mapped_column(String, default="", nullable=True)
+    user: Mapped[str] = mapped_column(String, default="unknown", nullable=False)
 
     default_autopilot_parameters: Mapped[AutopilotParametersType] = mapped_column(JSON, nullable=False)
     autopilot_parameters: Mapped[AutopilotParametersType] = mapped_column(JSON, nullable=False)
@@ -73,10 +78,38 @@ class TelemetryTable(db.Model):
     waypoints: Mapped[WaypointsType] = mapped_column(JSON, nullable=False)
     waypoints_new_flag: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
-    created_at: Mapped[datetime] = mapped_column(db.DateTime, default=datetime.now(tz=UTC), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(db.DateTime, default=lambda: datetime.now(UTC), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
-        db.DateTime, default=datetime.now(tz=UTC), onupdate=datetime.now(tz=UTC), nullable=False
+        db.DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), nullable=False
     )
+
+    @validates("user")
+    def validate_user(self, key: str, value: str) -> str:
+        """
+        Validate the user field to ensure it can only be set once.
+
+        Parameters
+        ----------
+        key
+            The name of the field being validated.
+        value
+            The value being assigned to the field.
+
+        Returns
+        -------
+        str
+            The validated value.
+
+        Raises
+        ------
+        ValueError
+            If there is an attempt to change the user after it has been set.
+        """
+
+        if getattr(self, "user", "unknown") != "unknown" and self.user != value:
+            raise ValueError("The 'user' field can only be set once and cannot be changed.")
+
+        return value
 
     @classmethod
     def get_all_ids(cls) -> list[int]:
