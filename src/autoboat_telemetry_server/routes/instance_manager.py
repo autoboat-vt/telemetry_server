@@ -146,7 +146,7 @@ class InstanceManagerEndpoint:
                 return jsonify(str(e)), 500
 
         @self._blueprint.route("/get_user/<int:instance_id>", methods=["GET"])
-        def get_instance_user(instance_id: int) -> Response:
+        def get_instance_user(instance_id: int) -> tuple[Response, int]:
             """
             Get the user of a telemetry instance by its ID.
 
@@ -159,8 +159,8 @@ class InstanceManagerEndpoint:
 
             Returns
             -------
-            Response
-                A JSON response containing the instance user or an error message if the instance is not found.
+            tuple[Response, int]
+                A tuple containing a JSON response with the instance user or an error message if the instance is not found.
             """
 
             try:
@@ -221,7 +221,7 @@ class InstanceManagerEndpoint:
                 return jsonify(str(e)), 500
 
         @self._blueprint.route("/get_name/<int:instance_id>", methods=["GET"])
-        def get_instance_name(instance_id: int) -> Response:
+        def get_instance_name(instance_id: int) -> tuple[Response, int]:
             """
             Get the name of a telemetry instance by its ID.
 
@@ -234,8 +234,8 @@ class InstanceManagerEndpoint:
 
             Returns
             -------
-            Response
-                A JSON response containing the instance name or an error message if the instance is not found.
+            tuple[Response, int]
+                A tuple containing a JSON response with the instance name or an error message if the instance is not found.
             """
 
             try:
@@ -252,7 +252,7 @@ class InstanceManagerEndpoint:
                 return jsonify(str(e)), 500
 
         @self._blueprint.route("/get_id/<instance_name>", methods=["GET"])
-        def get_instance_id(instance_name: str) -> Response:
+        def get_instance_id(instance_name: str) -> tuple[Response, int]:
             """
             Get the ID of a telemetry instance by its name.
 
@@ -265,8 +265,8 @@ class InstanceManagerEndpoint:
 
             Returns
             -------
-            Response
-                A JSON response containing the instance ID or an error message if the instance is not found.
+            tuple[Response, int]
+                A tuple containing a JSON response with the instance ID or an error message if the instance is not found.
             """
 
             try:
@@ -283,7 +283,7 @@ class InstanceManagerEndpoint:
                 return jsonify(str(e)), 500
 
         @self._blueprint.route("/get_instance_info/<int:instance_id>", methods=["GET"])
-        def get_instance_info(instance_id: int) -> Response:
+        def get_instance_info(instance_id: int) -> tuple[Response, int]:
             """
             Get detailed information about a telemetry instance by its ID.
 
@@ -296,8 +296,9 @@ class InstanceManagerEndpoint:
 
             Returns
             -------
-            Response
-                A JSON response containing the instance details or an error message if the instance is not found.
+            tuple[Response, int]
+                A tuple containing a JSON response with the instance details and a 200 status,
+                or an error message if the instance is not found.
             """
 
             try:
@@ -314,7 +315,7 @@ class InstanceManagerEndpoint:
                 return jsonify(str(e)), 500
 
         @self._blueprint.route("/get_all_instance_info", methods=["GET"])
-        def get_all_instance_info() -> Response:
+        def get_all_instance_info() -> tuple[Response, int]:
             """
             Get detailed information about all telemetry instances.
 
@@ -322,12 +323,12 @@ class InstanceManagerEndpoint:
 
             Returns
             -------
-            Response
-                A JSON response containing the details of all instances.
+            tuple[Response, int]
+                A tuple containing a JSON response with a list of all instance details and a 200 status.
             """
 
             try:
-                telemetry_instances = TelemetryTable.query.all()
+                telemetry_instances: list[TelemetryTable] = TelemetryTable.query.all()
                 instances_info = [instance.to_dict() for instance in telemetry_instances]
 
                 return jsonify(instances_info), 200
