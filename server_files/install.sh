@@ -82,9 +82,15 @@ sudo supervisorctl start telemetry_server
 sudo supervisorctl start telemetry_server_testing
 
 # ------------------------
-# Final status
+# Telemetry server status
 # ------------------------
-echo "Installation complete. Services running:"
+echo "Telemetry server status:"
 sudo systemctl status nginx
 sudo supervisorctl status telemetry_server
 sudo supervisorctl status telemetry_server_testing
+
+# ------------------------
+# Crontab setup for auto removal of instances
+# ------------------------
+crontab ~/telemetry_server/server_files/auto_clean.txt
+echo "Installation complete!"
