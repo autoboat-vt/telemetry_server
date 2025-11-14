@@ -1,2 +1,2 @@
 SHELL=/bin/bash
-*/5 * * * * /usr/bin/curl -v -X DELETE "https://vt-autoboat-telemetry.uk:8443/instance_manager/clean_instances" >> /home/ubuntu/clean_instances.log 2>&1
+*/1 * * * * /usr/bin/curl -v -X DELETE "https://vt-autoboat-telemetry.uk:8443/instance_manager/clean_instances" >> /home/ubuntu/clean_instances.log 2>&1
