@@ -141,6 +141,7 @@ class TelemetryTable(db.Model):
             "instance_id": self.instance_id,
             "instance_identifier": self.instance_identifier,
             "user": self.user,
+            "archive": self.archive,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
