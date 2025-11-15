@@ -1,12 +1,16 @@
 from flask import Blueprint, Response, jsonify
+from typing import Literal
+
 from autoboat_telemetry_server.models import TelemetryTable, db
+from autoboat_telemetry_server import lock_manager
 
 
 class InstanceManagerEndpoint:
     """Endpoint for managing instances."""
 
     def __init__(self) -> None:
-        self._blueprint = Blueprint("instance_manager_page", __name__, url_prefix="/instance_manager")
+        self._blueprint = Blueprint(name="instance_manager_page", import_name=__name__, url_prefix="/instance_manager")
+        self._lock_manager = lock_manager
         self._register_routes()
 
     @property
@@ -25,7 +29,23 @@ class InstanceManagerEndpoint:
             Confirmation message indicating the routes have been registered successfully.
         """
 
+        @self._blueprint.route("/test", methods=["GET"])
+        def test_route() -> Literal["instance_manager route testing!"]:
+            """
+            Test route for instance management.
+
+            Method: GET
+
+            Returns
+            -------
+            Literal["instance_manager route testing!"]
+                Confirmation message for testing the instance management route.
+            """
+
+            return "instance_manager route testing!"
+
         @self._blueprint.route("/create", methods=["GET"])
+        @lock_manager.require_write_lock
         def create_instance() -> tuple[Response, int]:
             """
             Create a new telemetry instance with optional payload overrides.
@@ -55,6 +75,7 @@ class InstanceManagerEndpoint:
                 return jsonify(str(e)), 500
 
         @self._blueprint.route("/delete/<int:instance_id>", methods=["DELETE"])
+        @lock_manager.require_write_lock
         def delete_instance(instance_id: int) -> tuple[Response, int]:
             """
             Delete a telemetry instance by its ID.
@@ -84,6 +105,7 @@ class InstanceManagerEndpoint:
                 return jsonify(str(e)), 500
 
         @self._blueprint.route("/delete_all", methods=["DELETE"])
+        @lock_manager.require_write_lock
         def delete_all_instances() -> tuple[Response, int]:
             """
             Delete all telemetry instances.
@@ -106,6 +128,7 @@ class InstanceManagerEndpoint:
                 return jsonify(str(e)), 500
 
         @self._blueprint.route("/clean_instances", methods=["DELETE"])
+        @lock_manager.require_write_lock
         def clean_instances() -> tuple[Response, int]:
             """
             Delete all non-archived telemetry instances.
@@ -121,13 +144,14 @@ class InstanceManagerEndpoint:
             try:
                 num_deleted = db.session.query(TelemetryTable).filter(TelemetryTable.archive == False).delete()
                 db.session.commit()
-                return jsonify(f"Successfully deleted {num_deleted} non-archived instances."), 204
+                return jsonify(f"Successfully deleted {num_deleted} non-archived instances."), 200
 
             except Exception as e:
                 db.session.rollback()
                 return jsonify(str(e)), 500
 
         @self._blueprint.route("/set_user/<int:instance_id>/<user_name>", methods=["POST"])
+        @lock_manager.require_write_lock
         def set_instance_user(instance_id: int, user_name: str) -> tuple[Response, int]:
             """
             Set the user of a telemetry instance.
@@ -168,6 +192,7 @@ class InstanceManagerEndpoint:
                 return jsonify(str(e)), 500
 
         @self._blueprint.route("/get_user/<int:instance_id>", methods=["GET"])
+        @lock_manager.require_read_lock
         def get_instance_user(instance_id: int) -> tuple[Response, int]:
             """
             Get the user of a telemetry instance by its ID.
@@ -199,6 +224,7 @@ class InstanceManagerEndpoint:
                 return jsonify(str(e)), 500
 
         @self._blueprint.route("/set_name/<int:instance_id>/<instance_name>", methods=["POST"])
+        @lock_manager.require_write_lock
         def set_instance_name(instance_id: int, instance_name: str) -> tuple[Response, int]:
             """
             Set the name of a telemetry instance.
@@ -243,6 +269,7 @@ class InstanceManagerEndpoint:
                 return jsonify(str(e)), 500
 
         @self._blueprint.route("/get_name/<int:instance_id>", methods=["GET"])
+        @lock_manager.require_read_lock
         def get_instance_name(instance_id: int) -> tuple[Response, int]:
             """
             Get the name of a telemetry instance by its ID.
@@ -274,6 +301,7 @@ class InstanceManagerEndpoint:
                 return jsonify(str(e)), 500
 
         @self._blueprint.route("/set_archive/<int:instance_id>/<int:archive_status>", methods=["POST"])
+        @lock_manager.require_write_lock
         def set_instance_archive(instance_id: int, archive_status: int) -> tuple[Response, int]:
             """
             Set the archive status of a telemetry instance.
@@ -314,6 +342,7 @@ class InstanceManagerEndpoint:
                 return jsonify(str(e)), 500
 
         @self._blueprint.route("/get_archive/<int:instance_id>", methods=["GET"])
+        @lock_manager.require_read_lock
         def get_instance_archive(instance_id: int) -> tuple[Response, int]:
             """
             Get the archive status of a telemetry instance by its ID.
@@ -345,6 +374,7 @@ class InstanceManagerEndpoint:
                 return jsonify(str(e)), 500
 
         @self._blueprint.route("/get_id/<instance_name>", methods=["GET"])
+        @lock_manager.require_read_lock
         def get_instance_id(instance_name: str) -> tuple[Response, int]:
             """
             Get the ID of a telemetry instance by its name.
@@ -376,6 +406,7 @@ class InstanceManagerEndpoint:
                 return jsonify(str(e)), 500
 
         @self._blueprint.route("/get_instance_info/<int:instance_id>", methods=["GET"])
+        @lock_manager.require_read_lock
         def get_instance_info(instance_id: int) -> tuple[Response, int]:
             """
             Get detailed information about a telemetry instance by its ID.
@@ -408,6 +439,7 @@ class InstanceManagerEndpoint:
                 return jsonify(str(e)), 500
 
         @self._blueprint.route("/get_all_instance_info", methods=["GET"])
+        @lock_manager.require_read_lock
         def get_all_instance_info() -> tuple[Response, int]:
             """
             Get detailed information about all telemetry instances.
@@ -430,6 +462,7 @@ class InstanceManagerEndpoint:
                 return jsonify(str(e)), 500
 
         @self._blueprint.route("/get_ids", methods=["GET"])
+        @lock_manager.require_read_lock
         def get_ids() -> tuple[Response, int]:
             """
             Return all telemetry instance IDs.

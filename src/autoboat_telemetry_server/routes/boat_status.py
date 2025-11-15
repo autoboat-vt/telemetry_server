@@ -1,13 +1,15 @@
 from flask import Blueprint, Response, jsonify, request
 from typing import Literal
 from autoboat_telemetry_server.models import TelemetryTable, db
+from autoboat_telemetry_server import lock_manager
 
 
 class BoatStatusEndpoint:
     """Endpoint for handling boat status."""
 
     def __init__(self) -> None:
-        self._blueprint = Blueprint("boat_status_page", __name__, url_prefix="/boat_status")
+        self._blueprint = Blueprint(name="boat_status_page", import_name=__name__, url_prefix="/boat_status")
+        self._lock_manager = lock_manager
         self._register_routes()
 
     @property
@@ -41,6 +43,7 @@ class BoatStatusEndpoint:
             return "boat_status route testing!"
 
         @self._blueprint.route("/get/<int:instance_id>", methods=["GET"])
+        @lock_manager.require_read_lock
         def get_route(instance_id: int) -> tuple[Response, int]:
             """
             Get the boat status for a specific telemetry instance.
@@ -73,6 +76,7 @@ class BoatStatusEndpoint:
                 return jsonify(str(e)), 500
 
         @self._blueprint.route("/get_new/<int:instance_id>", methods=["GET"])
+        @lock_manager.require_write_lock
         def get_new_route(instance_id: int) -> tuple[Response, int]:
             """
             Gets the boat status for a specific telemetry instance if it hasn't already been
@@ -112,6 +116,7 @@ class BoatStatusEndpoint:
                 return jsonify(str(e)), 500
 
         @self._blueprint.route("/set/<int:instance_id>", methods=["POST"])
+        @lock_manager.require_write_lock
         def set_route(instance_id: int) -> tuple[Response, int]:
             """
             Set the boat status for a specific telemetry instance.

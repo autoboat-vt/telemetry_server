@@ -22,19 +22,26 @@ Waypoint Routes:
 - `/waypoints/set/<int:instance_id>`: Set the waypoints from the request data.
 
 Instance Manager Routes:
-- `/instance_manager/create_instance`: Create a new telemetry instance.
-- `/instance_manager/delete_instance/<int:instance_id>`: Delete a telemetry instance by ID.
+- `/instance_manager/test`: Test route for instance management.
+- `/instance_manager/create`: Create a new telemetry instance.
+- `/instance_manager/delete/<int:instance_id>`: Delete a telemetry instance by its ID.
+- `/instance_manager/delete_all`: Delete all telemetry instances.
+- `/instance_manager/clean_instances`: Remove all telemetry instances which haven't been marked for keeping.
+- `/instance_manager/set_user/<int:instance_id>/<user_name>`: Set the user of a telemetry instance.
+- `/instance_manager/get_user/<int:instance_id>`: Get the user of a telemetry instance.
 - `/instance_manager/set_name/<int:instance_id>/<instance_name>`: Set the name of a telemetry instance.
 - `/instance_manager/get_name/<int:instance_id>`: Get the name of a telemetry instance.
-- `/instance_manager/get_id/<instance_name>`: Get the ID of a telemetry instance by name.
-- `/instance_manager/get_instance_info/<int:instance_id>`: Get the telemetry instance information by ID.
-- `/instance_manager/get_all_instance_info`: Get information for all telemetry instances.
-- `/instance_manager/get_ids`: Get all telemetry instance IDs.
+- `/instance_manager/set_archive/<int:instance_id>/<int:archive_status>`: Set the archive status of a telemetry instance.
+- `/instance_manager/get_archive/<int:instance_id>`: Get the archive status of a telemetry instance.
+- `/instance_manager/get_id/<instance_name>`: Get the ID of a telemetry instance by its name.
+- `/instance_manager/get_instance_info/<int:instance_id>`: Get detailed information about a telemetry instance.
+- `/instance_manager/get_all_instance_info`: Get detailed information about all telemetry instances.
+- `/instance_manager/get_ids`: Return all telemetry instance IDs.
 """
 
 __all__ = ["AutopilotParametersEndpoint", "BoatStatusEndpoint", "InstanceManagerEndpoint", "WaypointEndpoint"]
 
-from .instance_manager import InstanceManagerEndpoint
 from .autopilot_parameters import AutopilotParametersEndpoint
 from .boat_status import BoatStatusEndpoint
+from .instance_manager import InstanceManagerEndpoint
 from .waypoints import WaypointEndpoint

@@ -1,5 +1,5 @@
 """
-This module defines the TelemetryTable model for the autoboat telemetry server.
+This module defines the TelemetryTable model for the Autoboat telemetry server.
 It includes the database schema and methods for interacting with telemetry data.
 """
 

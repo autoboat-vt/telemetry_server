@@ -1,5 +1,5 @@
 """
-This module defines type aliases used throughout the autoboat telemetry server.
+This module defines type aliases used throughout the Autoboat telemetry server.
 
 Types:
 - BoatStatusType: A dictionary representing the status of the boat.

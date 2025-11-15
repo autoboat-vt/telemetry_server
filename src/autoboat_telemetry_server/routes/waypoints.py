@@ -1,18 +1,21 @@
 from flask import Blueprint, Response, jsonify, request
 from typing import Literal
 from autoboat_telemetry_server.models import TelemetryTable, db
+from autoboat_telemetry_server import lock_manager
 
 
 class WaypointEndpoint:
     """Endpoint for handling waypoints."""
 
     def __init__(self) -> None:
-        self._blueprint = Blueprint("waypoints_page", __name__, url_prefix="/waypoints")
+        self._blueprint = Blueprint(name="waypoints_page", import_name=__name__, url_prefix="/waypoints")
+        self._lock_manager = lock_manager
         self._register_routes()
 
     @property
     def blueprint(self) -> Blueprint:
         """Returns the Flask blueprint for autopilot parameters."""
+
         return self._blueprint
 
     def _register_routes(self) -> str:
@@ -41,6 +44,7 @@ class WaypointEndpoint:
             return "waypoints route testing!"
 
         @self._blueprint.route("/get/<int:instance_id>", methods=["GET"])
+        @lock_manager.require_read_lock
         def get_route(instance_id: int) -> tuple[Response, int]:
             """
             Get the current waypoints for a specific telemetry instance.
@@ -73,6 +77,7 @@ class WaypointEndpoint:
                 return jsonify(str(e)), 500
 
         @self._blueprint.route("/get_new/<int:instance_id>", methods=["GET"])
+        @lock_manager.require_write_lock
         def get_new_route(instance_id: int) -> tuple[Response, int]:
             """
             Gets the waypoints for a specific telemetry instance if it hasn't already been
@@ -112,6 +117,7 @@ class WaypointEndpoint:
                 return jsonify(str(e)), 500
 
         @self._blueprint.route("/set/<int:instance_id>", methods=["POST"])
+        @lock_manager.require_write_lock
         def set_route(instance_id: int) -> tuple[Response, int]:
             """
             Set the waypoints from the request data.
@@ -137,7 +143,14 @@ class WaypointEndpoint:
 
                 waypoints_data = request.json
                 if not isinstance(waypoints_data, list):
-                    raise TypeError("Invalid waypoints data format. Expected a list.")
+                    raise TypeError("Invalid waypoints data format. Expected a list of [x, y] coordinates.")
+
+                for i, point in enumerate(waypoints_data):
+                    if not (isinstance(point, (list, tuple)) and len(point) == 2):
+                        raise TypeError("Invalid waypoint format. Each waypoint must be a list or tuple of two coordinates.")
+
+                    if not all(isinstance(coord, (int, float)) for coord in point):
+                        raise TypeError("Invalid coordinate type. Each coordinate must be an integer or float.")
 
                 telemetry_instance.waypoints = waypoints_data
                 telemetry_instance.waypoints_new_flag = True
