@@ -2,7 +2,6 @@
 
 import os
 from flask import Flask as _flask
-
 from .models import db
 from .lock_manager import LockManager
 from autoboat_telemetry_server.routes import AutopilotParametersEndpoint, BoatStatusEndpoint, WaypointEndpoint, InstanceManagerEndpoint
@@ -16,8 +15,10 @@ def create_app() -> _flask:
     """
     Create and configure the Flask application instance.
 
-    Returns:
-        Flask: Configured Flask application instance.
+    Returns
+    -------
+    Flask
+        Configured Flask application instance.
     """
 
     app = _flask(__name__)
