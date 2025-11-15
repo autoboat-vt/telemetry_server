@@ -4,11 +4,13 @@ import os
 from flask import Flask as _flask
 from .models import db
 from .lock_manager import LockManager
-from autoboat_telemetry_server.routes import AutopilotParametersEndpoint, BoatStatusEndpoint, WaypointEndpoint, InstanceManagerEndpoint
 
 __all__ = ["create_app", "lock_manager"]
 
 lock_manager = LockManager()
+
+# import routes after lock_manager is created to avoid circular import issues
+from autoboat_telemetry_server.routes import AutopilotParametersEndpoint, BoatStatusEndpoint, WaypointEndpoint, InstanceManagerEndpoint
 
 
 def create_app() -> _flask:
