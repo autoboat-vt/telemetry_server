@@ -38,8 +38,6 @@ class TelemetryTable(db.Model):
         User associated with the telemetry instance.
         Should be set by the telemetry node in the simulation.
         Can only be changed once when the instance is created.
-    archive : bool
-        Flag indicating if the telemetry instance should be exempt from the auto-deletion process.
 
     default_autopilot_parameters : AutopilotParametersType
         Default autopilot parameters for the telemetry instance.
@@ -69,7 +67,6 @@ class TelemetryTable(db.Model):
     instance_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     instance_identifier: Mapped[str] = mapped_column(String, default="", nullable=True)
     user: Mapped[str] = mapped_column(String, default="unknown", nullable=False)
-    archive: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     default_autopilot_parameters: Mapped[AutopilotParametersType] = mapped_column(JSON, nullable=False)
     autopilot_parameters: Mapped[AutopilotParametersType] = mapped_column(JSON, nullable=False)
@@ -141,7 +138,6 @@ class TelemetryTable(db.Model):
             "instance_id": self.instance_id,
             "instance_identifier": self.instance_identifier,
             "user": self.user,
-            "archive": self.archive,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }

@@ -1,5 +1,6 @@
 from flask import Blueprint, Response, jsonify
 from typing import Literal
+from datetime import datetime, timedelta, UTC
 
 from autoboat_telemetry_server.models import TelemetryTable, db
 from autoboat_telemetry_server import lock_manager
@@ -131,7 +132,7 @@ class InstanceManagerEndpoint:
         @lock_manager.require_write_lock
         def clean_instances() -> tuple[Response, int]:
             """
-            Delete all non-archived telemetry instances.
+            Delete all inactive telemetry instances.
 
             Method: DELETE
 
@@ -142,9 +143,14 @@ class InstanceManagerEndpoint:
             """
 
             try:
-                num_deleted = db.session.query(TelemetryTable).filter(TelemetryTable.archive == False).delete()
+                timeout = 5  # minutes
+                cutoff = datetime.now(UTC) - timedelta(minutes=timeout)
+
+                num_deleted = (
+                    db.session.query(TelemetryTable).filter(TelemetryTable.updated_at < cutoff).delete(synchronize_session=False)
+                )
                 db.session.commit()
-                return jsonify(f"Successfully deleted {num_deleted} non-archived instances."), 200
+                return jsonify(f"Successfully deleted {num_deleted} inactive instances."), 200
 
             except Exception as e:
                 db.session.rollback()
