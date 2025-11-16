@@ -1,7 +1,6 @@
 from flask import Blueprint, Response, jsonify
 from typing import Literal
 from datetime import datetime, timedelta, UTC
-
 from autoboat_telemetry_server.models import TelemetryTable, db
 from autoboat_telemetry_server import lock_manager
 
