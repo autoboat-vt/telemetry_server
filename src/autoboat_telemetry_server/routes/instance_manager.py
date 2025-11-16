@@ -325,7 +325,7 @@ class InstanceManagerEndpoint:
             """
 
             try:
-                telemetry_instance: TelemetryTable | None = TelemetryTable.query.filter_by(instance_identifier=instance_name).first()
+                telemetry_instance = TelemetryTable.query.filter_by(instance_identifier=instance_name).first()
                 if not isinstance(telemetry_instance, TelemetryTable):
                     raise TypeError("Instance not found.")
 
