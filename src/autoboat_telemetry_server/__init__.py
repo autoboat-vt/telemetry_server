@@ -2,9 +2,15 @@
 
 import os
 from flask import Flask as _flask
-from autoboat_telemetry_server.routes import AutopilotParametersEndpoint, BoatStatusEndpoint, WaypointEndpoint
+from .models import db
+from .lock_manager import LockManager
 
-__all__ = ["create_app"]
+__all__ = ["create_app", "lock_manager"]
+
+lock_manager = LockManager()
+
+# import routes after lock_manager is created to avoid circular import issues
+from autoboat_telemetry_server.routes import AutopilotParametersEndpoint, BoatStatusEndpoint, WaypointEndpoint, InstanceManagerEndpoint
 
 
 def create_app() -> _flask:
@@ -13,7 +19,7 @@ def create_app() -> _flask:
 
     Returns
     -------
-    _flask
+    Flask
         Configured Flask application instance.
     """
 
@@ -24,6 +30,12 @@ def create_app() -> _flask:
 
     app.config.from_pyfile(config_path)
 
+    db.init_app(app)
+
+    with app.app_context():
+        db.create_all()
+
+    app.register_blueprint(InstanceManagerEndpoint().blueprint)
     app.register_blueprint(AutopilotParametersEndpoint().blueprint)
     app.register_blueprint(BoatStatusEndpoint().blueprint)
     app.register_blueprint(WaypointEndpoint().blueprint)
@@ -39,6 +51,6 @@ def create_app() -> _flask:
             Confirmation message indicating which server is running.
         """
 
-        return "This is the production telemetry server. It is running!"
+        return "This is the testing telemetry server. It is running!"
 
     return app
