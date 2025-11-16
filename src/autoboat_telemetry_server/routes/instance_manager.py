@@ -96,7 +96,7 @@ class InstanceManagerEndpoint:
 
                 db.session.delete(telemetry_instance)
                 db.session.commit()
-                return jsonify(f"Successfully deleted instance {instance_id}."), 204
+                return jsonify(f"Successfully deleted instance {instance_id}."), 200
 
             except TypeError as e:
                 return jsonify(str(e)), 404
@@ -122,7 +122,7 @@ class InstanceManagerEndpoint:
             try:
                 num_deleted = db.session.query(TelemetryTable).delete()
                 db.session.commit()
-                return jsonify(f"Successfully deleted {num_deleted} instances."), 204
+                return jsonify(f"Successfully deleted {num_deleted} instances."), 200
 
             except Exception as e:
                 db.session.rollback()
