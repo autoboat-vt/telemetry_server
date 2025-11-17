@@ -2,7 +2,7 @@
 name         = "telemetry_server"
 version      = "0.1.0"
 readme       = "README.md"
-dependencies = ["flask", "gunicorn"]
+dependencies = ["flask", "gunicorn", "flask_sqlalchemy"]
 
 [project.urls]
 repository = "https://github.com/autoboat-vt/telemetry_server"
