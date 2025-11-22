@@ -1,11 +1,34 @@
 [project]
-name         = "telemetry_server"
-version      = "0.2.0"
-readme       = "README.md"
-dependencies = ["flask", "gunicorn", "flask_sqlalchemy"]
+name = "telemetry_server"
+version = "0.2.0"
+readme = "README.md"
+description = "Telemetry server for Autoboat"
+dependencies = [
+    "Flask>=3.1,<4.0",
+    "Flask-SQLAlchemy>=3.1,<4.0",
+    "gunicorn>=23.0,<24.0",
+    "blinker>=1.9,<2.0",
+    "click>=8.2,<9.0",
+    "itsdangerous>=2.2,<3.0",
+    "Jinja2>=3.1,<4.0",
+    "MarkupSafe>=3.0,<4.0",
+    "packaging>=25.0,<26.0",
+    "SQLAlchemy>=2.0,<3.0",
+    "Werkzeug>=3.1,<4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "build>=1.3,<2.0",
+    "pyproject_hooks>=1.2,<2.0",
+    "annotated-types>=0.7,<1.0",
+    "typing_extensions>=4.14,<5.0",
+    "typing-inspection>=0.4,<1.0",
+]
 
 [project.urls]
-repository = "https://github.com/autoboat-vt/telemetry_server"
+repository    = "https://github.com/autoboat-vt/telemetry_server"
+documentation = "https://autoboat-vt.github.io/documentation/"
 
 [build-system]
 requires      = ["setuptools", "wheel"]
