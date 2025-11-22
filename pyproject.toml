@@ -1,8 +1,9 @@
 [project]
-name = "telemetry_server"
-version = "0.3.1"
-readme = "README.md"
+name        = "telemetry_server"
+version     = "0.3.2"
+readme      = "README.md"
 description = "Telemetry server for Autoboat"
+
 dependencies = [
     "Flask>=3.1,<4.0",
     "Flask-SQLAlchemy>=3.1,<4.0",
@@ -25,6 +26,10 @@ dev = [
     "typing_extensions>=4.14,<5.0",
     "typing-inspection>=0.4,<1.0",
 ]
+
+[project.urls]
+Github        = "https://github.com/autoboat-vt/telemetry_server"
+Documentation = "https://autoboat-vt.github.io/documentation"
 
 [build-system]
 requires      = ["setuptools", "wheel"]
