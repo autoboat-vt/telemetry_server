@@ -1,0 +1,8 @@
+[bumpversion]
+current_version = "0.3.2"
+commit          = true
+tag             = true
+
+[bumpversion.files]
+# Tell it where the version lives
+"pyproject.toml" = { search = 'version = "{current_version}"', replace = 'version = "{new_version}"' }
