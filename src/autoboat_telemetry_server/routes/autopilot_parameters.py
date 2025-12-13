@@ -1,7 +1,9 @@
-from flask import Blueprint, Response, jsonify, request
 from typing import Literal
-from autoboat_telemetry_server.models import TelemetryTable, db
+
+from flask import Blueprint, Response, jsonify, request
+
 from autoboat_telemetry_server import lock_manager
+from autoboat_telemetry_server.models import TelemetryTable, db
 
 
 class AutopilotParametersEndpoint:
@@ -9,7 +11,6 @@ class AutopilotParametersEndpoint:
 
     def __init__(self) -> None:
         self._blueprint = Blueprint(name="autopilot_parameters_page", import_name=__name__, url_prefix="/autopilot_parameters")
-        self._lock_manager = lock_manager
         self._register_routes()
 
     @property
@@ -17,6 +18,28 @@ class AutopilotParametersEndpoint:
         """Returns the Flask blueprint for autopilot parameters."""
 
         return self._blueprint
+
+    def _get_instance(self, instance_id: int) -> TelemetryTable:
+        """
+        Helper function to retrieve a telemetry instance by its ID.
+
+        Parameters
+        ----------
+        instance_id
+            The ID of the telemetry instance to retrieve.
+
+        Returns
+        -------
+        TelemetryTable
+            The telemetry instance corresponding to the provided ID.
+        """
+
+        instance = TelemetryTable.query.get(instance_id)
+
+        if not isinstance(instance, TelemetryTable):
+            raise TypeError("Instance not found.")
+
+        return instance
 
     def _register_routes(self) -> str:
         """
@@ -64,10 +87,7 @@ class AutopilotParametersEndpoint:
             """
 
             try:
-                telemetry_instance = TelemetryTable.query.get(instance_id)
-                if not isinstance(telemetry_instance, TelemetryTable):
-                    raise TypeError("Instance not found.")
-
+                telemetry_instance = self._get_instance(instance_id)
                 return jsonify(telemetry_instance.autopilot_parameters), 200
 
             except TypeError as e:
@@ -97,9 +117,7 @@ class AutopilotParametersEndpoint:
             """
 
             try:
-                telemetry_instance = TelemetryTable.query.get(instance_id)
-                if not isinstance(telemetry_instance, TelemetryTable):
-                    raise TypeError("Instance not found.")
+                telemetry_instance = self._get_instance(instance_id)
 
                 if telemetry_instance.autopilot_parameters_new_flag is False:
                     return jsonify({}), 200
@@ -136,10 +154,7 @@ class AutopilotParametersEndpoint:
             """
 
             try:
-                telemetry_instance = TelemetryTable.query.get(instance_id)
-                if not isinstance(telemetry_instance, TelemetryTable):
-                    raise TypeError("Instance not found.")
-
+                telemetry_instance = self._get_instance(instance_id)
                 return jsonify(telemetry_instance.default_autopilot_parameters), 200
 
             except TypeError as e:
@@ -169,10 +184,7 @@ class AutopilotParametersEndpoint:
             """
 
             try:
-                telemetry_instance = TelemetryTable.query.get(instance_id)
-                if not isinstance(telemetry_instance, TelemetryTable):
-                    raise TypeError("Instance not found.")
-
+                telemetry_instance = self._get_instance(instance_id)
                 new_parameters = request.json
                 if not isinstance(new_parameters, dict):
                     raise TypeError("Invalid autopilot parameters format. Expected a dictionary.")
@@ -227,10 +239,7 @@ class AutopilotParametersEndpoint:
             """
 
             try:
-                telemetry_instance = TelemetryTable.query.get(instance_id)
-                if not isinstance(telemetry_instance, TelemetryTable):
-                    raise TypeError("Instance not found.")
-
+                telemetry_instance = self._get_instance(instance_id)
                 new_parameters = request.json
                 if not isinstance(new_parameters, dict):
                     raise TypeError("Invalid default autopilot parameters format. Expected a dictionary.")

@@ -1,7 +1,9 @@
-from flask import Blueprint, Response, jsonify, request
 from typing import Literal
-from autoboat_telemetry_server.models import TelemetryTable, db
+
+from flask import Blueprint, Response, jsonify, request
+
 from autoboat_telemetry_server import lock_manager
+from autoboat_telemetry_server.models import TelemetryTable, db
 
 
 class WaypointEndpoint:
@@ -9,7 +11,6 @@ class WaypointEndpoint:
 
     def __init__(self) -> None:
         self._blueprint = Blueprint(name="waypoints_page", import_name=__name__, url_prefix="/waypoints")
-        self._lock_manager = lock_manager
         self._register_routes()
 
     @property
@@ -17,6 +18,28 @@ class WaypointEndpoint:
         """Returns the Flask blueprint for autopilot parameters."""
 
         return self._blueprint
+
+    def _get_instance(self, instance_id: int) -> TelemetryTable:
+        """
+        Helper function to retrieve a telemetry instance by its ID.
+
+        Parameters
+        ----------
+        instance_id
+            The ID of the telemetry instance to retrieve.
+
+        Returns
+        -------
+        TelemetryTable
+            The telemetry instance corresponding to the provided ID.
+        """
+
+        instance = TelemetryTable.query.get(instance_id)
+
+        if not isinstance(instance, TelemetryTable):
+            raise TypeError("Instance not found.")
+
+        return instance
 
     def _register_routes(self) -> str:
         """
@@ -64,10 +87,7 @@ class WaypointEndpoint:
             """
 
             try:
-                telemetry_instance = TelemetryTable.query.get(instance_id)
-                if not isinstance(telemetry_instance, TelemetryTable):
-                    raise TypeError("Instance not found.")
-
+                telemetry_instance = self._get_instance(instance_id)
                 return jsonify(telemetry_instance.waypoints), 200
 
             except TypeError as e:
@@ -98,10 +118,7 @@ class WaypointEndpoint:
             """
 
             try:
-                telemetry_instance = TelemetryTable.query.get(instance_id)
-                if not isinstance(telemetry_instance, TelemetryTable):
-                    raise TypeError("Instance not found.")
-
+                telemetry_instance = self._get_instance(instance_id)
                 if telemetry_instance.waypoints_new_flag is False:
                     return jsonify({}), 200
 
@@ -137,15 +154,12 @@ class WaypointEndpoint:
             """
 
             try:
-                telemetry_instance = TelemetryTable.query.get(instance_id)
-                if not isinstance(telemetry_instance, TelemetryTable):
-                    raise TypeError("Instance not found.")
-
+                telemetry_instance = self._get_instance(instance_id)
                 waypoints_data = request.json
                 if not isinstance(waypoints_data, list):
                     raise TypeError("Invalid waypoints data format. Expected a list of [x, y] coordinates.")
 
-                for i, point in enumerate(waypoints_data):
+                for point in waypoints_data:
                     if not (isinstance(point, (list, tuple)) and len(point) == 2):
                         raise TypeError("Invalid waypoint format. Each waypoint must be a list or tuple of two coordinates.")
 

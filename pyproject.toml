@@ -1,6 +1,6 @@
 [project]
 name        = "telemetry_server"
-version     = "0.3.2"
+dynamic     = ["version"]
 readme      = "README.md"
 description = "Telemetry server for Autoboat"
 
@@ -82,60 +82,59 @@ respect-gitignore = false
 select = ["ALL"]
 
 ignore = [
-    "BLE001",  # Do not catch blind exception: `Exception`
-    "CPY001",  # Missing copyright notice at top of file
-    "COM812",  # Trailing comma missing
-    "S101",    # Use of `assert` detected
-    "S113",    # Probable use of `requests` call without timeout
-    "SIM115",  # Use a context manager for opening files
-    "SLF001",  # Private member accessed
-    "I001",    # Import block is un-sorted or un-formatted
-    "INP001",  # implicit-namespace-package
-    "D100",    # undocumented-public-module
-    "D101",    # undocumented-public-class
-    "D102",    # undocumented-public-method
-    "D107",    # undocumented-public-init
-    "D202",    # blank-line-after-function
-    "D205",    # missing-blank-line-after-summary
-    "D400",    # missing-trailing-period
-    "D401",    # non-imperative-mood
-    "C901",    # Method is too complex
-    "E401",    # multiple-imports-on-one-line
-    "E501",    # line-too-long
-    "E741",    # ambiguous-variable-name
-    "E711",    # Comparison to `None` should be `if cond is None:`
-    "E712",    # Comparison to `True` or `False` should use `is`
-    "EM101",   # Exception must not use a string literal, assign to variable first
-    "ERA001",  # commented-out-code
-    "EXE002",  # The file is executable but no shebang is present
-    "EM102",   # Exception must not use an f-string literal, assign to variable first
-    "F403",    # undefined-local-with-import-star
-    "F405",    # undefined-local-with-import-star-usage
-    "FA100",   # future-rewritable-type-annotation
-    "FBT001",  # Boolean positional value in function definition
-    "FBT002",  # Boolean positional value in function definition with default value
-    "FBT003",  # Boolean positional value in function call
-    "N802",    # checks for functions names that do not follow the snake_case naming convention.
-    "N813",    # checks for variable names that do not follow the snake_case naming convention.
-    "PLR0904", # Too many public methods (... > 20)
-    "PLR0912", # Too many branches
-    "PLR0913", # Too many arguments for function (... > 5)
-    "PLR0915", # too-many-statements
-    "PLR2004", # Magic value used in comparison
-    "PTH",     # use of functions that can be replaced by pathlib module.
-    "T201",    # Checks for print statements.
-    "TD002",   # Missing author in TODO `# TODO(<author_name>): ...`
-    "TD003",   # missing-todo-link
-    "TD004",   # todo missing colon
-    "TRY002",  # Create your own exception
-    "TRY003",  # Avoid specifying long messages outside the exception class
-    "TRY301",  # raise-within-try
-    "RET504",  # Unnecessary assignment of `return` value to a variable
-    "RET505",  # Unnecessary `else` after `return` statement
-    "G004",    # logging-f-string
-    "UP015",   # Unnecessary mode argument for `open` function
-    "W293",    # Blank line contains whitespace
-    "Q000",    # Single quotes found but double quotes preferred
+    "BLE001",
+    "CPY001",
+    "COM812",
+    "S101",
+    "S113",
+    "S311",
+    "SIM115",
+    "SLF001",
+    "INP001",
+    "D100",
+    "D101",
+    "D102",
+    "D107",
+    "D202",
+    "D205",
+    "D400",
+    "D401",
+    "C901",
+    "E401",
+    "E501",
+    "E731",
+    "E741",
+    "EM101",
+    "ERA001",
+    "EXE002",
+    "EM102",
+    "F403",
+    "F405",
+    "FA100",
+    "FBT001",
+    "FBT002",
+    "FBT003",
+    "N802",
+    "N813",
+    "PLR0904",
+    "PLR0912",
+    "PLR0913",
+    "PLR0915",
+    "PLR2004", #
+    "PERF203",
+    "PTH",
+    "RUF022",
+    "T201",
+    "TD002",
+    "TD003",
+    "TRY002",
+    "TRY003",
+    "TRY301",
+    "RET505",
+    "G004",
+    "UP015",
+    "W293",
+    "Q000",
 ]
 
 unfixable = [

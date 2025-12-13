@@ -3,18 +3,19 @@ This module defines the TelemetryTable model for the Autoboat telemetry server.
 It includes the database schema and methods for interacting with telemetry data.
 """
 
-from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy.orm import Mapped, mapped_column, Mapper, validates
-from sqlalchemy import Integer, String, Boolean, JSON, event
-from sqlalchemy.engine import Connection
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from typing import Any
+
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import JSON, Boolean, Integer, String, event
+from sqlalchemy.engine import Connection
+from sqlalchemy.orm import Mapped, Mapper, mapped_column, validates
+
 from autoboat_telemetry_server.types import (
     AutopilotParametersType,
     BoatStatusType,
     WaypointsType,
 )
-
 
 db = SQLAlchemy()
 

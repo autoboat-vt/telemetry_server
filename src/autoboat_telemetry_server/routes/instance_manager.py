@@ -1,8 +1,10 @@
-from flask import Blueprint, Response, jsonify
+from datetime import UTC, datetime, timedelta
 from typing import Literal
-from datetime import datetime, timedelta, UTC
-from autoboat_telemetry_server.models import TelemetryTable, db
+
+from flask import Blueprint, Response, jsonify
+
 from autoboat_telemetry_server import lock_manager
+from autoboat_telemetry_server.models import TelemetryTable, db
 
 
 class InstanceManagerEndpoint:
@@ -10,7 +12,6 @@ class InstanceManagerEndpoint:
 
     def __init__(self) -> None:
         self._blueprint = Blueprint(name="instance_manager_page", import_name=__name__, url_prefix="/instance_manager")
-        self._lock_manager = lock_manager
         self._register_routes()
 
     @property
@@ -18,6 +19,28 @@ class InstanceManagerEndpoint:
         """Returns the Flask blueprint for instance management."""
 
         return self._blueprint
+
+    def _get_instance(self, instance_id: int) -> TelemetryTable:
+        """
+        Helper function to retrieve a telemetry instance by its ID.
+
+        Parameters
+        ----------
+        instance_id
+            The ID of the telemetry instance to retrieve.
+
+        Returns
+        -------
+        TelemetryTable
+            The telemetry instance corresponding to the provided ID.
+        """
+
+        instance = TelemetryTable.query.get(instance_id)
+
+        if not isinstance(instance, TelemetryTable):
+            raise TypeError("Instance not found.")
+
+        return instance
 
     def _register_routes(self) -> str:
         """
@@ -89,10 +112,7 @@ class InstanceManagerEndpoint:
             """
 
             try:
-                telemetry_instance = TelemetryTable.query.get(instance_id)
-                if not isinstance(telemetry_instance, TelemetryTable):
-                    raise TypeError("Instance not found.")
-
+                telemetry_instance = self._get_instance(instance_id)
                 db.session.delete(telemetry_instance)
                 db.session.commit()
                 return jsonify(f"Successfully deleted instance {instance_id}."), 200
@@ -176,10 +196,7 @@ class InstanceManagerEndpoint:
             """
 
             try:
-                telemetry_instance = TelemetryTable.query.get(instance_id)
-                if not isinstance(telemetry_instance, TelemetryTable):
-                    raise TypeError("Instance not found.")
-
+                telemetry_instance = self._get_instance(instance_id)
                 telemetry_instance.user = user_name
                 db.session.commit()
 
@@ -215,10 +232,7 @@ class InstanceManagerEndpoint:
             """
 
             try:
-                telemetry_instance = TelemetryTable.query.get(instance_id)
-                if not isinstance(telemetry_instance, TelemetryTable):
-                    raise TypeError("Instance not found.")
-
+                telemetry_instance = self._get_instance(instance_id)
                 return jsonify(telemetry_instance.user), 200
 
             except TypeError as e:
@@ -249,10 +263,7 @@ class InstanceManagerEndpoint:
             """
 
             try:
-                telemetry_instance = TelemetryTable.query.get(instance_id)
-                if not isinstance(telemetry_instance, TelemetryTable):
-                    raise TypeError("Instance not found.")
-
+                telemetry_instance = self._get_instance(instance_id)
                 for instance in TelemetryTable.query.all():
                     if instance.instance_identifier == instance_name and instance.instance_id != instance_id:
                         raise ValueError("Instance name already exists.")
@@ -292,10 +303,7 @@ class InstanceManagerEndpoint:
             """
 
             try:
-                telemetry_instance = TelemetryTable.query.get(instance_id)
-                if not isinstance(telemetry_instance, TelemetryTable):
-                    raise TypeError("Instance not found.")
-
+                telemetry_instance = self._get_instance(instance_id)
                 return jsonify(telemetry_instance.instance_identifier), 200
 
             except TypeError as e:
@@ -357,10 +365,7 @@ class InstanceManagerEndpoint:
             """
 
             try:
-                telemetry_instance = TelemetryTable.query.get(instance_id)
-                if not isinstance(telemetry_instance, TelemetryTable):
-                    raise TypeError("Instance not found.")
-
+                telemetry_instance = self._get_instance(instance_id)
                 return jsonify(telemetry_instance.to_dict()), 200
 
             except TypeError as e:
