@@ -2,7 +2,7 @@ from typing import Literal
 
 from flask import Blueprint, Response, jsonify, request
 
-from autoboat_telemetry_server import lock_manager
+from autoboat_telemetry_server import shared_lock_manager
 from autoboat_telemetry_server.models import TelemetryTable, db
 
 
@@ -67,7 +67,7 @@ class WaypointEndpoint:
             return "waypoints route testing!"
 
         @self._blueprint.route("/get/<int:instance_id>", methods=["GET"])
-        @lock_manager.require_read_lock
+        @shared_lock_manager.require_read_lock
         def get_route(instance_id: int) -> tuple[Response, int]:
             """
             Get the current waypoints for a specific telemetry instance.
@@ -97,7 +97,7 @@ class WaypointEndpoint:
                 return jsonify(str(e)), 500
 
         @self._blueprint.route("/get_new/<int:instance_id>", methods=["GET"])
-        @lock_manager.require_write_lock
+        @shared_lock_manager.require_write_lock
         def get_new_route(instance_id: int) -> tuple[Response, int]:
             """
             Gets the waypoints for a specific telemetry instance if it hasn't already been
@@ -134,7 +134,7 @@ class WaypointEndpoint:
                 return jsonify(str(e)), 500
 
         @self._blueprint.route("/set/<int:instance_id>", methods=["POST"])
-        @lock_manager.require_write_lock
+        @shared_lock_manager.require_write_lock
         def set_route(instance_id: int) -> tuple[Response, int]:
             """
             Set the waypoints from the request data.

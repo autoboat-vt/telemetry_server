@@ -2,7 +2,7 @@ from typing import Literal
 
 from flask import Blueprint, Response, jsonify, request
 
-from autoboat_telemetry_server import lock_manager
+from autoboat_telemetry_server import shared_lock_manager
 from autoboat_telemetry_server.models import TelemetryTable, db
 
 
@@ -67,7 +67,7 @@ class AutopilotParametersEndpoint:
             return "autopilot_parameters route testing!"
 
         @self._blueprint.route("/get/<int:instance_id>", methods=["GET"])
-        @lock_manager.require_read_lock
+        @shared_lock_manager.require_read_lock
         def get_route(instance_id: int) -> tuple[Response, int]:
             """
             Get the current autopilot parameters.
@@ -97,7 +97,7 @@ class AutopilotParametersEndpoint:
                 return jsonify(str(e)), 500
 
         @self._blueprint.route("/get_new/<int:instance_id>", methods=["GET"])
-        @lock_manager.require_write_lock
+        @shared_lock_manager.require_write_lock
         def get_new_route(instance_id: int) -> tuple[Response, int]:
             """
             Get the latest autopilot parameters if they haven't been seen yet.
@@ -134,7 +134,7 @@ class AutopilotParametersEndpoint:
                 return jsonify(str(e)), 500
 
         @self._blueprint.route("/get_default/<int:instance_id>", methods=["GET"])
-        @lock_manager.require_read_lock
+        @shared_lock_manager.require_read_lock
         def get_default_route(instance_id: int) -> tuple[Response, int]:
             """
             Get the default autopilot parameters.
@@ -164,7 +164,7 @@ class AutopilotParametersEndpoint:
                 return jsonify(str(e)), 500
 
         @self._blueprint.route("/set/<int:instance_id>", methods=["POST"])
-        @lock_manager.require_write_lock
+        @shared_lock_manager.require_write_lock
         def set_route(instance_id: int) -> tuple[Response, int]:
             """
             Set the autopilot parameters from the request data.
@@ -219,7 +219,7 @@ class AutopilotParametersEndpoint:
                 return jsonify(str(e)), 500
 
         @self._blueprint.route("/set_default/<int:instance_id>", methods=["POST"])
-        @lock_manager.require_write_lock
+        @shared_lock_manager.require_write_lock
         def set_default_route(instance_id: int) -> tuple[Response, int]:
             """
             Set the default autopilot parameters from the request data.

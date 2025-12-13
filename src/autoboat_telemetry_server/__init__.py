@@ -9,9 +9,9 @@ from autoboat_telemetry_server.routes import AutopilotParametersEndpoint, BoatSt
 from .lock_manager import LockManager
 from .models import db
 
-__all__ = ["create_app", "lock_manager"]
+__all__ = ["create_app", "shared_lock_manager"]
 
-lock_manager = LockManager()
+shared_lock_manager = LockManager()
 
 
 def create_app() -> _flask:

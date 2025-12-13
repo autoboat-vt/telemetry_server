@@ -61,30 +61,23 @@ class LockManager:
     def require_read_lock(self, func: Callable[P, R]) -> Callable[P, R]:
         @wraps(func)
         def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
-            lock_manager = getattr(args[0], "_lock_manager", None) if args else None
-            if lock_manager:
-                lock_manager._rw_lock.acquire_read()
-                try:
-                    return func(*args, **kwargs)
-                finally:
-                    lock_manager._rw_lock.release_read()
-            return func(*args, **kwargs)
+            self._rw_lock.acquire_read()
+            try:
+                return func(*args, **kwargs)
+            finally:
+                self._rw_lock.release_read()
 
         return wrapper
 
     def require_write_lock(self, func: Callable[P, R]) -> Callable[P, R]:
         @wraps(func)
         def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
-            lock_manager = getattr(args[0], "_lock_manager", None) if args else None
-            if not lock_manager:
-                return func(*args, **kwargs)
-
-            if not lock_manager._rw_lock.acquire_write(blocking=False):
+            if not self._rw_lock.acquire_write(blocking=False):
                 return jsonify("Write operation in progress. Please try again later."), 429
 
             try:
                 return func(*args, **kwargs)
             finally:
-                lock_manager._rw_lock.release_write()
+                self._rw_lock.release_write()
 
         return wrapper
