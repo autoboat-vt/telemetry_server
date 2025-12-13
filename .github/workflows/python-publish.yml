@@ -5,18 +5,9 @@ on:
     branches:
       - main
   workflow_dispatch:
-    inputs:
-      bump-type:
-        description: "Bump type"
-        required: true
-        default: "patch"
-        type: choice
-        options:
-          - major
-          - minor
 
 permissions:
-  contents: write # REQUIRED for bumping & tagging
+  contents: write # REQUIRED for uploading artifacts
   id-token: write # REQUIRED for PyPI publishing
 
 jobs:
@@ -27,31 +18,7 @@ jobs:
       - name: Checkout the code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # ensure tags + full history for version bumping
-
-      - name: Determine bump type (auto vs manual)
-        id: bump_type
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "type=${{ inputs.bump-type }}" >> $GITHUB_OUTPUT
-          else
-            echo "type=minor" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Bump version
-        id: bump
-        uses: callowayproject/bump-my-version@master
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BUMPVERSION_TAG: "true"
-        with:
-          args: ${{ steps.bump_type.outputs.type }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Check
-        if: steps.bump.outputs.bumped == 'true'
-        run: |
-          echo "Version was bumped from ${{ steps.bump.outputs.previous-version }} to ${{ steps.bump.outputs.current-version }}!"
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
@@ -74,7 +41,7 @@ jobs:
     needs:
       - release-build
     permissions:
-      id-token: write # MANDATORY for PyPI Trusted Publishing
+      id-token: write
 
     environment:
       name: pypi
