@@ -58,8 +58,7 @@ class LockManager:
     def __init__(self) -> None:
         self._rw_lock = ReaderWriterLock()
 
-    @staticmethod
-    def require_read_lock(func: Callable[P, R]) -> Callable[P, R]:
+    def require_read_lock(self, func: Callable[P, R]) -> Callable[P, R]:
         @wraps(func)
         def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
             lock_manager = getattr(args[0], "_lock_manager", None) if args else None
@@ -73,8 +72,7 @@ class LockManager:
 
         return wrapper
 
-    @staticmethod
-    def require_write_lock(func: Callable[P, R]) -> Callable[P, R]:
+    def require_write_lock(self, func: Callable[P, R]) -> Callable[P, R]:
         @wraps(func)
         def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
             lock_manager = getattr(args[0], "_lock_manager", None) if args else None
