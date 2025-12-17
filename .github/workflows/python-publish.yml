@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - main
+      - test
+    paths:
+      - "src/**"
+      - "pyproject.toml"
   workflow_dispatch:
 
 permissions:
@@ -45,7 +49,7 @@ jobs:
 
     environment:
       name: pypi
-      url: https://pypi.org/project/telemetry-server
+      url: ${{ github.ref == 'refs/heads/main' && 'https://pypi.org/project/telemetry-server' || 'https://pypi.org/project/telemetry-server-testing' }}
 
     steps:
       - name: Retrieve release distributions
