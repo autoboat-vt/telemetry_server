@@ -11,7 +11,7 @@ __all__ = ["INSTANCE_DIR", "create_app", "shared_lock_manager"]
 
 shared_lock_manager = LockManager()
 
-INSTANCE_DIR = Path("/home/ubuntu/telemetry_server/src/instance")
+INSTANCE_DIR = Path("/home/ubuntu/telemetry_server_testing/src/instance")
 
 from autoboat_telemetry_server.routes import (  # noqa: E402
     AutopilotParametersEndpoint,
