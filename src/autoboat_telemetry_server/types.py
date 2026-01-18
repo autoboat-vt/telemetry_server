@@ -2,14 +2,19 @@
 This module defines type aliases used throughout the Autoboat telemetry server.
 
 Types:
-- BoatStatusType: A dictionary representing the status of the boat.
-- WaypointsType: A list of waypoints, where each waypoint is a list of coordinates
+- WaypointType: A list or tuple representing a waypoint with latitude and longitude.
+- WaypointSequenceType: A list of waypoints, where each waypoint is a list of coordinates
     (latitude and longitude).
-- AutopilotParametersType: A dictionary representing the autopilot parameters.
+- BoatStatusType: A dictionary representing the boat's status information.
 """
 
 from typing import Any
 
+type CoordinateType = float | int
+type WaypointType = tuple[CoordinateType, CoordinateType]
+type WaypointSequenceType = list[WaypointType]
+
 type BoatStatusType = dict[str, Any]
-type WaypointsType = list[list[float | int]]
-type AutopilotParametersType = dict[str, Any]
+
+# example: {..., "tack_distance": {"default": 100.0, "description": ...}, ...}
+type AutopilotParametersType = dict[str, dict[str, Any]]

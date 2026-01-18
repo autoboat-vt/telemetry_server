@@ -1,0 +1,3 @@
+{
+    "ruff.configuration": "${workspaceFolder}/ruff.toml"
+}

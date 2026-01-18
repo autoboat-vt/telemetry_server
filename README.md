@@ -9,6 +9,8 @@ autoboat_telemetry_server/
 ├── __init__.py                   # App factory
 ├── models.py                     # Database models
 ├── types.py                      # Custom types and enums
+├── lock_manager.py               # Read-write lock manager
+├── autopilot_conf_manager.py     # Autopilot configuration manager
 ├── routes
     ├── __init__.py               # Routes initialization
     ├── autopilot_parameters.py   # Autopilot parameters routes
@@ -17,8 +19,9 @@ autoboat_telemetry_server/
     ├── instance_manager.py       # Instance management routes
 
 instance/
-    ├── config.py                 # Configuration file
-    ├── app.db                    # Database file
+    ├── config.py                                   # Configuration file
+    ├── app.db                                      # Database file
+    ├── default_autopilot_parameters_config_storage # Default autopilot parameters storage
 ```
 
 ## 🚀 Quick Start

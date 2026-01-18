@@ -165,7 +165,9 @@ class InstanceManagerEndpoint:
                 timeout = 5.0  # minutes
                 cutoff = datetime.now(UTC) - timedelta(minutes=timeout)
                 num_deleted = (
-                    db.session.query(TelemetryTable).filter(TelemetryTable.updated_at < cutoff).delete(synchronize_session=False)
+                    db.session.query(TelemetryTable)
+                    .filter(TelemetryTable.updated_at < cutoff)
+                    .delete(synchronize_session=False)
                 )
                 db.session.commit()
                 return jsonify(f"Successfully deleted {num_deleted} inactive instances."), 200

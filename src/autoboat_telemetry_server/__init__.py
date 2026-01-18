@@ -1,17 +1,24 @@
 """Telemetry server for Autoboat at Virginia Tech."""
 
-import os
+from pathlib import Path
 
 from flask import Flask as _flask
 
 from .lock_manager import LockManager
 from .models import db
 
-__all__ = ["create_app", "shared_lock_manager"]
+__all__ = ["INSTANCE_DIR", "create_app", "shared_lock_manager"]
 
 shared_lock_manager = LockManager()
 
-from autoboat_telemetry_server.routes import AutopilotParametersEndpoint, BoatStatusEndpoint, InstanceManagerEndpoint, WaypointEndpoint
+INSTANCE_DIR = Path("/home/ubuntu/telemetry_server/src/instance")
+
+from autoboat_telemetry_server.routes import (  # noqa: E402
+    AutopilotParametersEndpoint,
+    BoatStatusEndpoint,
+    InstanceManagerEndpoint,
+    WaypointEndpoint,
+)
 
 
 def create_app() -> _flask:
@@ -26,8 +33,7 @@ def create_app() -> _flask:
 
     app = _flask(__name__)
 
-    instance_dir = "/home/ubuntu/telemetry_server/src/instance"
-    config_path = os.path.join(instance_dir, "config.py")
+    config_path = INSTANCE_DIR / "config.py"
 
     app.config.from_pyfile(config_path)
 

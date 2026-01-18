@@ -1,5 +1,5 @@
 """
-This module defines the TelemetryTable model for the Autoboat telemetry server.
+This module defines the ``TelemetryTable`` model for the Autoboat telemetry server.
 It includes the database schema and methods for interacting with telemetry data.
 """
 
@@ -11,11 +11,7 @@ from sqlalchemy import JSON, Boolean, Integer, String, event
 from sqlalchemy.engine import Connection
 from sqlalchemy.orm import Mapped, Mapper, mapped_column, validates
 
-from autoboat_telemetry_server.types import (
-    AutopilotParametersType,
-    BoatStatusType,
-    WaypointsType,
-)
+from autoboat_telemetry_server.types import AutopilotParametersType, BoatStatusType, WaypointSequenceType
 
 db = SQLAlchemy()
 
@@ -26,7 +22,7 @@ class TelemetryTable(db.Model):
 
     Inherits
     -------
-    db.Model
+    ``db.Model``
         SQLAlchemy base model for database interaction.
 
     Attributes
@@ -40,6 +36,8 @@ class TelemetryTable(db.Model):
         Should be set by the telemetry node in the simulation.
         Can only be changed once when the instance is created.
 
+    current_config_hash : str
+        SHA-256 hash of the current autopilot parameters configuration.
     default_autopilot_parameters : AutopilotParametersType
         Default autopilot parameters for the telemetry instance.
     autopilot_parameters : AutopilotParametersType
@@ -52,7 +50,7 @@ class TelemetryTable(db.Model):
     boat_status_new_flag : bool
         Flag indicating if there is a new boat status.
 
-    waypoints : WaypointsType
+    waypoints : WaypointSequenceType
         List of waypoints for the boat.
     waypoints_new_flag : bool
         Flag indicating if there are new waypoints.
@@ -69,6 +67,7 @@ class TelemetryTable(db.Model):
     instance_identifier: Mapped[str] = mapped_column(String, default="", nullable=True)
     user: Mapped[str] = mapped_column(String, default="unknown", nullable=False)
 
+    current_config_hash: Mapped[str] = mapped_column(String(64), default="", nullable=False)
     default_autopilot_parameters: Mapped[AutopilotParametersType] = mapped_column(JSON, nullable=False)
     autopilot_parameters: Mapped[AutopilotParametersType] = mapped_column(JSON, nullable=False)
     autopilot_parameters_new_flag: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -76,7 +75,7 @@ class TelemetryTable(db.Model):
     boat_status: Mapped[BoatStatusType] = mapped_column(JSON, nullable=False)
     boat_status_new_flag: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
-    waypoints: Mapped[WaypointsType] = mapped_column(JSON, nullable=False)
+    waypoints: Mapped[WaypointSequenceType] = mapped_column(JSON, nullable=False)
     waypoints_new_flag: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(db.DateTime, default=lambda: datetime.now(UTC), nullable=False)
@@ -147,7 +146,7 @@ class TelemetryTable(db.Model):
 @event.listens_for(TelemetryTable, "after_insert")
 def set_instance_identifier(mapper: Mapper, connection: Connection, target: TelemetryTable) -> None:
     """
-    Event listener to set the instance_identifier after a TelemetryTable row is inserted.
+    Event listener to set the ``instance_identifier`` after a ``TelemetryTable`` row is inserted.
 
     Parameters
     ----------
@@ -156,7 +155,7 @@ def set_instance_identifier(mapper: Mapper, connection: Connection, target: Tele
     connection
         Database connection used for the update.
     target
-        The instance of TelemetryTable that was inserted.
+        The instance of ``TelemetryTable`` that was inserted.
 
     Returns
     -------

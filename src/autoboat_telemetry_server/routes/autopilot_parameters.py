@@ -2,7 +2,8 @@ from typing import Literal
 
 from flask import Blueprint, Response, jsonify, request
 
-from autoboat_telemetry_server import shared_lock_manager
+from autoboat_telemetry_server import INSTANCE_DIR, shared_lock_manager
+from autoboat_telemetry_server.autopilot_conf_manager import AutopilotConfigManager
 from autoboat_telemetry_server.models import TelemetryTable, db
 
 
@@ -11,6 +12,7 @@ class AutopilotParametersEndpoint:
 
     def __init__(self) -> None:
         self._blueprint = Blueprint(name="autopilot_parameters_page", import_name=__name__, url_prefix="/autopilot_parameters")
+        self._config_manager = AutopilotConfigManager(INSTANCE_DIR / "default_autopilot_parameters_config_storage")
         self._register_routes()
 
     @property
@@ -163,6 +165,36 @@ class AutopilotParametersEndpoint:
             except Exception as e:
                 return jsonify(str(e)), 500
 
+        @self._blueprint.route("/get_hash/<int:instance_id>", methods=["GET"])
+        @shared_lock_manager.require_read_lock
+        def get_current_hash_route(instance_id: int) -> tuple[Response, int]:
+            """
+            Get the current autopilot configuration hash.
+
+            Method: GET
+
+            Parameters
+            ----------
+            instance_id
+                The ID of the telemetry instance to retrieve the autopilot configuration hash for.
+
+            Returns
+            -------
+            tuple[Response, int]
+                A tuple containing a JSON response with the autopilot configuration hash for the specified telemetry instance,
+                or an error message if the instance is not found.
+            """
+
+            try:
+                telemetry_instance = self._get_instance(instance_id)
+                return jsonify(telemetry_instance.current_config_hash), 200
+
+            except TypeError as e:
+                return jsonify(str(e)), 404
+
+            except Exception as e:
+                return jsonify(str(e)), 500
+
         @self._blueprint.route("/set/<int:instance_id>", methods=["POST"])
         @shared_lock_manager.require_write_lock
         def set_route(instance_id: int) -> tuple[Response, int]:
@@ -189,21 +221,15 @@ class AutopilotParametersEndpoint:
                 if not isinstance(new_parameters, dict):
                     raise TypeError("Invalid autopilot parameters format. Expected a dictionary.")
 
-                if telemetry_instance.default_autopilot_parameters != {}:
-                    new_parameters_keys = list(new_parameters.keys())
-                    if len(new_parameters_keys) == 1 and new_parameters_keys[0] in telemetry_instance.default_autopilot_parameters:
-                        telemetry_instance.autopilot_parameters[new_parameters_keys[0]] = new_parameters[new_parameters_keys[0]]
+                if telemetry_instance.default_autopilot_parameters:
+                    new_parameters_keys = frozenset(new_parameters)
+                    default_parameters_keys = frozenset(telemetry_instance.default_autopilot_parameters)
 
-                    elif new_parameters_keys == list(telemetry_instance.default_autopilot_parameters.keys()):
-                        telemetry_instance.autopilot_parameters = new_parameters
+                    if new_parameters_keys != default_parameters_keys:
+                        raise ValueError("Autopilot parameters keys do not match the default configuration keys.")
 
-                    else:
-                        raise ValueError("Invalid keys in autopilot parameters.")
-
-                else:
-                    telemetry_instance.autopilot_parameters = new_parameters
-
-                telemetry_instance.autopilot_parameters_new_flag = True
+                telemetry_instance.autopilot_parameters_new_flag = telemetry_instance.autopilot_parameters != new_parameters
+                telemetry_instance.autopilot_parameters = new_parameters
                 db.session.commit()
 
                 return jsonify("Autopilot parameters updated successfully."), 200
@@ -238,21 +264,16 @@ class AutopilotParametersEndpoint:
                 or an error message if the instance is not found or if the input format is invalid.
             """
 
+            def validate_function(config: object) -> bool:
+                """Validate the structure of the autopilot parameters configuration."""
+
+                return isinstance(config, dict) and all(isinstance(key, str) for key in config)
+
             try:
                 telemetry_instance = self._get_instance(instance_id)
                 new_parameters = request.json
-                if not isinstance(new_parameters, dict):
-                    raise TypeError("Invalid default autopilot parameters format. Expected a dictionary.")
 
-                # if default parameters are being updated, remove any existing keys that will no longer be valid
-                if new_parameters != {}:
-                    filtered_autopilot_parameters = {}
-                    for key in new_parameters:
-                        if key in telemetry_instance.default_autopilot_parameters:
-                            filtered_autopilot_parameters[key] = new_parameters[key]
-
-                    telemetry_instance.autopilot_parameters = filtered_autopilot_parameters
-
+                telemetry_instance.current_config_hash = self._config_manager.save(new_parameters, validate_function)
                 telemetry_instance.default_autopilot_parameters = new_parameters
                 db.session.commit()
 
@@ -260,6 +281,54 @@ class AutopilotParametersEndpoint:
 
             except TypeError as e:
                 return jsonify(str(e)), 400
+
+            except ValueError as e:
+                return jsonify(str(e)), 400
+
+            except FileNotFoundError as e:
+                return jsonify(str(e)), 404
+
+            except Exception as e:
+                db.session.rollback()
+                return jsonify(str(e)), 500
+
+        @self._blueprint.route("/set_default_from_hash/<int:instance_id>/<config_hash>", methods=["POST"])
+        @shared_lock_manager.require_write_lock
+        def set_default_from_hash_route(instance_id: int, config_hash: str) -> tuple[Response, int]:
+            """
+            Set the default autopilot parameters from a saved configuration hash.
+
+            Method: POST
+
+            Parameters
+            ----------
+            instance_id
+                The ID of the telemetry instance to set the default autopilot parameters for.
+            config_hash
+                The hash of the saved autopilot parameters configuration to load.
+
+            Returns
+            -------
+            tuple[Response, int]
+                A tuple containing a JSON response confirming the default autopilot parameters have been updated successfully,
+                or an error message if the instance is not found or if the configuration hash is invalid.
+            """
+
+            try:
+                telemetry_instance = self._get_instance(instance_id)
+                new_parameters = self._config_manager.load(config_hash)
+
+                telemetry_instance.current_config_hash = config_hash
+                telemetry_instance.default_autopilot_parameters = new_parameters
+                db.session.commit()
+
+                return jsonify("Default autopilot parameters updated successfully from hash."), 200
+
+            except ValueError as e:
+                return jsonify(str(e)), 400
+
+            except FileNotFoundError as e:
+                return jsonify(str(e)), 404
 
             except Exception as e:
                 db.session.rollback()
