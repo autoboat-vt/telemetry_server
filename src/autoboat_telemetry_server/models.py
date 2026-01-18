@@ -67,7 +67,7 @@ class TelemetryTable(db.Model):
     instance_identifier: Mapped[str] = mapped_column(String, default="", nullable=True)
     user: Mapped[str] = mapped_column(String, default="unknown", nullable=False)
 
-    current_config_hash: Mapped[str] = mapped_column(String(64), default="", nullable=False)
+    current_config_hash: Mapped[str] = mapped_column(String, default="", nullable=False)
     default_autopilot_parameters: Mapped[AutopilotParametersType] = mapped_column(JSON, nullable=False)
     autopilot_parameters: Mapped[AutopilotParametersType] = mapped_column(JSON, nullable=False)
     autopilot_parameters_new_flag: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
