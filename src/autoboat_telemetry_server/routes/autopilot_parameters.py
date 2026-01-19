@@ -324,7 +324,7 @@ class AutopilotParametersEndpoint:
                 telemetry_instance.default_autopilot_parameters = new_parameters
 
                 if telemetry_instance.autopilot_parameters == {}:
-                    telemetry_instance.autopilot_parameters = new_parameters
+                    telemetry_instance.autopilot_parameters = {key: value["default"] for key, value in new_parameters.items()}
 
                 db.session.commit()
 
