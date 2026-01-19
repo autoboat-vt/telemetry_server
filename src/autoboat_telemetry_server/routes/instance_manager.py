@@ -83,10 +83,7 @@ class InstanceManagerEndpoint:
 
             try:
                 new_instance = TelemetryTable(
-                    default_autopilot_parameters={},
-                    autopilot_parameters={},
-                    boat_status={},
-                    waypoints=[],
+                    default_autopilot_parameters={}, autopilot_parameters={}, boat_status={}, waypoints=[]
                 )
                 db.session.add(new_instance)
                 db.session.commit()

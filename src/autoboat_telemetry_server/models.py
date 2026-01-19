@@ -11,11 +11,7 @@ from sqlalchemy import JSON, Boolean, Integer, String, event
 from sqlalchemy.engine import Connection
 from sqlalchemy.orm import Mapped, Mapper, mapped_column, validates
 
-from autoboat_telemetry_server.types import (
-    AutopilotParametersType,
-    BoatStatusType,
-    WaypointsType,
-)
+from autoboat_telemetry_server.types import AutopilotParametersType, BoatStatusType, WaypointsType
 
 db = SQLAlchemy()
 

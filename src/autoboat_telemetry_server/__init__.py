@@ -11,7 +11,12 @@ __all__ = ["create_app", "shared_lock_manager"]
 
 shared_lock_manager = LockManager()
 
-from autoboat_telemetry_server.routes import AutopilotParametersEndpoint, BoatStatusEndpoint, InstanceManagerEndpoint, WaypointEndpoint
+from autoboat_telemetry_server.routes import (  # noqa: E402
+    AutopilotParametersEndpoint,
+    BoatStatusEndpoint,
+    InstanceManagerEndpoint,
+    WaypointEndpoint,
+)
 
 
 def create_app() -> _flask:

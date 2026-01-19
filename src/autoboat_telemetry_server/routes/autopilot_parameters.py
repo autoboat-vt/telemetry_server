@@ -191,7 +191,10 @@ class AutopilotParametersEndpoint:
 
                 if telemetry_instance.default_autopilot_parameters != {}:
                     new_parameters_keys = list(new_parameters.keys())
-                    if len(new_parameters_keys) == 1 and new_parameters_keys[0] in telemetry_instance.default_autopilot_parameters:
+                    if (
+                        len(new_parameters_keys) == 1
+                        and new_parameters_keys[0] in telemetry_instance.default_autopilot_parameters
+                    ):
                         telemetry_instance.autopilot_parameters[new_parameters_keys[0]] = new_parameters[new_parameters_keys[0]]
 
                     elif new_parameters_keys == list(telemetry_instance.default_autopilot_parameters.keys()):
