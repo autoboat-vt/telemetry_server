@@ -33,7 +33,7 @@ sudo systemctl reload nginx
 # ------------------------
 # Python virtual envs + install
 # ------------------------
-mkdir ~/default_autopilot_parameters_config_storage
+mkdir -p ~/default_autopilot_parameters_config_storage
 (
   python3 -m venv ~/telemetry_server/venv
   source ~/telemetry_server/venv/bin/activate
