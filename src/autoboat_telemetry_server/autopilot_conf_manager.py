@@ -139,6 +139,23 @@ class AutopilotConfigManager:
 
         return config
 
+    def get_all_hashes(self) -> list[str]:
+        """
+        Retrieve all configuration hashes stored in the storage directory.
+
+        Returns
+        -------
+        list[str]
+            A list of all configuration hashes.
+        """
+
+        config_hashes = []
+        for file in self._storage_dir.glob("*.json"):
+            config_hash = file.stem
+            config_hashes.append(config_hash)
+
+        return config_hashes
+
     def exists(self, config_hash: str) -> bool:
         """
         Check if a configuration with the given hash exists in storage.

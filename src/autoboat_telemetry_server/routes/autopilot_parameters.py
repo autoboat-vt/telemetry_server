@@ -2,7 +2,7 @@ from typing import Literal
 
 from flask import Blueprint, Response, jsonify, request
 
-from autoboat_telemetry_server import INSTANCE_DIR, shared_lock_manager
+from autoboat_telemetry_server import HOME_DIR, shared_lock_manager
 from autoboat_telemetry_server.autopilot_conf_manager import AutopilotConfigManager
 from autoboat_telemetry_server.models import TelemetryTable, db
 
@@ -12,7 +12,7 @@ class AutopilotParametersEndpoint:
 
     def __init__(self) -> None:
         self._blueprint = Blueprint(name="autopilot_parameters_page", import_name=__name__, url_prefix="/autopilot_parameters")
-        self._config_manager = AutopilotConfigManager(INSTANCE_DIR / "default_autopilot_parameters_config_storage")
+        self._config_manager = AutopilotConfigManager(HOME_DIR / "default_autopilot_parameters_config_storage")
         self._register_routes()
 
     @property
@@ -191,6 +191,53 @@ class AutopilotParametersEndpoint:
 
             except TypeError as e:
                 return jsonify(str(e)), 404
+
+            except Exception as e:
+                return jsonify(str(e)), 500
+
+        @self._blueprint.route("/get_all_hashes", methods=["GET"])
+        @shared_lock_manager.require_read_lock
+        def get_all_hashes_route() -> tuple[Response, int]:
+            """
+            Get all stored autopilot configuration hashes.
+
+            Method: GET
+
+            Returns
+            -------
+            tuple[Response, int]
+                A tuple containing a JSON response with a list of all stored autopilot configuration hashes,
+                or an error message if an unexpected error occurs.
+            """
+
+            try:
+                return jsonify(self._config_manager.get_all_hashes()), 200
+
+            except Exception as e:
+                return jsonify(str(e)), 500
+
+        @self._blueprint.route("/get_hash_exists/<config_hash>", methods=["GET"])
+        @shared_lock_manager.require_read_lock
+        def get_hash_exists_route(config_hash: str) -> tuple[Response, int]:
+            """
+            Check if a given autopilot configuration hash exists in storage.
+
+            Method: GET
+
+            Parameters
+            ----------
+            config_hash
+                The hash of the autopilot configuration to check.
+
+            Returns
+            -------
+            tuple[Response, int]
+                A tuple containing a JSON response with a boolean indicating whether the configuration hash exists,
+                or an error message if an unexpected error occurs.
+            """
+
+            try:
+                return jsonify(self._config_manager.exists(config_hash)), 200
 
             except Exception as e:
                 return jsonify(str(e)), 500

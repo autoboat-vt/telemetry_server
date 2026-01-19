@@ -7,11 +7,12 @@ from flask import Flask as _flask
 from .lock_manager import LockManager
 from .models import db
 
-__all__ = ["INSTANCE_DIR", "create_app", "shared_lock_manager"]
+__all__ = ["HOME_DIR", "INSTANCE_DIR", "create_app", "shared_lock_manager"]
 
 shared_lock_manager = LockManager()
 
-INSTANCE_DIR = Path("/home/ubuntu/telemetry_server_testing/src/instance")
+HOME_DIR = Path("/home/ubuntu")
+INSTANCE_DIR = HOME_DIR / "telemetry_server_testing" / "src" / "instance"
 
 from autoboat_telemetry_server.routes import (  # noqa: E402
     AutopilotParametersEndpoint,

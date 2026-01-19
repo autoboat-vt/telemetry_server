@@ -2,7 +2,7 @@
 
 A lightweight Flask-based web server to collect, display, and manage telemetry data from the Virginia Tech Autoboat project.
 
-## 📦 Project Structure
+## Project Structure
 
 ```txt
 autoboat_telemetry_server/
@@ -24,7 +24,7 @@ instance/
     ├── default_autopilot_parameters_config_storage # Default autopilot parameters storage
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Installation
 
