@@ -323,7 +323,7 @@ class AutopilotParametersEndpoint:
                 telemetry_instance.current_config_hash = self._config_manager.save(new_parameters, validate_function)
                 telemetry_instance.default_autopilot_parameters = new_parameters
 
-                if telemetry_instance.autopilot_parameters == {}:
+                if not telemetry_instance.autopilot_parameters:
                     telemetry_instance.autopilot_parameters = {key: value["default"] for key, value in new_parameters.items()}
 
                 db.session.commit()
@@ -372,7 +372,7 @@ class AutopilotParametersEndpoint:
                 telemetry_instance.current_config_hash = config_hash
                 telemetry_instance.default_autopilot_parameters = new_parameters
 
-                if telemetry_instance.autopilot_parameters == {}:
+                if not telemetry_instance.autopilot_parameters:
                     telemetry_instance.autopilot_parameters = {key: value["default"] for key, value in new_parameters.items()}
 
                 db.session.commit()
