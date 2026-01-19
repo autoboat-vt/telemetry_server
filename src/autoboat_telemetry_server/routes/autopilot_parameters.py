@@ -371,6 +371,10 @@ class AutopilotParametersEndpoint:
 
                 telemetry_instance.current_config_hash = config_hash
                 telemetry_instance.default_autopilot_parameters = new_parameters
+
+                if telemetry_instance.autopilot_parameters == {}:
+                    telemetry_instance.autopilot_parameters = {key: value["default"] for key, value in new_parameters.items()}
+
                 db.session.commit()
 
                 return jsonify("Default autopilot parameters updated successfully from hash."), 200
