@@ -3,6 +3,7 @@ import json
 from collections.abc import Callable
 from os import PathLike
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from typing import TypeVar
 
 from autoboat_telemetry_server.types import AutopilotParametersType
@@ -138,6 +139,107 @@ class AutopilotConfigManager:
             raise ValueError("Failed to decode configuration file content.") from e
 
         return config
+
+    def set_description(self, config_hash: str, description: str) -> None:
+        """
+        Set or update the description for a specific configuration.
+
+        Parameters
+        ----------
+        config_hash
+            The hash of the configuration to update.
+        description
+            The description to set for the configuration.
+
+        Raises
+        ------
+        FileNotFoundError
+            If no configuration file with the given hash exists.
+        ValueError
+            If the description contains invalid characters.
+        OSError
+            If there is an error reading or writing the descriptions file.
+        """
+
+        descriptions: dict[str, str] = {}
+
+        file_path = self._storage_dir / f"{config_hash}.json"
+        if not file_path.exists():
+            raise FileNotFoundError(f"No configuration found with hash {config_hash}.")
+
+        banned_chars = {":", "\n"}
+        if any(char in description for char in banned_chars):
+            raise ValueError(f"Description cannot contain the following characters: {banned_chars}")
+
+        hash_desc_file = self._storage_dir / "descriptions.txt"
+        if hash_desc_file.exists():
+            try:
+                with hash_desc_file.open(mode="r", encoding="utf-8") as f:
+                    for line in f:
+                        hash_key, desc = line.rstrip("\n").split(":", 1)
+                        descriptions[hash_key] = desc
+
+            except Exception as e:
+                raise OSError("Failed to read existing descriptions.") from e
+
+        descriptions[config_hash] = description
+        descriptions_items = sorted(descriptions.items())
+
+        tmp_path: Path | None = None
+        try:
+            with NamedTemporaryFile(mode="w", dir=self._storage_dir, delete=False, encoding="utf-8") as tmp_file:
+                tmp_path = Path(tmp_file.name)
+                for hash_key, desc in descriptions_items:
+                    tmp_file.write(f"{hash_key}:{desc}\n")
+
+                tmp_file.flush()
+
+            tmp_path.replace(hash_desc_file)
+
+        except Exception as e:
+            if tmp_path and tmp_path.exists():
+                tmp_path.unlink()
+
+            raise OSError("Failed to write descriptions.") from e
+
+    def get_description(self, config_hash: str) -> str:
+        """
+        Retrieve the description for a specific configuration.
+
+        Parameters
+        ----------
+        config_hash
+            The hash of the configuration to retrieve the description for.
+
+        Returns
+        -------
+        str
+            The description of the configuration, or None if not found.
+
+        Raises
+        ------
+        FileNotFoundError
+            If no configuration file with the given hash exists.
+        OSError
+            If there is an error reading the descriptions file.
+        """
+
+        hash_desc_file = self._storage_dir / "descriptions.txt"
+        if not hash_desc_file.exists():
+            hash_desc_file.touch()
+
+        if self.exists(config_hash):
+            try:
+                with hash_desc_file.open(mode="r", encoding="utf-8") as f:
+                    for line in f:
+                        hash_key, desc = line.rstrip("\n").split(":", 1)
+                        if hash_key == config_hash:
+                            return desc
+
+            except Exception as e:
+                raise OSError("Failed to read descriptions file.") from e
+
+        raise FileNotFoundError(f"No configuration found with hash {config_hash}.")
 
     def get_all_hashes(self) -> list[str]:
         """

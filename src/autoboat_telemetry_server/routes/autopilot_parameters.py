@@ -195,6 +195,39 @@ class AutopilotParametersEndpoint:
             except Exception as e:
                 return jsonify(str(e)), 500
 
+        @self._blueprint.route("/get_hash_description/<config_hash>", methods=["GET"])
+        @shared_lock_manager.require_read_lock
+        def get_hash_description_route(config_hash: str) -> tuple[Response, int]:
+            """
+            Get the description for a given autopilot configuration hash.
+
+            Method: GET
+
+            Parameters
+            ----------
+            config_hash
+                The hash of the autopilot configuration to retrieve the description for.
+
+            Returns
+            -------
+            tuple[Response, int]
+                A tuple containing a JSON response with the description of the specified autopilot configuration hash,
+                or an error message if an unexpected error occurs.
+            """
+
+            try:
+                description = self._config_manager.get_description(config_hash)
+                return jsonify(description), 200
+
+            except FileNotFoundError as e:
+                return jsonify(str(e)), 404
+
+            except OSError as e:
+                return jsonify(str(e)), 500
+
+            except Exception as e:
+                return jsonify(str(e)), 500
+
         @self._blueprint.route("/get_all_hashes", methods=["GET"])
         @shared_lock_manager.require_read_lock
         def get_all_hashes_route() -> tuple[Response, int]:
@@ -387,6 +420,44 @@ class AutopilotParametersEndpoint:
 
             except Exception as e:
                 db.session.rollback()
+                return jsonify(str(e)), 500
+
+        @self._blueprint.route("/set_hash_description/<config_hash>/<description>", methods=["POST"])
+        @shared_lock_manager.require_write_lock
+        def set_hash_description_route(config_hash: str, description: str) -> tuple[Response, int]:
+            """
+            Set a description for a given autopilot configuration hash.
+
+            Method: POST
+
+            Parameters
+            ----------
+            config_hash
+                The hash of the autopilot configuration to describe.
+            description
+                The description to associate with the configuration hash.
+
+            Returns
+            -------
+            tuple[Response, int]
+                A tuple containing a JSON response confirming the description has been set successfully,
+                or an error message if an unexpected error occurs.
+            """
+
+            try:
+                self._config_manager.set_description(config_hash, description)
+                return jsonify("Description set successfully."), 200
+
+            except FileNotFoundError as e:
+                return jsonify(str(e)), 404
+
+            except ValueError as e:
+                return jsonify(str(e)), 400
+
+            except OSError as e:
+                return jsonify(str(e)), 500
+
+            except Exception as e:
                 return jsonify(str(e)), 500
 
         return f"autopilot_parameters paths registered successfully: {self._blueprint.url_prefix}"
