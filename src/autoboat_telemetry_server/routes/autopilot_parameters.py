@@ -195,8 +195,7 @@ class AutopilotParametersEndpoint:
             except Exception as e:
                 return jsonify(str(e)), 500
 
-        self._blueprint.route("/get_config/<config_hash>", methods=["GET"])
-
+        @self._blueprint.route("/get_config/<config_hash>", methods=["GET"])
         @shared_lock_manager.require_read_lock
         def get_config_route(config_hash: str) -> tuple[Response, int]:
             """
