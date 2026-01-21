@@ -250,7 +250,7 @@ class AutopilotParametersEndpoint:
 
             try:
                 description = self._config_manager.get_description(config_hash)
-                return jsonify(description), 200
+                return Response(description, mimetype="text/plain"), 200
 
             except FileNotFoundError as e:
                 return jsonify(str(e)), 404
