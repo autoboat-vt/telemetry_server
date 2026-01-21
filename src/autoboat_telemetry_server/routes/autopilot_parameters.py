@@ -195,6 +195,40 @@ class AutopilotParametersEndpoint:
             except Exception as e:
                 return jsonify(str(e)), 500
 
+        self._blueprint.route("/get_config/<config_hash>", methods=["GET"])
+
+        @shared_lock_manager.require_read_lock
+        def get_config_route(config_hash: str) -> tuple[Response, int]:
+            """
+            Get the autopilot configuration for a given hash.
+
+            Method: GET
+
+            Parameters
+            ----------
+            config_hash
+                The hash of the autopilot configuration to retrieve.
+
+            Returns
+            -------
+            tuple[Response, int]
+                A tuple containing a JSON response with the autopilot configuration for the specified hash,
+                or an error message if the configuration is not found.
+            """
+
+            try:
+                config = self._config_manager.load(config_hash)
+                return jsonify(config), 200
+
+            except FileNotFoundError as e:
+                return jsonify(str(e)), 404
+
+            except ValueError as e:
+                return jsonify(str(e)), 400
+
+            except Exception as e:
+                return jsonify(str(e)), 500
+
         @self._blueprint.route("/get_hash_description/<config_hash>", methods=["GET"])
         @shared_lock_manager.require_read_lock
         def get_hash_description_route(config_hash: str) -> tuple[Response, int]:
