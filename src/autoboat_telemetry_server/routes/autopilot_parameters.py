@@ -386,8 +386,12 @@ class AutopilotParametersEndpoint:
                 telemetry_instance = self._get_instance(instance_id)
                 new_parameters = request.json
 
-                telemetry_instance.current_config_hash = self._config_manager.save(new_parameters, validate_function)
+                temp_hash = self._config_manager.compute_hash(new_parameters)
+                if not self._config_manager.exists(temp_hash):
+                    telemetry_instance.current_config_hash = self._config_manager.save(new_parameters, validate_function)
+
                 telemetry_instance.default_autopilot_parameters = new_parameters
+                telemetry_instance.current_config_hash = temp_hash
 
                 if not telemetry_instance.autopilot_parameters:
                     telemetry_instance.autopilot_parameters = {key: value["default"] for key, value in new_parameters.items()}
