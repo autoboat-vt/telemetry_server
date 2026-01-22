@@ -493,4 +493,38 @@ class AutopilotParametersEndpoint:
             except Exception as e:
                 return jsonify(str(e)), 500
 
+        @self._blueprint.route("/create_config/", methods=["POST"])
+        @shared_lock_manager.require_write_lock
+        def create_config_route() -> tuple[Response, int]:
+            """
+            Create a new autopilot configuration from the request data.
+
+            Method: POST
+
+            Returns
+            -------
+            tuple[Response, int]
+                A tuple containing a JSON response with the new configuration hash,
+                or an error message if the input format is invalid or if an unexpected error occurs.
+            """
+
+            def validate_function(config: object) -> bool:
+                """Validate the structure of the autopilot parameters configuration."""
+
+                return isinstance(config, dict) and all(isinstance(key, str) for key in config)
+
+            try:
+                new_parameters = request.json
+                config_hash = self._config_manager.save(new_parameters, validate_function)
+                return Response(config_hash, mimetype="text/plain"), 200
+
+            except TypeError as e:
+                return jsonify(str(e)), 400
+
+            except ValueError as e:
+                return jsonify(str(e)), 400
+
+            except Exception as e:
+                return jsonify(str(e)), 500
+
         return f"autopilot_parameters paths registered successfully: {self._blueprint.url_prefix}"
