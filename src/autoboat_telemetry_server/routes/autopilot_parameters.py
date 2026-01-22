@@ -187,7 +187,7 @@ class AutopilotParametersEndpoint:
 
             try:
                 telemetry_instance = self._get_instance(instance_id)
-                return jsonify(telemetry_instance.current_config_hash), 200
+                return Response(telemetry_instance.current_config_hash, mimetype="text/plain"), 200
 
             except TypeError as e:
                 return jsonify(str(e)), 404

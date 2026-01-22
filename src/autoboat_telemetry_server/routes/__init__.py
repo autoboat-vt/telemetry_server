@@ -7,10 +7,12 @@ Autopilot Routes:
 - `/autopilot_parameters/get_new/<int:instance_id>`: Get the latest autopilot parameters if they haven't been seen yet.
 - `/autopilot_parameters/get_default/<int:instance_id>`: Get the default autopilot parameters.
 - `/autopilot_parameters/get_hash/<int:instance_id>`: Get the current autopilot configuration hash.
+- `/autopilot_parameters/get_hash_description/<config_hash>`: Get the description for a specific configuration hash.
 - `/autopilot_parameters/get_all_hashes`: Get all stored autopilot configuration hashes.
 - `/autopilot_parameters/get_hash_exists/<config_hash>`: Check if a specific configuration hash exists.
 - `/autopilot_parameters/set/<int:instance_id>`: Set the autopilot parameters from the request data.
 - `/autopilot_parameters/set_default/<int:instance_id>`: Set the default autopilot parameters from the request data.
+- `/autopilot_parameters/set_hash_description/<config_hash>/<description>`: Set the description for a specific configuration hash.
 - `/autopilot_parameters/set_default_from_hash/<int:instance_id>/<config_hash>`: Set the default autopilot parameters using a stored configuration hash.
 
 Boat Status Routes:
