@@ -493,7 +493,7 @@ class AutopilotParametersEndpoint:
             except Exception as e:
                 return jsonify(str(e)), 500
 
-        @self._blueprint.route("/create_config/", methods=["POST"])
+        @self._blueprint.route("/create_config", methods=["POST"])
         @shared_lock_manager.require_write_lock
         def create_config_route() -> tuple[Response, int]:
             """
