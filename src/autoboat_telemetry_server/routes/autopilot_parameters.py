@@ -34,6 +34,11 @@ class AutopilotParametersEndpoint:
         -------
         TelemetryTable
             The telemetry instance corresponding to the provided ID.
+
+        Raises
+        ------
+        TypeError
+            If the instance with the given ID does not exist.
         """
 
         instance = TelemetryTable.query.get(instance_id)
@@ -380,18 +385,30 @@ class AutopilotParametersEndpoint:
             def validate_function(config: object) -> bool:
                 """Validate the structure of the autopilot parameters configuration."""
 
-                return isinstance(config, dict) and all(isinstance(key, str) for key in config)
+                if not isinstance(config, dict):
+                    return False
+
+                for key, inner in config.items():
+                    if not isinstance(key, str):
+                        return False
+
+                    if not isinstance(inner, dict):
+                        return False
+
+                    if not all(isinstance(inner_key, str) for inner_key in inner):
+                        return False
+
+                    if not {"default", "description"}.issubset(inner):
+                        return False
+
+                return True
 
             try:
                 telemetry_instance = self._get_instance(instance_id)
                 new_parameters = request.json
 
-                temp_hash = self._config_manager.compute_hash(new_parameters)
-                if not self._config_manager.exists(temp_hash):
-                    telemetry_instance.current_config_hash = self._config_manager.save(new_parameters, validate_function)
-
+                telemetry_instance.current_config_hash = self._config_manager.save(new_parameters, validate_function)
                 telemetry_instance.default_autopilot_parameters = new_parameters
-                telemetry_instance.current_config_hash = temp_hash
 
                 if not telemetry_instance.autopilot_parameters:
                     telemetry_instance.autopilot_parameters = {key: value["default"] for key, value in new_parameters.items()}
@@ -401,9 +418,6 @@ class AutopilotParametersEndpoint:
                 return jsonify("Default autopilot parameters updated successfully."), 200
 
             except TypeError as e:
-                return jsonify(str(e)), 400
-
-            except ValueError as e:
                 return jsonify(str(e)), 400
 
             except FileNotFoundError as e:
@@ -515,7 +529,23 @@ class AutopilotParametersEndpoint:
             def validate_function(config: object) -> bool:
                 """Validate the structure of the autopilot parameters configuration."""
 
-                return isinstance(config, dict) and all(isinstance(key, str) for key in config)
+                if not isinstance(config, dict):
+                    return False
+
+                for key, inner in config.items():
+                    if not isinstance(key, str):
+                        return False
+
+                    if not isinstance(inner, dict):
+                        return False
+
+                    if not all(isinstance(inner_key, str) for inner_key in inner):
+                        return False
+
+                    if not {"default", "description"}.issubset(inner):
+                        return False
+
+                return True
 
             try:
                 new_parameters = request.json

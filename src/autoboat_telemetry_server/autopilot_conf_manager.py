@@ -51,6 +51,9 @@ class AutopilotConfigManager:
 
         self._storage_dir = Path(storage_dir)
 
+        self._check_for_new_hashes: bool = True
+        self._all_hashes: list[str] = []
+
     @property
     def storage_dir(self) -> Path:
         """
@@ -101,6 +104,8 @@ class AutopilotConfigManager:
 
         config_json = json.dumps(config, indent=4)
         file_path.write_text(config_json, encoding="utf-8")
+
+        self._check_for_new_hashes = True
 
         return config_hash
 
@@ -161,15 +166,14 @@ class AutopilotConfigManager:
             If there is an error reading or writing the descriptions file.
         """
 
-        descriptions: dict[str, str] = {}
-
-        file_path = self._storage_dir / f"{config_hash}.json"
-        if not file_path.exists():
+        if not self.exists(config_hash):
             raise FileNotFoundError(f"No configuration found with hash {config_hash}.")
 
         banned_chars = {":", "\n"}
         if any(char in description for char in banned_chars):
             raise ValueError(f"Description cannot contain the following characters: {banned_chars}")
+
+        descriptions: dict[str, str] = {}
 
         hash_desc_file = self._storage_dir / "descriptions.txt"
         if hash_desc_file.exists():
@@ -228,18 +232,18 @@ class AutopilotConfigManager:
         if not hash_desc_file.exists():
             hash_desc_file.touch()
 
-        if self.exists(config_hash):
-            try:
-                with hash_desc_file.open(mode="r", encoding="utf-8") as f:
-                    for line in f:
-                        hash_key, desc = line.rstrip("\n").split(":", 1)
-                        if hash_key == config_hash:
-                            return desc
+        if not self.exists(config_hash):
+            raise FileNotFoundError(f"No configuration found with hash {config_hash}.")
 
-            except Exception as e:
-                raise OSError("Failed to read descriptions file.") from e
+        try:
+            with hash_desc_file.open(mode="r", encoding="utf-8") as f:
+                for line in f:
+                    hash_key, desc = line.rstrip("\n").split(":", 1)
+                    if hash_key == config_hash:
+                        return desc
 
-        raise FileNotFoundError(f"No configuration found with hash {config_hash}.")
+        except Exception as e:
+            raise OSError("Failed to read descriptions file.") from e
 
     def get_all_hashes(self) -> list[str]:
         """
@@ -251,12 +255,11 @@ class AutopilotConfigManager:
             A list of all configuration hashes.
         """
 
-        config_hashes = []
-        for file in self._storage_dir.glob("*.json"):
-            config_hash = file.stem
-            config_hashes.append(config_hash)
+        if self._check_for_new_hashes:
+            self._all_hashes = [file.stem for file in self._storage_dir.glob("*.json")]
+            self._check_for_new_hashes = False
 
-        return config_hashes
+        return self._all_hashes
 
     def exists(self, config_hash: str) -> bool:
         """
