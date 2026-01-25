@@ -2,9 +2,8 @@ from typing import Literal
 
 from flask import Blueprint, Response, jsonify, request
 
-from autoboat_telemetry_server import HOME_DIR, shared_lock_manager
-from autoboat_telemetry_server.autopilot_conf_manager import AutopilotConfigManager
-from autoboat_telemetry_server.models import TelemetryTable, db
+from autoboat_telemetry_server import shared_lock_manager
+from autoboat_telemetry_server.models import HashTable, TelemetryTable, db
 
 
 class AutopilotParametersEndpoint:
@@ -12,7 +11,6 @@ class AutopilotParametersEndpoint:
 
     def __init__(self) -> None:
         self._blueprint = Blueprint(name="autopilot_parameters_page", import_name=__name__, url_prefix="/autopilot_parameters")
-        self._config_manager = AutopilotConfigManager(HOME_DIR / "default_autopilot_parameters_config_storage")
         self._register_routes()
 
     @property
@@ -47,6 +45,33 @@ class AutopilotParametersEndpoint:
             raise TypeError("Instance not found.")
 
         return instance
+
+    def _get_hash(self, config_hash: str) -> HashTable:
+        """
+        Helper function to retrieve a hash table entry by its configuration hash.
+
+        Parameters
+        ----------
+        config_hash
+            The configuration hash to retrieve.
+
+        Returns
+        -------
+        HashTable
+            The hash table entry corresponding to the provided configuration hash.
+
+        Raises
+        ------
+        TypeError
+            If the hash entry with the given configuration hash does not exist.
+        """
+
+        hash_entry = HashTable.query.get(config_hash)
+
+        if not isinstance(hash_entry, HashTable):
+            raise TypeError("Hash entry not found.")
+
+        return hash_entry
 
     def _register_routes(self) -> str:
         """
@@ -221,10 +246,10 @@ class AutopilotParametersEndpoint:
             """
 
             try:
-                config = self._config_manager.load(config_hash)
+                config = self._get_hash(config_hash).data
                 return jsonify(config), 200
 
-            except FileNotFoundError as e:
+            except TypeError as e:
                 return jsonify(str(e)), 404
 
             except ValueError as e:
@@ -254,14 +279,11 @@ class AutopilotParametersEndpoint:
             """
 
             try:
-                description = self._config_manager.get_description(config_hash)
+                description = self._get_hash(config_hash).description
                 return Response(description, mimetype="text/plain"), 200
 
-            except FileNotFoundError as e:
+            except TypeError as e:
                 return jsonify(str(e)), 404
-
-            except OSError as e:
-                return jsonify(str(e)), 500
 
             except Exception as e:
                 return jsonify(str(e)), 500
@@ -282,7 +304,8 @@ class AutopilotParametersEndpoint:
             """
 
             try:
-                return jsonify(self._config_manager.get_all_hashes()), 200
+                all_hashes = HashTable.get_all_hashes()
+                return jsonify(all_hashes), 200
 
             except Exception as e:
                 return jsonify(str(e)), 500
@@ -308,7 +331,8 @@ class AutopilotParametersEndpoint:
             """
 
             try:
-                return jsonify(self._config_manager.exists(config_hash)), 200
+                exists = HashTable.check_hash_exists(config_hash)
+                return jsonify(exists), 200
 
             except Exception as e:
                 return jsonify(str(e)), 500
@@ -382,33 +406,23 @@ class AutopilotParametersEndpoint:
                 or an error message if the instance is not found or if the input format is invalid.
             """
 
-            def validate_function(config: object) -> bool:
-                """Validate the structure of the autopilot parameters configuration."""
-
-                if not isinstance(config, dict):
-                    return False
-
-                for key, inner in config.items():
-                    if not isinstance(key, str):
-                        return False
-
-                    if not isinstance(inner, dict):
-                        return False
-
-                    if not all(isinstance(inner_key, str) for inner_key in inner):
-                        return False
-
-                    if not {"default", "description"}.issubset(inner):
-                        return False
-
-                return True
-
             try:
-                telemetry_instance = self._get_instance(instance_id)
                 new_parameters = request.json
+                if not HashTable.validate_config(new_parameters):
+                    raise TypeError("Invalid autopilot parameters configuration format.")
 
-                telemetry_instance.current_config_hash = self._config_manager.save(new_parameters, validate_function)
+                tmp_hash = HashTable.compute_hash(new_parameters)
+                if HashTable.check_hash_exists(tmp_hash):
+                    raise ValueError("Configuration hash already exists.")
+
+                new_hashtable_entry = HashTable(
+                    config_hash=tmp_hash, data=new_parameters, description="This hash does not have a description yet."
+                )
+                db.session.add(new_hashtable_entry)
+
+                telemetry_instance = self._get_instance(instance_id)
                 telemetry_instance.default_autopilot_parameters = new_parameters
+                telemetry_instance.current_config_hash = tmp_hash
 
                 if not telemetry_instance.autopilot_parameters:
                     telemetry_instance.autopilot_parameters = {key: value["default"] for key, value in new_parameters.items()}
@@ -420,8 +434,8 @@ class AutopilotParametersEndpoint:
             except TypeError as e:
                 return jsonify(str(e)), 400
 
-            except FileNotFoundError as e:
-                return jsonify(str(e)), 404
+            except ValueError as e:
+                return jsonify(str(e)), 400
 
             except Exception as e:
                 db.session.rollback()
@@ -450,8 +464,11 @@ class AutopilotParametersEndpoint:
             """
 
             try:
+                if not HashTable.check_hash_exists(config_hash):
+                    raise ValueError("Configuration hash does not exist.")
+
+                new_parameters = self._get_hash(config_hash).data
                 telemetry_instance = self._get_instance(instance_id)
-                new_parameters = self._config_manager.load(config_hash)
 
                 telemetry_instance.current_config_hash = config_hash
                 telemetry_instance.default_autopilot_parameters = new_parameters
@@ -466,7 +483,7 @@ class AutopilotParametersEndpoint:
             except ValueError as e:
                 return jsonify(str(e)), 400
 
-            except FileNotFoundError as e:
+            except TypeError as e:
                 return jsonify(str(e)), 404
 
             except Exception as e:
@@ -496,19 +513,17 @@ class AutopilotParametersEndpoint:
             """
 
             try:
-                self._config_manager.set_description(config_hash, description)
+                hash_entry = self._get_hash(config_hash)
+                hash_entry.description = description
+                db.session.commit()
+
                 return jsonify("Description set successfully."), 200
 
-            except FileNotFoundError as e:
+            except TypeError as e:
                 return jsonify(str(e)), 404
 
-            except ValueError as e:
-                return jsonify(str(e)), 400
-
-            except OSError as e:
-                return jsonify(str(e)), 500
-
             except Exception as e:
+                db.session.rollback()
                 return jsonify(str(e)), 500
 
         @self._blueprint.route("/create_config", methods=["POST"])
@@ -526,30 +541,21 @@ class AutopilotParametersEndpoint:
                 or an error message if the input format is invalid or if an unexpected error occurs.
             """
 
-            def validate_function(config: object) -> bool:
-                """Validate the structure of the autopilot parameters configuration."""
-
-                if not isinstance(config, dict):
-                    return False
-
-                for key, inner in config.items():
-                    if not isinstance(key, str):
-                        return False
-
-                    if not isinstance(inner, dict):
-                        return False
-
-                    if not all(isinstance(inner_key, str) for inner_key in inner):
-                        return False
-
-                    if not {"default", "description"}.issubset(inner):
-                        return False
-
-                return True
-
             try:
                 new_parameters = request.json
-                config_hash = self._config_manager.save(new_parameters, validate_function)
+                if not HashTable.validate_config(new_parameters):
+                    raise TypeError("Invalid autopilot parameters configuration format.")
+
+                config_hash = HashTable.compute_hash(new_parameters)
+                if HashTable.check_hash_exists(config_hash):
+                    raise ValueError("Configuration hash already exists.")
+
+                new_hashtable_entry = HashTable(
+                    config_hash=config_hash, data=new_parameters, description="This hash does not have a description yet."
+                )
+                db.session.add(new_hashtable_entry)
+                db.session.commit()
+
                 return Response(config_hash, mimetype="text/plain"), 200
 
             except TypeError as e:
@@ -559,6 +565,7 @@ class AutopilotParametersEndpoint:
                 return jsonify(str(e)), 400
 
             except Exception as e:
+                db.session.rollback()
                 return jsonify(str(e)), 500
 
         return f"autopilot_parameters paths registered successfully: {self._blueprint.url_prefix}"

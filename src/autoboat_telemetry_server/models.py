@@ -1,8 +1,15 @@
 """
-This module defines the ``TelemetryTable`` model for the Autoboat telemetry server.
-It includes the database schema and methods for interacting with telemetry data.
+Database models for the Autoboat Telemetry Server.
+
+Includes:
+- TelemetryTable: Model for storing telemetry data.
+- HashTable: Model for storing configuration hashes.
 """
 
+__all__ = ["HashTable", "TelemetryTable", "db"]
+
+import hashlib
+import json
 from datetime import UTC, datetime
 from typing import Any
 
@@ -84,14 +91,15 @@ class TelemetryTable(db.Model):
     )
 
     @validates("user")
-    def validate_user(self, key: str, value: str) -> str:
+    def validate_user(self, _: str, value: str) -> str:
         """
         Validate the user field to ensure it can only be set once.
 
         Parameters
         ----------
-        key
-            The name of the field being validated.
+        _
+            The name of the field being validated. Not used in this method
+            because we only validate the "user" field.
         value
             The value being assigned to the field.
 
@@ -137,6 +145,7 @@ class TelemetryTable(db.Model):
         return {
             "instance_id": self.instance_id,
             "instance_identifier": self.instance_identifier,
+            "current_config_hash": self.current_config_hash,
             "user": self.user,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
@@ -170,3 +179,132 @@ def set_instance_identifier(mapper: Mapper, connection: Connection, target: Tele
             .values(instance_identifier=new_identifier)
         )
         target.instance_identifier = new_identifier
+
+
+class HashTable(db.Model):
+    """
+    Database model for storing configuration hashes.
+
+    Inherits
+    -------
+    ``db.Model``
+        SQLAlchemy base model for database interaction.
+
+    Attributes
+    ----------
+    config_hash : str
+        Immutable SHA-256 hash of the configuration.
+    data : AutopilotParametersType
+        The actual configuration data associated with this hash.
+    description : str
+        Optional description of the configuration.
+    created_at : datetime
+        Timestamp when the hash was created.
+    """
+
+    __tablename__ = "hash_table"
+    __bind_key__ = "hashes"
+
+    config_hash: Mapped[str] = mapped_column(String, primary_key=True, nullable=False)
+    data: Mapped[AutopilotParametersType] = mapped_column(JSON, nullable=False)
+    description: Mapped[str] = mapped_column(String, default="", nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(db.DateTime, default=lambda: datetime.now(UTC), nullable=False)
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Convert the hash instance to a dictionary.
+
+        Returns
+        -------
+        dict[str, Any]
+            A dictionary representation of the hash instance.
+        """
+
+        return {"config_hash": self.config_hash, "description": self.description, "created_at": self.created_at.isoformat()}
+
+    @staticmethod
+    def compute_hash(config_data: dict) -> str:
+        """
+        Compute the SHA-256 hash of the given configuration data.
+
+        Parameters
+        ----------
+        config_data
+            The configuration data to hash.
+
+        Returns
+        -------
+        str
+            The SHA-256 hash of the configuration data.
+        """
+
+        config_json = json.dumps(config_data, sort_keys=True, separators=(",", ":"))
+        hash_obj = hashlib.sha256(config_json.encode(encoding="utf-8"))
+        return hash_obj.hexdigest()
+
+    @staticmethod
+    def validate_config(config: object) -> bool:
+        """
+        Validate the structure of the autopilot parameters configuration.
+
+        Parameters
+        ----------
+        config
+            The configuration to validate.
+
+        Returns
+        -------
+        bool
+            ``True`` if the configuration is valid, ``False`` otherwise.
+        """
+
+        if not isinstance(config, dict):
+            return False
+
+        for key, inner in config.items():
+            if not isinstance(key, str):
+                return False
+
+            if not isinstance(inner, dict):
+                return False
+
+            if not all(isinstance(inner_key, str) for inner_key in inner):
+                return False
+
+            if not {"default", "description"}.issubset(inner):
+                return False
+
+        return True
+
+    @classmethod
+    def check_hash_exists(cls, config_hash: str) -> bool:
+        """
+        Check if a configuration hash exists in the database.
+
+        Parameters
+        ----------
+        config_hash
+            The SHA-256 hash of the configuration to check.
+
+        Returns
+        -------
+        bool
+            ``True`` if the hash exists, ``False`` otherwise.
+        """
+
+        exists = db.session.execute(db.select(cls.config_hash).where(cls.config_hash == config_hash)).first()
+        return exists is not None
+
+    @classmethod
+    def get_all_hashes(cls) -> list[str]:
+        """
+        Retrieve all configuration hashes from the database.
+
+        Returns
+        -------
+        list[str]
+            A list of all configuration hashes.
+        """
+
+        return db.session.execute(db.select(cls.config_hash)).scalars().all()

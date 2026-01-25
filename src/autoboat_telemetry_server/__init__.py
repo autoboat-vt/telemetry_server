@@ -1,13 +1,13 @@
 """Telemetry server for Autoboat at Virginia Tech."""
 
+__all__ = ["HOME_DIR", "INSTANCE_DIR", "create_app", "shared_lock_manager"]
+
 from pathlib import Path
 
 from flask import Flask as _flask
 
 from .lock_manager import LockManager
 from .models import db
-
-__all__ = ["HOME_DIR", "INSTANCE_DIR", "create_app", "shared_lock_manager"]
 
 shared_lock_manager = LockManager()
 
@@ -35,7 +35,6 @@ def create_app() -> _flask:
     app = _flask(__name__)
 
     config_path = INSTANCE_DIR / "config.py"
-
     app.config.from_pyfile(config_path)
 
     db.init_app(app)
