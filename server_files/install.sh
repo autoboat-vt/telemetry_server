@@ -12,7 +12,7 @@ sudo apt install -y nginx supervisor certbot python3 python3-venv python3-certbo
 # ------------------------
 sudo cp ~/telemetry_server/server_files/nginx_autoboat_nossl.conf /etc/nginx/sites-available/
 if [ ! -L /etc/nginx/sites-enabled/nginx_autoboat.conf ]; then
-  sudo ln -s /etc/nginx/sites-available/nginx_autoboat_nossl.conf /etc/nginx/sites-enabled/nginx_autoboat.conf
+    sudo ln -s /etc/nginx/sites-available/nginx_autoboat_nossl.conf /etc/nginx/sites-enabled/nginx_autoboat.conf
 fi
 sudo nginx -t
 sudo systemctl reload nginx
@@ -34,27 +34,27 @@ sudo systemctl reload nginx
 # Python virtual envs + install
 # ------------------------
 (
-  python3 -m venv ~/telemetry_server/venv
-  source ~/telemetry_server/venv/bin/activate
-  pip install --upgrade pip
-  pip install ~/telemetry_server
-  deactivate
+    python3 -m venv ~/telemetry_server/venv
+    source ~/telemetry_server/venv/bin/activate
+    pip install --upgrade pip
+    pip install ~/telemetry_server
+    deactivate
 )
 
 # ------------------------
 # Testing branch setup
 # ------------------------
 if [ ! -d ~/telemetry_server_testing ]; then
-  git clone https://github.com/autoboat-vt/telemetry_server ~/telemetry_server_testing
-  cd ~/telemetry_server_testing
-  git checkout testing
-  (
-    python3 -m venv ~/telemetry_server_testing/venv
-    source ~/telemetry_server_testing/venv/bin/activate
-    pip install --upgrade pip
-    pip install ~/telemetry_server_testing
-    deactivate
-  )
+    git clone https://github.com/autoboat-vt/telemetry_server ~/telemetry_server_testing
+    cd ~/telemetry_server_testing
+    git checkout testing
+    (
+        python3 -m venv ~/telemetry_server_testing/venv
+        source ~/telemetry_server_testing/venv/bin/activate
+        pip install --upgrade pip
+        pip install ~/telemetry_server_testing
+        deactivate
+    )
 fi
 
 # ------------------------
