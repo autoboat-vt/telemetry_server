@@ -217,7 +217,7 @@ class AutopilotParametersEndpoint:
 
             try:
                 telemetry_instance = self._get_instance(instance_id)
-                return Response(telemetry_instance.current_config_hash, mimetype="text/plain"), 200
+                return jsonify(telemetry_instance.current_config_hash), 200
 
             except TypeError as e:
                 return jsonify(str(e)), 404
@@ -280,7 +280,7 @@ class AutopilotParametersEndpoint:
 
             try:
                 description = self._get_hash(config_hash).description
-                return Response(description, mimetype="text/plain"), 200
+                return jsonify(description), 200
 
             except TypeError as e:
                 return jsonify(str(e)), 404
@@ -402,8 +402,7 @@ class AutopilotParametersEndpoint:
             Returns
             -------
             tuple[Response, int]
-                A tuple containing a JSON response confirming the default autopilot parameters have been updated successfully,
-                or an error message if the instance is not found or if the input format is invalid.
+
             """
 
             try:
@@ -412,13 +411,11 @@ class AutopilotParametersEndpoint:
                     raise TypeError("Invalid autopilot parameters configuration format.")
 
                 tmp_hash = HashTable.compute_hash(new_parameters)
-                if HashTable.check_hash_exists(tmp_hash):
-                    raise ValueError("Configuration hash already exists.")
-
-                new_hashtable_entry = HashTable(
-                    config_hash=tmp_hash, data=new_parameters, description="This hash does not have a description yet."
-                )
-                db.session.add(new_hashtable_entry)
+                if not HashTable.check_hash_exists(tmp_hash):
+                    new_hashtable_entry = HashTable(
+                        config_hash=tmp_hash, data=new_parameters, description="This hash does not have a description yet."
+                    )
+                    db.session.add(new_hashtable_entry)
 
                 telemetry_instance = self._get_instance(instance_id)
                 telemetry_instance.default_autopilot_parameters = new_parameters
@@ -429,7 +426,7 @@ class AutopilotParametersEndpoint:
 
                 db.session.commit()
 
-                return jsonify("Default autopilot parameters updated successfully."), 200
+                return jsonify(tmp_hash), 200
 
             except TypeError as e:
                 return jsonify(str(e)), 400
@@ -538,7 +535,7 @@ class AutopilotParametersEndpoint:
             -------
             tuple[Response, int]
                 A tuple containing a JSON response with the new configuration hash,
-                or an error message if the input format is invalid or if an unexpected error occurs.
+                or an error message if the input format is invalid or if the hash already exists.
             """
 
             try:
@@ -556,7 +553,7 @@ class AutopilotParametersEndpoint:
                 db.session.add(new_hashtable_entry)
                 db.session.commit()
 
-                return Response(config_hash, mimetype="text/plain"), 200
+                return jsonify(config_hash), 200
 
             except TypeError as e:
                 return jsonify(str(e)), 400
