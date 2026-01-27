@@ -559,12 +559,6 @@ class AutopilotParametersEndpoint:
 
                 return jsonify(config_hash), 200
 
-            except TypeError as e:
-                return jsonify(str(e)), 400
-
-            except ValueError as e:
-                return jsonify(str(e)), 400
-
             except Exception as e:
                 db.session.rollback()
                 return jsonify(str(e)), 500
