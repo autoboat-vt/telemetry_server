@@ -281,6 +281,9 @@ class HashTable(db.Model):
         if not isinstance(config, dict):
             return False
 
+        if config == {}:
+            return False
+
         for key, inner in config.items():
             if not isinstance(key, str):
                 return False
