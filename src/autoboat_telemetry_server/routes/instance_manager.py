@@ -83,10 +83,7 @@ class InstanceManagerEndpoint:
 
             try:
                 new_instance = TelemetryTable(
-                    default_autopilot_parameters={},
-                    autopilot_parameters={},
-                    boat_status={},
-                    waypoints=[],
+                    default_autopilot_parameters={}, autopilot_parameters={}, boat_status={}, waypoints=[]
                 )
                 db.session.add(new_instance)
                 db.session.commit()
@@ -165,9 +162,7 @@ class InstanceManagerEndpoint:
                 timeout = 5.0  # minutes
                 cutoff = datetime.now(UTC) - timedelta(minutes=timeout)
                 num_deleted = (
-                    db.session.query(TelemetryTable)
-                    .filter(TelemetryTable.updated_at < cutoff)
-                    .delete(synchronize_session=False)
+                    db.session.query(TelemetryTable).filter(TelemetryTable.updated_at < cutoff).delete(synchronize_session=False)
                 )
                 db.session.commit()
                 return jsonify(f"Successfully deleted {num_deleted} inactive instances."), 200
@@ -387,7 +382,8 @@ class InstanceManagerEndpoint:
             Returns
             -------
             tuple[Response, int]
-                A tuple containing a JSON response with a list of all instance details and a 200 status.
+                A tuple containing a JSON response with a list of all instance details and a 200 status,
+                or an error message if the retrieval fails.
             """
 
             try:

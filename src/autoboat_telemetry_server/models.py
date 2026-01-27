@@ -119,19 +119,6 @@ class TelemetryTable(db.Model):
 
         return value
 
-    @classmethod
-    def get_all_ids(cls) -> list[int]:
-        """
-        Retrieve all instance IDs from the database.
-
-        Returns
-        -------
-        list[int]
-            A list of all instance IDs.
-        """
-
-        return db.session.execute(db.select(cls.instance_id)).scalars().all()
-
     def to_dict(self) -> dict[str, Any]:
         """
         Convert the telemetry instance to a dictionary.
@@ -145,11 +132,24 @@ class TelemetryTable(db.Model):
         return {
             "instance_id": self.instance_id,
             "instance_identifier": self.instance_identifier,
-            "current_config_hash": self.current_config_hash,
             "user": self.user,
+            "current_config_hash": self.current_config_hash,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
+
+    @classmethod
+    def get_all_ids(cls) -> list[int]:
+        """
+        Retrieve all instance IDs from the database.
+
+        Returns
+        -------
+        list[int]
+            A list of all instance IDs.
+        """
+
+        return db.session.execute(db.select(cls.instance_id)).scalars().all()
 
 
 @event.listens_for(TelemetryTable, "after_insert")
@@ -223,6 +223,25 @@ class HashTable(db.Model):
 
         return {"config_hash": self.config_hash, "description": self.description, "created_at": self.created_at.isoformat()}
 
+    @classmethod
+    def check_hash_exists(cls, config_hash: str) -> bool:
+        """
+        Check if a configuration hash exists in the database.
+
+        Parameters
+        ----------
+        config_hash
+            The SHA-256 hash of the configuration to check.
+
+        Returns
+        -------
+        bool
+            ``True`` if the hash exists, ``False`` otherwise.
+        """
+
+        exists = db.session.execute(db.select(cls.config_hash).where(cls.config_hash == config_hash)).first()
+        return exists is not None
+
     @staticmethod
     def compute_hash(config_data: dict) -> str:
         """
@@ -276,35 +295,3 @@ class HashTable(db.Model):
                 return False
 
         return True
-
-    @classmethod
-    def check_hash_exists(cls, config_hash: str) -> bool:
-        """
-        Check if a configuration hash exists in the database.
-
-        Parameters
-        ----------
-        config_hash
-            The SHA-256 hash of the configuration to check.
-
-        Returns
-        -------
-        bool
-            ``True`` if the hash exists, ``False`` otherwise.
-        """
-
-        exists = db.session.execute(db.select(cls.config_hash).where(cls.config_hash == config_hash)).first()
-        return exists is not None
-
-    @classmethod
-    def get_all_hashes(cls) -> list[str]:
-        """
-        Retrieve all configuration hashes from the database.
-
-        Returns
-        -------
-        list[str]
-            A list of all configuration hashes.
-        """
-
-        return db.session.execute(db.select(cls.config_hash)).scalars().all()

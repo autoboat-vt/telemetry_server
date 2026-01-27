@@ -304,8 +304,10 @@ class AutopilotParametersEndpoint:
             """
 
             try:
-                all_hashes = HashTable.get_all_hashes()
-                return jsonify(all_hashes), 200
+                all_hashes: list[HashTable] = HashTable.query.all()
+                hashes_info = [h.to_dict() for h in all_hashes]
+
+                return jsonify(hashes_info), 200
 
             except Exception as e:
                 return jsonify(str(e)), 500
