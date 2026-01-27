@@ -15,6 +15,7 @@ Autopilot Routes:
 - `/autopilot_parameters/set_hash_description/<config_hash>/<description>`: Set the description for a specific configuration hash.
 - `/autopilot_parameters/set_default_from_hash/<int:instance_id>/<config_hash>`: Set the default autopilot parameters using a stored configuration hash.
 - `/autopilot_parameters/create_config`: Create a new autopilot configuration from the request data.
+- `/autopilot_parameters/delete_config/<config_hash>`: Delete a stored autopilot configuration hash.
 
 Boat Status Routes:
 - `/boat_status/test`: Test route for boat status.
