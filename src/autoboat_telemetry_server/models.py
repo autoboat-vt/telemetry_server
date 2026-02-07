@@ -263,7 +263,7 @@ class HashTable(db.Model):
         return hash_obj.hexdigest()
 
     @staticmethod
-    def validate_config(config: object) -> bool:
+    def validate_config(config: object) -> tuple[bool, str]:
         """
         Validate the structure of the autopilot parameters configuration.
 
@@ -274,27 +274,28 @@ class HashTable(db.Model):
 
         Returns
         -------
-        bool
-            ``True`` if the configuration is valid, ``False`` otherwise.
+        bool, str
+            A tuple where the first element is a boolean indicating if the configuration is valid,
+            and the second element is a message describing the validation result.
         """
 
         if not isinstance(config, dict):
-            return False
+            return False, "The configuration must be a dictionary."
 
         if config == {}:
-            return False
+            return False, "The configuration cannot be an empty dictionary."
 
         for key, inner in config.items():
             if not isinstance(key, str):
-                return False
+                return False, "All keys in the configuration must be strings."
 
             if not isinstance(inner, dict):
-                return False
+                return False, "Each value in the configuration must be a dictionary."
 
             if not all(isinstance(inner_key, str) for inner_key in inner):
-                return False
+                return False, "All keys in the inner dictionaries must be strings."
 
             if not {"default", "description"}.issubset(inner):
-                return False
+                return False, "Each inner dictionary must contain 'default' and 'description' keys."
 
-        return True
+        return True, "The configuration is valid."

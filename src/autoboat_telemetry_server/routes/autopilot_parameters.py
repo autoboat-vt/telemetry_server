@@ -253,9 +253,6 @@ class AutopilotParametersEndpoint:
             except TypeError as e:
                 return jsonify(str(e)), 404
 
-            except ValueError as e:
-                return jsonify(str(e)), 400
-
             except Exception as e:
                 return jsonify(str(e)), 500
 
@@ -410,18 +407,22 @@ class AutopilotParametersEndpoint:
             """
 
             try:
+                telemetry_instance = self._get_instance(instance_id)
                 new_parameters = request.json
-                if not HashTable.validate_config(new_parameters):
-                    raise TypeError("Invalid autopilot parameters configuration format.")
+
+                config_valid, validation_message = HashTable.validate_config(new_parameters)
+                if not config_valid:
+                    raise TypeError(validation_message)
 
                 tmp_hash = HashTable.compute_hash(new_parameters)
-                if not HashTable.check_hash_exists(tmp_hash):
-                    new_hashtable_entry = HashTable(
-                        config_hash=tmp_hash, data=new_parameters, description="This hash does not have a description yet."
-                    )
-                    db.session.add(new_hashtable_entry)
+                if HashTable.check_hash_exists(tmp_hash):
+                    raise ValueError("Configuration hash already exists.")
 
-                telemetry_instance = self._get_instance(instance_id)
+                new_hashtable_entry = HashTable(
+                    config_hash=tmp_hash, data=new_parameters, description="This hash does not have a description yet."
+                )
+                db.session.add(new_hashtable_entry)
+
                 telemetry_instance.default_autopilot_parameters = new_parameters
                 telemetry_instance.current_config_hash = tmp_hash
 
@@ -465,11 +466,12 @@ class AutopilotParametersEndpoint:
             """
 
             try:
+                telemetry_instance = self._get_instance(instance_id)
+
                 if not HashTable.check_hash_exists(config_hash):
                     raise ValueError("Configuration hash does not exist.")
 
                 new_parameters = self._get_hash(config_hash).data
-                telemetry_instance = self._get_instance(instance_id)
 
                 telemetry_instance.current_config_hash = config_hash
                 telemetry_instance.default_autopilot_parameters = new_parameters
@@ -481,11 +483,11 @@ class AutopilotParametersEndpoint:
 
                 return jsonify("Default autopilot parameters updated successfully from hash."), 200
 
-            except ValueError as e:
-                return jsonify(str(e)), 400
-
             except TypeError as e:
                 return jsonify(str(e)), 404
+
+            except ValueError as e:
+                return jsonify(str(e)), 400
 
             except Exception as e:
                 db.session.rollback()
@@ -544,8 +546,10 @@ class AutopilotParametersEndpoint:
 
             try:
                 new_parameters = request.json
-                if not HashTable.validate_config(new_parameters):
-                    raise TypeError("Invalid autopilot parameters configuration format.")
+
+                config_valid, validation_message = HashTable.validate_config(new_parameters)
+                if not config_valid:
+                    raise TypeError(validation_message)
 
                 config_hash = HashTable.compute_hash(new_parameters)
                 if HashTable.check_hash_exists(config_hash):
@@ -558,6 +562,9 @@ class AutopilotParametersEndpoint:
                 db.session.commit()
 
                 return jsonify(config_hash), 200
+
+            except TypeError as e:
+                return jsonify(str(e)), 400
 
             except Exception as e:
                 db.session.rollback()
@@ -585,6 +592,7 @@ class AutopilotParametersEndpoint:
 
             try:
                 hash_entry = self._get_hash(config_hash)
+
                 db.session.delete(hash_entry)
                 db.session.commit()
 
