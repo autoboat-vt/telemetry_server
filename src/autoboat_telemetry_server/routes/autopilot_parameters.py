@@ -1,3 +1,4 @@
+import json
 from typing import Literal
 
 from flask import Blueprint, jsonify, request
@@ -359,7 +360,8 @@ class AutopilotParametersEndpoint:
 
             try:
                 telemetry_instance = self._get_instance(instance_id)
-                new_parameters = request.json
+                new_parameters = json.loads(request.json)
+
                 if not isinstance(new_parameters, dict):
                     raise TypeError("Invalid autopilot parameters format. Expected a dictionary.")
 
@@ -408,7 +410,7 @@ class AutopilotParametersEndpoint:
 
             try:
                 telemetry_instance = self._get_instance(instance_id)
-                new_parameters = request.json
+                new_parameters = json.loads(request.json)
 
                 config_valid, validation_message = HashTable.validate_config(new_parameters)
                 if not config_valid:
@@ -545,7 +547,7 @@ class AutopilotParametersEndpoint:
             """
 
             try:
-                new_parameters = request.json
+                new_parameters = json.loads(request.json)
 
                 config_valid, validation_message = HashTable.validate_config(new_parameters)
                 if not config_valid:
