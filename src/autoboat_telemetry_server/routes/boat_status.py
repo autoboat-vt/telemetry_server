@@ -197,10 +197,12 @@ class BoatStatusEndpoint:
                 telemetry_instance = self._get_instance(instance_id)
                 update_data = request.json
                 if not isinstance(update_data, list):
-                    raise TypeError(
-                        "Invalid update format. Expected a list of values "
+                    error_msg = (
+                        f"Got: {update_data} of type {type(update_data)}. "
+                        "Invalid boat status update format. Expected a list of values "
                         "corresponding to the boat status mapping for the instance."
                     )
+                    raise TypeError(error_msg)
 
                 boat_status_mapping = telemetry_instance.boat_status_mapping
                 current_boat_status = telemetry_instance.boat_status
