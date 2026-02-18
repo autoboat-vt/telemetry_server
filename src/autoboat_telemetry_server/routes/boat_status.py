@@ -223,7 +223,7 @@ class BoatStatusEndpoint:
                 db.session.commit()
 
                 return jsonify(
-                    f"Got update data {update_data} with mapping {boat_status_mapping}. Boat status updated successfully."
+                    f"New boat status: {telemetry_instance.boat_status} based on mapping {telemetry_instance.boat_status_mapping} "
                 ), 200
 
             except TypeError as e:
