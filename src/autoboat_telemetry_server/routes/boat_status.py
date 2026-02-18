@@ -207,11 +207,15 @@ class BoatStatusEndpoint:
                 boat_status_mapping = telemetry_instance.boat_status_mapping
                 current_boat_status = telemetry_instance.boat_status
 
-                for field, value in update_data.items():
-                    if field not in boat_status_mapping:
-                        raise TypeError(f"Invalid field '{field}' in update data.")
+                if len(update_data) != len(boat_status_mapping):
+                    error_msg = (
+                        f"Got update data of length {len(update_data)} but expected length {len(boat_status_mapping)} "
+                        "based on the boat status mapping for the instance."
+                    )
+                    raise TypeError(error_msg)
 
-                    current_boat_status[field] = value
+                for field_name, new_value in zip(boat_status_mapping, update_data, strict=True):
+                    current_boat_status[field_name] = new_value
 
                 telemetry_instance.boat_status = current_boat_status
                 telemetry_instance.boat_status_new_flag = True
