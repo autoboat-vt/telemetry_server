@@ -205,7 +205,6 @@ class BoatStatusEndpoint:
                     raise TypeError(error_msg)
 
                 boat_status_mapping = telemetry_instance.boat_status_mapping
-                current_boat_status = telemetry_instance.boat_status
 
                 if len(update_data) != len(boat_status_mapping):
                     error_msg = (
@@ -213,6 +212,8 @@ class BoatStatusEndpoint:
                         "based on the boat status mapping for the instance."
                     )
                     raise TypeError(error_msg)
+
+                current_boat_status = telemetry_instance.boat_status
 
                 for field_name, new_value in zip(boat_status_mapping, update_data, strict=True):
                     current_boat_status[field_name] = new_value
