@@ -54,6 +54,9 @@ class TelemetryTable(db.Model):
 
     boat_status : BoatStatusType
         Current status of the boat.
+    boat_status_mapping : tuple[str, ...]
+        Mapping showing order of boat status fields for use in updating boat status
+        without needing to send a full json object.
     boat_status_new_flag : bool
         Flag indicating if there is a new boat status.
 
@@ -80,6 +83,7 @@ class TelemetryTable(db.Model):
     autopilot_parameters_new_flag: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     boat_status: Mapped[BoatStatusType] = mapped_column(JSON, nullable=False)
+    boat_status_mapping: Mapped[tuple[str, ...]] = mapped_column(JSON, nullable=False)
     boat_status_new_flag: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     waypoints: Mapped[WaypointSequenceType] = mapped_column(JSON, nullable=False)

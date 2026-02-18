@@ -22,6 +22,7 @@ Boat Status Routes:
 - `/boat_status/get/<int:instance_id>`: Get the current boat status.
 - `/boat_status/get_new/<int:instance_id>`: Get the latest boat status if it hasn't been seen yet.
 - `/boat_status/set/<int:instance_id>`: Set the boat status from the request data.
+- `/boat_status/set_fast/<int:instance_id>`: Set the boat status using a list of values corresponding to the boat status mapping for the instance.
 
 Waypoint Routes:
 - `/waypoints/test`: Test route for waypoints.

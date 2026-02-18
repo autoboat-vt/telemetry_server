@@ -171,5 +171,54 @@ class BoatStatusEndpoint:
             except Exception as e:
                 db.session.rollback()
                 return jsonify(str(e)), 500
+            
+        @self._blueprint.route("/set_fast/<int:instance_id>", methods=["POST"])
+        @shared_lock_manager.require_write_lock
+        def set_fast_route(instance_id: int) -> ResponseType:
+            """
+            Set the boat status for a specific telemetry instance using a fast update method that allows
+            updating specific fields without needing to send the entire boat status object.
+
+            Method: POST
+
+            Parameters
+            ----------
+            instance_id
+                The ID of the telemetry instance to set the boat status for.
+
+            Returns
+            -------
+            ResponseType
+                A tuple containing a JSON response confirming the boat status has been updated successfully,
+                or an error message if the instance is not found or if the input format is invalid.
+            """
+
+            try:
+                telemetry_instance = self._get_instance(instance_id)
+                update_data = request.json
+                if not isinstance(update_data, dict):
+                    raise TypeError("Invalid update format. Expected a dictionary.")
+
+                boat_status_mapping = telemetry_instance.boat_status_mapping
+                current_boat_status = telemetry_instance.boat_status
+
+                for field, value in update_data.items():
+                    if field not in boat_status_mapping:
+                        raise TypeError(f"Invalid field '{field}' in update data.")
+                    
+                    current_boat_status[field] = value
+
+                telemetry_instance.boat_status = current_boat_status
+                telemetry_instance.boat_status_new_flag = True
+                db.session.commit()
+
+                return jsonify("Boat status updated successfully."), 200
+
+            except TypeError as e:
+                return jsonify(str(e)), 400
+
+            except Exception as e:
+                db.session.rollback()
+                return jsonify(str(e)), 500
 
         return f"boat_status paths registered successfully: {self._blueprint.url_prefix}"
