@@ -196,8 +196,11 @@ class BoatStatusEndpoint:
             try:
                 telemetry_instance = self._get_instance(instance_id)
                 update_data = request.json
-                if not isinstance(update_data, dict):
-                    raise TypeError("Invalid update format. Expected a dictionary.")
+                if not isinstance(update_data, list):
+                    raise TypeError(
+                        "Invalid update format. Expected a list of values "
+                        "corresponding to the boat status mapping for the instance."
+                    )
 
                 boat_status_mapping = telemetry_instance.boat_status_mapping
                 current_boat_status = telemetry_instance.boat_status
