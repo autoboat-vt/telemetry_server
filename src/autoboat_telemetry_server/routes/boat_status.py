@@ -171,7 +171,7 @@ class BoatStatusEndpoint:
             except Exception as e:
                 db.session.rollback()
                 return jsonify(str(e)), 500
-            
+
         @self._blueprint.route("/set_fast/<int:instance_id>", methods=["POST"])
         @shared_lock_manager.require_write_lock
         def set_fast_route(instance_id: int) -> ResponseType:
@@ -205,7 +205,7 @@ class BoatStatusEndpoint:
                 for field, value in update_data.items():
                     if field not in boat_status_mapping:
                         raise TypeError(f"Invalid field '{field}' in update data.")
-                    
+
                     current_boat_status[field] = value
 
                 telemetry_instance.boat_status = current_boat_status
@@ -213,6 +213,44 @@ class BoatStatusEndpoint:
                 db.session.commit()
 
                 return jsonify("Boat status updated successfully."), 200
+
+            except TypeError as e:
+                return jsonify(str(e)), 400
+
+            except Exception as e:
+                db.session.rollback()
+                return jsonify(str(e)), 500
+
+        @self._blueprint.route("/set_mapping/<int:instance_id>", methods=["POST"])
+        @shared_lock_manager.require_write_lock
+        def set_mapping_route(instance_id: int) -> ResponseType:
+            """
+            Set the boat status mapping for a specific telemetry instance.
+
+            Method: POST
+
+            Parameters
+            ----------
+            instance_id
+                The ID of the telemetry instance to set the boat status mapping for.
+
+            Returns
+            -------
+            ResponseType
+                A tuple containing a JSON response confirming the boat status mapping has been updated successfully,
+                or an error message if the instance is not found or if the input format is invalid.
+            """
+
+            try:
+                telemetry_instance = self._get_instance(instance_id)
+                new_mapping = request.json
+                if not isinstance(new_mapping, list) or not all(isinstance(field, str) for field in new_mapping):
+                    raise TypeError("Invalid boat status mapping format. Expected a list of strings.")
+
+                telemetry_instance.boat_status_mapping = tuple(new_mapping)
+                db.session.commit()
+
+                return jsonify("Boat status mapping updated successfully."), 200
 
             except TypeError as e:
                 return jsonify(str(e)), 400
