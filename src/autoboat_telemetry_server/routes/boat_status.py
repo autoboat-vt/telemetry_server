@@ -32,6 +32,11 @@ class BoatStatusEndpoint:
         -------
         TelemetryTable
             The telemetry instance corresponding to the provided ID.
+
+        Raises
+        ------
+        TypeError
+            If the instance with the given ID does not exist.
         """
 
         instance = TelemetryTable.query.get(instance_id)
@@ -131,6 +136,7 @@ class BoatStatusEndpoint:
                 return jsonify(str(e)), 404
 
             except Exception as e:
+                db.session.rollback()
                 return jsonify(str(e)), 500
 
         @self._blueprint.route("/set/<int:instance_id>", methods=["POST"])
@@ -166,7 +172,7 @@ class BoatStatusEndpoint:
                 return jsonify("Boat status updated successfully."), 200
 
             except TypeError as e:
-                return jsonify(str(e)), 400
+                return jsonify(str(e)), 404
 
             except Exception as e:
                 db.session.rollback()
@@ -195,6 +201,9 @@ class BoatStatusEndpoint:
 
             try:
                 telemetry_instance = self._get_instance(instance_id)
+                if not telemetry_instance.boat_status_mapping:
+                    raise TypeError("Set variable mapping for the instance before using the fast update route.")
+
                 update_data = request.json
                 if not isinstance(update_data, list):
                     error_msg = (
@@ -205,16 +214,14 @@ class BoatStatusEndpoint:
                     raise TypeError(error_msg)
 
                 boat_status_mapping = telemetry_instance.boat_status_mapping
-
                 if len(update_data) != len(boat_status_mapping):
                     error_msg = (
-                        f"Got update data of length {len(update_data)} but expected length {len(boat_status_mapping)} "
-                        "based on the boat status mapping for the instance."
+                        f"Got: {update_data} but expected {boat_status_mapping} based on "
+                        "the boat status mapping for the instance."
                     )
                     raise TypeError(error_msg)
 
-                current_boat_status = telemetry_instance.boat_status
-
+                current_boat_status = telemetry_instance.boat_status.copy()
                 for field_name, new_value in zip(boat_status_mapping, update_data, strict=True):
                     current_boat_status[field_name] = new_value
 
@@ -223,11 +230,11 @@ class BoatStatusEndpoint:
                 db.session.commit()
 
                 return jsonify(
-                    f"New boat status: {telemetry_instance.boat_status} based on mapping {telemetry_instance.boat_status_mapping} "
+                    f"New boat status: {telemetry_instance.boat_status} based on mapping {telemetry_instance.boat_status_mapping}"
                 ), 200
 
             except TypeError as e:
-                return jsonify(str(e)), 400
+                return jsonify(str(e)), 404
 
             except Exception as e:
                 db.session.rollback()
@@ -265,7 +272,7 @@ class BoatStatusEndpoint:
                 return jsonify("Boat status mapping updated successfully."), 200
 
             except TypeError as e:
-                return jsonify(str(e)), 400
+                return jsonify(str(e)), 404
 
             except Exception as e:
                 db.session.rollback()
