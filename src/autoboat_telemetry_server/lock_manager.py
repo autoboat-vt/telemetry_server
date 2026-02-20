@@ -1,15 +1,18 @@
 """Centralized lock manager with reader-writer locks for Flask endpoints."""
 
+__all__ = ["LockManager"]
+
 import threading
 from collections.abc import Callable
 from functools import wraps
 from typing import ParamSpec, TypeVar
 
-from flask import Response, jsonify
+from flask import jsonify
+
+from autoboat_telemetry_server.types import ResponseType
 
 P = ParamSpec("P")
-FlaskReturn = Response | tuple[Response, int]
-R = TypeVar("R", bound=FlaskReturn)
+R = TypeVar("R", bound=ResponseType)
 
 
 class ReaderWriterLock:
@@ -21,18 +24,36 @@ class ReaderWriterLock:
         self._writer = False
 
     def acquire_read(self) -> None:
+        """Acquire a read lock. Blocks if a writer holds the lock."""
+
         with self._cond:
             while self._writer:
                 self._cond.wait()
             self._readers += 1
 
     def release_read(self) -> None:
+        """Release a read lock."""
+
         with self._cond:
             self._readers -= 1
             if self._readers == 0:
                 self._cond.notify_all()
 
     def acquire_write(self, *, blocking: bool = True) -> bool:
+        """Acquire a write lock. Blocks if readers or a writer hold the lock.
+
+        Parameters
+        ----------
+        blocking
+            - If ``True``, block until the lock is acquired.
+            - If ``False``, return immediately if the lock cannot be acquired.
+
+        Returns
+        -------
+        bool
+            ``True`` if the lock was acquired, ``False`` otherwise.
+        """
+
         acquired = self._cond.acquire(blocking)
         if not acquired:
             return False
@@ -47,6 +68,8 @@ class ReaderWriterLock:
         return True
 
     def release_write(self) -> None:
+        """Release a write lock."""
+
         self._writer = False
         self._cond.notify_all()
         self._cond.release()
@@ -59,24 +82,87 @@ class LockManager:
         self._rw_lock = ReaderWriterLock()
 
     def require_read_lock(self, func: Callable[P, R]) -> Callable[P, R]:
+        """
+        Decorator to require a read lock for the decorated function.
+
+        Parameters
+        ----------
+        func
+            The function to decorate.
+
+        Returns
+        -------
+        Callable[P, R]
+            The decorated function.
+        """
+
         @wraps(func)
         def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+            """
+            Acquire a read lock before executing the function.
+
+            Parameters
+            ----------
+            *args
+                Positional arguments for the decorated function.
+            **kwargs
+                Keyword arguments for the decorated function.
+
+            Returns
+            -------
+            R
+                The return value of the decorated function.
+            """
+
             self._rw_lock.acquire_read()
+
             try:
                 return func(*args, **kwargs)
+
             finally:
                 self._rw_lock.release_read()
 
         return wrapper
 
     def require_write_lock(self, func: Callable[P, R]) -> Callable[P, R]:
+        """
+        Decorator to require a write lock for the decorated function.
+
+        Parameters
+        ----------
+        func
+            The function to decorate.
+
+        Returns
+        -------
+        Callable[P, R]
+            The decorated function.
+        """
+
         @wraps(func)
         def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+            """
+            Acquire a read lock before executing the function.
+
+            Parameters
+            ----------
+            *args
+                Positional arguments for the decorated function.
+            **kwargs
+                Keyword arguments for the decorated function.
+
+            Returns
+            -------
+            R
+                The return value of the decorated function.
+            """
+
             if not self._rw_lock.acquire_write(blocking=False):
                 return jsonify("Write operation in progress. Please try again later."), 429
 
             try:
                 return func(*args, **kwargs)
+
             finally:
                 self._rw_lock.release_write()
 

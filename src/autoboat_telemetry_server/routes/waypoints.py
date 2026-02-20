@@ -1,9 +1,10 @@
 from typing import Literal
 
-from flask import Blueprint, Response, jsonify, request
+from flask import Blueprint, jsonify, request
 
 from autoboat_telemetry_server import shared_lock_manager
 from autoboat_telemetry_server.models import TelemetryTable, db
+from autoboat_telemetry_server.types import ResponseType
 
 
 class WaypointEndpoint:
@@ -32,6 +33,11 @@ class WaypointEndpoint:
         -------
         TelemetryTable
             The telemetry instance corresponding to the provided ID.
+
+        Raises
+        ------
+        TypeError
+            If the instance with the given ID does not exist.
         """
 
         instance = TelemetryTable.query.get(instance_id)
@@ -68,7 +74,7 @@ class WaypointEndpoint:
 
         @self._blueprint.route("/get/<int:instance_id>", methods=["GET"])
         @shared_lock_manager.require_read_lock
-        def get_route(instance_id: int) -> tuple[Response, int]:
+        def get_route(instance_id: int) -> ResponseType:
             """
             Get the current waypoints for a specific telemetry instance.
 
@@ -81,7 +87,7 @@ class WaypointEndpoint:
 
             Returns
             -------
-            tuple[Response, int]
+            ResponseType
                 A tuple containing a JSON response with the waypoints for the specified telemetry instance,
                 or an error message if the instance is not found.
             """
@@ -98,7 +104,7 @@ class WaypointEndpoint:
 
         @self._blueprint.route("/get_new/<int:instance_id>", methods=["GET"])
         @shared_lock_manager.require_write_lock
-        def get_new_route(instance_id: int) -> tuple[Response, int]:
+        def get_new_route(instance_id: int) -> ResponseType:
             """
             Gets the waypoints for a specific telemetry instance if it hasn't already been
             requested since the last update.
@@ -112,7 +118,7 @@ class WaypointEndpoint:
 
             Returns
             -------
-            tuple[Response, int]
+            ResponseType
                 A tuple containing a JSON response with the waypoints for the specified telemetry instance,
                 or an empty dictionary if there are no new waypoints, or an error message if the instance is not found.
             """
@@ -135,7 +141,7 @@ class WaypointEndpoint:
 
         @self._blueprint.route("/set/<int:instance_id>", methods=["POST"])
         @shared_lock_manager.require_write_lock
-        def set_route(instance_id: int) -> tuple[Response, int]:
+        def set_route(instance_id: int) -> ResponseType:
             """
             Set the waypoints from the request data.
 
@@ -148,7 +154,7 @@ class WaypointEndpoint:
 
             Returns
             -------
-            tuple[Response, int]
+            ResponseType
                 A tuple containing a JSON response confirming the waypoints have been updated successfully,
                 or an error message if the instance is not found or if the input format is invalid.
             """

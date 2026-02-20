@@ -1,9 +1,10 @@
 from typing import Literal
 
-from flask import Blueprint, Response, jsonify, request
+from flask import Blueprint, jsonify, request
 
 from autoboat_telemetry_server import shared_lock_manager
 from autoboat_telemetry_server.models import TelemetryTable, db
+from autoboat_telemetry_server.types import ResponseType
 
 
 class BoatStatusEndpoint:
@@ -31,6 +32,11 @@ class BoatStatusEndpoint:
         -------
         TelemetryTable
             The telemetry instance corresponding to the provided ID.
+
+        Raises
+        ------
+        TypeError
+            If the instance with the given ID does not exist.
         """
 
         instance = TelemetryTable.query.get(instance_id)
@@ -67,7 +73,7 @@ class BoatStatusEndpoint:
 
         @self._blueprint.route("/get/<int:instance_id>", methods=["GET"])
         @shared_lock_manager.require_read_lock
-        def get_route(instance_id: int) -> tuple[Response, int]:
+        def get_route(instance_id: int) -> ResponseType:
             """
             Get the boat status for a specific telemetry instance.
 
@@ -80,7 +86,7 @@ class BoatStatusEndpoint:
 
             Returns
             -------
-            tuple[Response, int]
+            ResponseType
                 A tuple containing a JSON response with the boat status for the specified telemetry instance,
                 or an error message if the instance is not found.
             """
@@ -97,7 +103,7 @@ class BoatStatusEndpoint:
 
         @self._blueprint.route("/get_new/<int:instance_id>", methods=["GET"])
         @shared_lock_manager.require_write_lock
-        def get_new_route(instance_id: int) -> tuple[Response, int]:
+        def get_new_route(instance_id: int) -> ResponseType:
             """
             Gets the boat status for a specific telemetry instance if it hasn't already been
             requested since the last update.
@@ -111,7 +117,7 @@ class BoatStatusEndpoint:
 
             Returns
             -------
-            tuple[Response, int]
+            ResponseType
                 A tuple containing a JSON response with the boat status for the specified telemetry instance,
                 or an empty dictionary if there is no new boat status, or an error message if the instance is not found.
             """
@@ -130,11 +136,12 @@ class BoatStatusEndpoint:
                 return jsonify(str(e)), 404
 
             except Exception as e:
+                db.session.rollback()
                 return jsonify(str(e)), 500
 
         @self._blueprint.route("/set/<int:instance_id>", methods=["POST"])
         @shared_lock_manager.require_write_lock
-        def set_route(instance_id: int) -> tuple[Response, int]:
+        def set_route(instance_id: int) -> ResponseType:
             """
             Set the boat status for a specific telemetry instance.
 
@@ -147,7 +154,7 @@ class BoatStatusEndpoint:
 
             Returns
             -------
-            tuple[Response, int]
+            ResponseType
                 A tuple containing a JSON response confirming the boat status has been updated successfully,
                 or an error message if the instance is not found or if the input format is invalid.
             """
@@ -165,7 +172,107 @@ class BoatStatusEndpoint:
                 return jsonify("Boat status updated successfully."), 200
 
             except TypeError as e:
-                return jsonify(str(e)), 400
+                return jsonify(str(e)), 404
+
+            except Exception as e:
+                db.session.rollback()
+                return jsonify(str(e)), 500
+
+        @self._blueprint.route("/set_fast/<int:instance_id>", methods=["POST"])
+        @shared_lock_manager.require_write_lock
+        def set_fast_route(instance_id: int) -> ResponseType:
+            """
+            Set the boat status for a specific telemetry instance using a fast update method that allows
+            updating specific fields without needing to send the entire boat status object.
+
+            Method: POST
+
+            Parameters
+            ----------
+            instance_id
+                The ID of the telemetry instance to set the boat status for.
+
+            Returns
+            -------
+            ResponseType
+                A tuple containing a JSON response confirming the boat status has been updated successfully,
+                or an error message if the instance is not found or if the input format is invalid.
+            """
+
+            try:
+                telemetry_instance = self._get_instance(instance_id)
+                if not telemetry_instance.boat_status_mapping:
+                    raise TypeError("Set variable mapping for the instance before using the fast update route.")
+
+                update_data = request.json
+                if not isinstance(update_data, list):
+                    error_msg = (
+                        f"Got: {update_data} of type {type(update_data)}. "
+                        "Invalid boat status update format. Expected a list of values "
+                        "corresponding to the boat status mapping for the instance."
+                    )
+                    raise TypeError(error_msg)
+
+                boat_status_mapping = telemetry_instance.boat_status_mapping
+                if len(update_data) != len(boat_status_mapping):
+                    error_msg = (
+                        f"Got: {update_data} but expected {boat_status_mapping} based on "
+                        "the boat status mapping for the instance."
+                    )
+                    raise TypeError(error_msg)
+
+                current_boat_status = telemetry_instance.boat_status.copy()
+                for field_name, new_value in zip(boat_status_mapping, update_data, strict=True):
+                    current_boat_status[field_name] = new_value
+
+                telemetry_instance.boat_status = current_boat_status
+                telemetry_instance.boat_status_new_flag = True
+                db.session.commit()
+
+                return jsonify(
+                    f"New boat status: {telemetry_instance.boat_status} based on mapping {telemetry_instance.boat_status_mapping}"
+                ), 200
+
+            except TypeError as e:
+                return jsonify(str(e)), 404
+
+            except Exception as e:
+                db.session.rollback()
+                return jsonify(str(e)), 500
+
+        @self._blueprint.route("/set_mapping/<int:instance_id>", methods=["POST"])
+        @shared_lock_manager.require_write_lock
+        def set_mapping_route(instance_id: int) -> ResponseType:
+            """
+            Set the boat status mapping for a specific telemetry instance.
+
+            Method: POST
+
+            Parameters
+            ----------
+            instance_id
+                The ID of the telemetry instance to set the boat status mapping for.
+
+            Returns
+            -------
+            ResponseType
+                A tuple containing a JSON response confirming the boat status mapping has been updated successfully,
+                or an error message if the instance is not found or if the input format is invalid.
+            """
+
+            try:
+                telemetry_instance = self._get_instance(instance_id)
+                new_mapping = request.json
+                if not isinstance(new_mapping, list) or not all(isinstance(field, str) for field in new_mapping):
+                    raise TypeError(f"Got: {new_mapping} of type {type(new_mapping)}. Expected {list[str]}")
+
+                telemetry_instance.boat_status_mapping = tuple(new_mapping)
+                db.session.commit()
+
+                return jsonify("Boat status mapping updated successfully."), 200
+
+            except TypeError as e:
+                return jsonify(str(e)), 404
 
             except Exception as e:
                 db.session.rollback()

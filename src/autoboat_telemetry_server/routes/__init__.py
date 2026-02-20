@@ -6,14 +6,25 @@ Autopilot Routes:
 - `/autopilot_parameters/get/<int:instance_id>`: Get the current autopilot parameters.
 - `/autopilot_parameters/get_new/<int:instance_id>`: Get the latest autopilot parameters if they haven't been seen yet.
 - `/autopilot_parameters/get_default/<int:instance_id>`: Get the default autopilot parameters.
+- `/autopilot_parameters/get_hash/<int:instance_id>`: Get the current autopilot configuration hash.
+- `/autopilot_parameters/get_config/<config_hash>`: Get the autopilot configuration for a specific configuration hash.
+- `/autopilot_parameters/get_hash_description/<config_hash>`: Get the description for a specific configuration hash.
+- `/autopilot_parameters/get_all_hashes`: Get all stored autopilot configuration hashes.
+- `/autopilot_parameters/get_hash_exists/<config_hash>`: Check if a specific configuration hash exists.
 - `/autopilot_parameters/set/<int:instance_id>`: Set the autopilot parameters from the request data.
 - `/autopilot_parameters/set_default/<int:instance_id>`: Set the default autopilot parameters from the request data.
+- `/autopilot_parameters/set_hash_description/<config_hash>/<description>`: Set the description for a specific configuration hash.
+- `/autopilot_parameters/set_default_from_hash/<int:instance_id>/<config_hash>`: Set the default autopilot parameters using a stored configuration hash.
+- `/autopilot_parameters/create_config`: Create a new autopilot configuration from the request data.
+- `/autopilot_parameters/delete_config/<config_hash>`: Delete a stored autopilot configuration hash.
 
 Boat Status Routes:
 - `/boat_status/test`: Test route for boat status.
 - `/boat_status/get/<int:instance_id>`: Get the current boat status.
 - `/boat_status/get_new/<int:instance_id>`: Get the latest boat status if it hasn't been seen yet.
 - `/boat_status/set/<int:instance_id>`: Set the boat status from the request data.
+- `/boat_status/set_fast/<int:instance_id>`: Set the boat status using a list of values corresponding to the boat status mapping for the instance.
+- `/boat_status/set_mapping/<int:instance_id>`: Set the boat status mapping for an instance using a list of keys corresponding to the boat status mapping for the instance.
 
 Waypoint Routes:
 - `/waypoints/test`: Test route for waypoints.
@@ -35,7 +46,7 @@ Instance Manager Routes:
 - `/instance_manager/get_instance_info/<int:instance_id>`: Get detailed information about a telemetry instance.
 - `/instance_manager/get_all_instance_info`: Get detailed information about all telemetry instances.
 - `/instance_manager/get_ids`: Return all telemetry instance IDs.
-"""
+"""  # noqa: E501
 
 __all__ = ["AutopilotParametersEndpoint", "BoatStatusEndpoint", "InstanceManagerEndpoint", "WaypointEndpoint"]
 

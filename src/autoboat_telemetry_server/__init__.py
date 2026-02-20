@@ -1,15 +1,18 @@
 """Telemetry server for Autoboat at Virginia Tech."""
 
-import os
+__all__ = ["HOME_DIR", "INSTANCE_DIR", "create_app", "shared_lock_manager"]
+
+from pathlib import Path
 
 from flask import Flask as _flask
 
 from .lock_manager import LockManager
 from .models import db
 
-__all__ = ["create_app", "shared_lock_manager"]
-
 shared_lock_manager = LockManager()
+
+HOME_DIR = Path("/home/ubuntu")
+INSTANCE_DIR = HOME_DIR / "telemetry_server" / "src" / "instance"
 
 from autoboat_telemetry_server.routes import (  # noqa: E402
     AutopilotParametersEndpoint,
@@ -31,9 +34,7 @@ def create_app() -> _flask:
 
     app = _flask(__name__)
 
-    instance_dir = "/home/ubuntu/telemetry_server/src/instance"
-    config_path = os.path.join(instance_dir, "config.py")
-
+    config_path = INSTANCE_DIR / "config.py"
     app.config.from_pyfile(config_path)
 
     db.init_app(app)
@@ -57,6 +58,6 @@ def create_app() -> _flask:
             Confirmation message indicating which server is running.
         """
 
-        return "This is the testing telemetry server. It is running!"
+        return "This is the telemetry server. It is running!"
 
     return app

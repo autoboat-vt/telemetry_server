@@ -1,8 +1,8 @@
 [project]
 name        = "telemetry_server"
-version     = "4.3.1"
+version     = "4.4.0"
 readme      = "README.md"
-description = "Telemetry server for Autoboat"
+description = "Telemetry test server for Autoboat"
 
 dependencies = [
     "Flask>=3.1,<4.0",
@@ -28,7 +28,7 @@ dev = [
 ]
 
 [project.urls]
-Github        = "https://github.com/autoboat-vt/telemetry_server"
+Github        = "https://github.com/autoboat-vt/telemetry_server/tree/testing"
 Documentation = "https://autoboat-vt.github.io/documentation"
 
 [build-system]

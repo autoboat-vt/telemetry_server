@@ -1,10 +1,11 @@
 from datetime import UTC, datetime, timedelta
 from typing import Literal
 
-from flask import Blueprint, Response, jsonify
+from flask import Blueprint, jsonify
 
 from autoboat_telemetry_server import shared_lock_manager
 from autoboat_telemetry_server.models import TelemetryTable, db
+from autoboat_telemetry_server.types import ResponseType
 
 
 class InstanceManagerEndpoint:
@@ -33,6 +34,11 @@ class InstanceManagerEndpoint:
         -------
         TelemetryTable
             The telemetry instance corresponding to the provided ID.
+
+        Raises
+        ------
+        TypeError
+            If the instance with the given ID does not exist.
         """
 
         instance = TelemetryTable.query.get(instance_id)
@@ -69,7 +75,7 @@ class InstanceManagerEndpoint:
 
         @self._blueprint.route("/create", methods=["GET"])
         @shared_lock_manager.require_write_lock
-        def create_instance() -> tuple[Response, int]:
+        def create_instance() -> ResponseType:
             """
             Create a new telemetry instance with optional payload overrides.
 
@@ -77,13 +83,13 @@ class InstanceManagerEndpoint:
 
             Returns
             -------
-            tuple[Response, int]
+            ResponseType
                 A tuple containing a JSON response with the new instance ID and a status code of 200.
             """
 
             try:
                 new_instance = TelemetryTable(
-                    default_autopilot_parameters={}, autopilot_parameters={}, boat_status={}, waypoints=[]
+                    default_autopilot_parameters={}, autopilot_parameters={}, boat_status={}, waypoints=[], boat_status_mapping=()
                 )
                 db.session.add(new_instance)
                 db.session.commit()
@@ -96,7 +102,7 @@ class InstanceManagerEndpoint:
 
         @self._blueprint.route("/delete/<int:instance_id>", methods=["DELETE"])
         @shared_lock_manager.require_write_lock
-        def delete_instance(instance_id: int) -> tuple[Response, int]:
+        def delete_instance(instance_id: int) -> ResponseType:
             """
             Delete a telemetry instance by its ID.
 
@@ -104,7 +110,7 @@ class InstanceManagerEndpoint:
 
             Returns
             -------
-            tuple[Response, int]
+            ResponseType
                 A tuple containing a JSON response with confirmation or error message and a status code.
             """
 
@@ -123,7 +129,7 @@ class InstanceManagerEndpoint:
 
         @self._blueprint.route("/delete_all", methods=["DELETE"])
         @shared_lock_manager.require_write_lock
-        def delete_all_instances() -> tuple[Response, int]:
+        def delete_all_instances() -> ResponseType:
             """
             Delete all telemetry instances.
 
@@ -131,7 +137,7 @@ class InstanceManagerEndpoint:
 
             Returns
             -------
-            tuple[Response, int]
+            ResponseType
                 A tuple containing a JSON response with confirmation or error message and a status code.
             """
 
@@ -146,7 +152,7 @@ class InstanceManagerEndpoint:
 
         @self._blueprint.route("/clean_instances", methods=["DELETE"])
         @shared_lock_manager.require_write_lock
-        def clean_instances() -> tuple[Response, int]:
+        def clean_instances() -> ResponseType:
             """
             Delete all inactive telemetry instances.
 
@@ -154,7 +160,7 @@ class InstanceManagerEndpoint:
 
             Returns
             -------
-            tuple[Response, int]
+            ResponseType
                 A tuple containing a JSON response with confirmation or error message and a status code.
             """
 
@@ -162,7 +168,7 @@ class InstanceManagerEndpoint:
                 timeout = 5.0  # minutes
                 cutoff = datetime.now(UTC) - timedelta(minutes=timeout)
                 num_deleted = (
-                    db.session.query(TelemetryTable).filter(TelemetryTable.updated_at < cutoff).delete(synchronize_session=False)
+                    db.session.query(TelemetryTable).filter(TelemetryTable.updated_at < cutoff).delete(synchronize_session="auto")
                 )
                 db.session.commit()
                 return jsonify(f"Successfully deleted {num_deleted} inactive instances."), 200
@@ -173,7 +179,7 @@ class InstanceManagerEndpoint:
 
         @self._blueprint.route("/set_user/<int:instance_id>/<user_name>", methods=["POST"])
         @shared_lock_manager.require_write_lock
-        def set_instance_user(instance_id: int, user_name: str) -> tuple[Response, int]:
+        def set_instance_user(instance_id: int, user_name: str) -> ResponseType:
             """
             Set the user of a telemetry instance.
 
@@ -188,7 +194,7 @@ class InstanceManagerEndpoint:
 
             Returns
             -------
-            tuple[Response, int]
+            ResponseType
                 A tuple containing a JSON response confirming the user has been set and a status code of 200.
             """
 
@@ -211,7 +217,7 @@ class InstanceManagerEndpoint:
 
         @self._blueprint.route("/get_user/<int:instance_id>", methods=["GET"])
         @shared_lock_manager.require_read_lock
-        def get_instance_user(instance_id: int) -> tuple[Response, int]:
+        def get_instance_user(instance_id: int) -> ResponseType:
             """
             Get the user of a telemetry instance by its ID.
 
@@ -224,7 +230,7 @@ class InstanceManagerEndpoint:
 
             Returns
             -------
-            tuple[Response, int]
+            ResponseType
                 A tuple containing a JSON response with the instance user or an error message if the instance is not found.
             """
 
@@ -240,7 +246,7 @@ class InstanceManagerEndpoint:
 
         @self._blueprint.route("/set_name/<int:instance_id>/<instance_name>", methods=["POST"])
         @shared_lock_manager.require_write_lock
-        def set_instance_name(instance_id: int, instance_name: str) -> tuple[Response, int]:
+        def set_instance_name(instance_id: int, instance_name: str) -> ResponseType:
             """
             Set the name of a telemetry instance.
 
@@ -255,7 +261,7 @@ class InstanceManagerEndpoint:
 
             Returns
             -------
-            tuple[Response, int]
+            ResponseType
                 A tuple containing a JSON response confirming the name has been set and a status code of 200.
             """
 
@@ -282,7 +288,7 @@ class InstanceManagerEndpoint:
 
         @self._blueprint.route("/get_name/<int:instance_id>", methods=["GET"])
         @shared_lock_manager.require_read_lock
-        def get_instance_name(instance_id: int) -> tuple[Response, int]:
+        def get_instance_name(instance_id: int) -> ResponseType:
             """
             Get the name of a telemetry instance by its ID.
 
@@ -295,7 +301,7 @@ class InstanceManagerEndpoint:
 
             Returns
             -------
-            tuple[Response, int]
+            ResponseType
                 A tuple containing a JSON response with the instance name or an error message if the instance is not found.
             """
 
@@ -311,7 +317,7 @@ class InstanceManagerEndpoint:
 
         @self._blueprint.route("/get_id/<instance_name>", methods=["GET"])
         @shared_lock_manager.require_read_lock
-        def get_instance_id(instance_name: str) -> tuple[Response, int]:
+        def get_instance_id(instance_name: str) -> ResponseType:
             """
             Get the ID of a telemetry instance by its name.
 
@@ -324,7 +330,7 @@ class InstanceManagerEndpoint:
 
             Returns
             -------
-            tuple[Response, int]
+            ResponseType
                 A tuple containing a JSON response with the instance ID or an error message if the instance is not found.
             """
 
@@ -343,7 +349,7 @@ class InstanceManagerEndpoint:
 
         @self._blueprint.route("/get_instance_info/<int:instance_id>", methods=["GET"])
         @shared_lock_manager.require_read_lock
-        def get_instance_info(instance_id: int) -> tuple[Response, int]:
+        def get_instance_info(instance_id: int) -> ResponseType:
             """
             Get detailed information about a telemetry instance by its ID.
 
@@ -356,7 +362,7 @@ class InstanceManagerEndpoint:
 
             Returns
             -------
-            tuple[Response, int]
+            ResponseType
                 A tuple containing a JSON response with the instance details and a 200 status,
                 or an error message if the instance is not found.
             """
@@ -373,7 +379,7 @@ class InstanceManagerEndpoint:
 
         @self._blueprint.route("/get_all_instance_info", methods=["GET"])
         @shared_lock_manager.require_read_lock
-        def get_all_instance_info() -> tuple[Response, int]:
+        def get_all_instance_info() -> ResponseType:
             """
             Get detailed information about all telemetry instances.
 
@@ -381,8 +387,9 @@ class InstanceManagerEndpoint:
 
             Returns
             -------
-            tuple[Response, int]
-                A tuple containing a JSON response with a list of all instance details and a 200 status.
+            ResponseType
+                A tuple containing a JSON response with a list of all instance details and a 200 status,
+                or an error message if the retrieval fails.
             """
 
             try:
@@ -396,7 +403,7 @@ class InstanceManagerEndpoint:
 
         @self._blueprint.route("/get_ids", methods=["GET"])
         @shared_lock_manager.require_read_lock
-        def get_ids() -> tuple[Response, int]:
+        def get_ids() -> ResponseType:
             """
             Return all telemetry instance IDs.
 
@@ -404,7 +411,7 @@ class InstanceManagerEndpoint:
 
             Returns
             -------
-            tuple[Response, int]
+            ResponseType
                 A tuple containing a JSON response with a list of IDs and a 200 status.
             """
 
