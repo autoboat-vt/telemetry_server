@@ -264,7 +264,7 @@ class BoatStatusEndpoint:
                 telemetry_instance = self._get_instance(instance_id)
                 new_mapping = request.json
                 if not isinstance(new_mapping, list) or not all(isinstance(field, str) for field in new_mapping):
-                    raise TypeError("Invalid boat status mapping format. Expected a list of strings.")
+                    raise TypeError(f"Got: {new_mapping} of type {type(new_mapping)}. Expected {list[str]}")
 
                 telemetry_instance.boat_status_mapping = tuple(new_mapping)
                 db.session.commit()
