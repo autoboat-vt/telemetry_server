@@ -7,6 +7,7 @@ Autopilot Routes:
 - `/autopilot_parameters/get_new/<int:instance_id>`: Get the latest autopilot parameters if they haven't been seen yet.
 - `/autopilot_parameters/get_default/<int:instance_id>`: Get the default autopilot parameters.
 - `/autopilot_parameters/get_hash/<int:instance_id>`: Get the current autopilot configuration hash.
+- `/autopilot_parameters/get_config/<config_hash>`: Get the autopilot configuration for a specific configuration hash.
 - `/autopilot_parameters/get_hash_description/<config_hash>`: Get the description for a specific configuration hash.
 - `/autopilot_parameters/get_all_hashes`: Get all stored autopilot configuration hashes.
 - `/autopilot_parameters/get_hash_exists/<config_hash>`: Check if a specific configuration hash exists.
@@ -23,6 +24,7 @@ Boat Status Routes:
 - `/boat_status/get_new/<int:instance_id>`: Get the latest boat status if it hasn't been seen yet.
 - `/boat_status/set/<int:instance_id>`: Set the boat status from the request data.
 - `/boat_status/set_fast/<int:instance_id>`: Set the boat status using a list of values corresponding to the boat status mapping for the instance.
+- `/boat_status/set_mapping/<int:instance_id>`: Set the boat status mapping for an instance using a list of keys corresponding to the boat status mapping for the instance.
 
 Waypoint Routes:
 - `/waypoints/test`: Test route for waypoints.
