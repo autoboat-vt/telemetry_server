@@ -205,7 +205,7 @@ class BoatStatusEndpoint:
                 if not telemetry_instance.boat_status_mapping:
                     raise TypeError("Set variable mapping for the instance before using the fast update route.")
 
-                update_data = request.get_data()
+                update_data = request.get_data(cache=False)
                 if len(update_data) != sum(ctypes.sizeof(getattr(ctypes, t)) for _, t in telemetry_instance.boat_status_mapping):
                     raise ValueError("Invalid data size for boat status payload.")
 
