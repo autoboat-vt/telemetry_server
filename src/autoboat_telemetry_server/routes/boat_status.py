@@ -209,12 +209,16 @@ class BoatStatusEndpoint:
                 if len(update_data) != sum(ctypes.sizeof(getattr(ctypes, t)) for _, t in telemetry_instance.boat_status_mapping):
                     raise ValueError("Invalid data size for boat status payload.")
 
-                class TempPayload(ctypes.LittleEndianStructure):
-                    _pack_: ClassVar[int] = 1
-                    _fields_: ClassVar[tuple[tuple[str, ctypes._SimpleCData], ...]] = tuple(
-                        (field_name, getattr(ctypes, field_type))
-                        for field_name, field_type in telemetry_instance.boat_status_mapping
-                    )
+                try:
+                    class TempPayload(ctypes.LittleEndianStructure):
+                        _pack_: ClassVar[int] = 1
+                        _fields_: ClassVar[tuple[tuple[str, ctypes._SimpleCData], ...]] = tuple(
+                            (field_name, getattr(ctypes, field_type))
+                            for field_name, field_type in telemetry_instance.boat_status_mapping
+                        )
+
+                except Exception as e:
+                    raise TypeError(f"Error creating temporary payload structure: {e}") from e
 
                 payload = TempPayload.from_buffer_copy(update_data)
                 updated_status = {
