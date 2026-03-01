@@ -18,9 +18,11 @@ from sqlalchemy import JSON, Boolean, Integer, String, event
 from sqlalchemy.engine import Connection
 from sqlalchemy.orm import Mapped, Mapper, mapped_column, validates
 
-from autoboat_telemetry_server.types import AutopilotParametersType, BoatStatusType, WaypointSequenceType
+from autoboat_telemetry_server.types import AutopilotParametersType, BoatStatusMappingType, BoatStatusType, WaypointSequenceType
 
 db = SQLAlchemy()
+
+PAYLOAD_SIZE = 65536  # 64 KB
 
 
 class TelemetryTable(db.Model):
@@ -54,9 +56,8 @@ class TelemetryTable(db.Model):
 
     boat_status : BoatStatusType
         Current status of the boat.
-    boat_status_mapping : tuple[str, ...]
-        Mapping showing order of boat status fields for use in updating boat status
-        without needing to send a full json object.
+    boat_status_mapping : BoatStatusMappingType
+        Mapping of the boat status payload field names to their corresponding data types.
     boat_status_new_flag : bool
         Flag indicating if there is a new boat status.
 
@@ -83,7 +84,7 @@ class TelemetryTable(db.Model):
     autopilot_parameters_new_flag: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     boat_status: Mapped[BoatStatusType] = mapped_column(JSON, nullable=False)
-    boat_status_mapping: Mapped[tuple[str, ...]] = mapped_column(JSON, nullable=False)
+    boat_status_mapping: Mapped[BoatStatusMappingType] = mapped_column(JSON, nullable=True)
     boat_status_new_flag: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     waypoints: Mapped[WaypointSequenceType] = mapped_column(JSON, nullable=False)

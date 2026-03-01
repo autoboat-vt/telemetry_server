@@ -1,4 +1,5 @@
-from typing import Literal
+import ctypes
+from typing import ClassVar, Literal
 
 from flask import Blueprint, jsonify, request
 
@@ -204,37 +205,31 @@ class BoatStatusEndpoint:
                 if not telemetry_instance.boat_status_mapping:
                     raise TypeError("Set variable mapping for the instance before using the fast update route.")
 
-                update_data = request.json
-                if not isinstance(update_data, list):
-                    error_msg = (
-                        f"Got: {update_data} of type {type(update_data)}. "
-                        "Invalid boat status update format. Expected a list of values "
-                        "corresponding to the boat status mapping for the instance."
+                update_data = request.get_data()
+                if len(update_data) != sum(ctypes.sizeof(getattr(ctypes, t)) for _, t in telemetry_instance.boat_status_mapping):
+                    raise ValueError("Invalid data size for boat status payload.")
+
+                class TempPayload(ctypes.LittleEndianStructure):
+                    _pack_: ClassVar[int] = 1
+                    _fields_: ClassVar[tuple[tuple[str, ctypes._SimpleCData], ...]] = tuple(
+                        (field_name, getattr(ctypes, field_type))
+                        for field_name, field_type in telemetry_instance.boat_status_mapping
                     )
-                    raise TypeError(error_msg)
 
-                boat_status_mapping = telemetry_instance.boat_status_mapping
-                if len(update_data) != len(boat_status_mapping):
-                    error_msg = (
-                        f"Got: {update_data} but expected {boat_status_mapping} based on "
-                        "the boat status mapping for the instance."
-                    )
-                    raise TypeError(error_msg)
+                payload = TempPayload.from_buffer_copy(update_data)
+                updated_status = {
+                    field_name: getattr(payload, field_name) for field_name, _ in telemetry_instance.boat_status_mapping
+                }
 
-                current_boat_status = telemetry_instance.boat_status.copy()
-                for field_name, new_value in zip(boat_status_mapping, update_data, strict=True):
-                    current_boat_status[field_name] = new_value
-
-                telemetry_instance.boat_status = current_boat_status
+                telemetry_instance.boat_status = updated_status
                 telemetry_instance.boat_status_new_flag = True
                 db.session.commit()
 
-                return jsonify(
-                    f"New boat status: {telemetry_instance.boat_status} based on mapping {telemetry_instance.boat_status_mapping}"
-                ), 200
-
             except TypeError as e:
                 return jsonify(str(e)), 404
+
+            except ValueError as e:
+                return jsonify(str(e)), 400
 
             except Exception as e:
                 db.session.rollback()
@@ -260,13 +255,22 @@ class BoatStatusEndpoint:
                 or an error message if the instance is not found or if the input format is invalid.
             """
 
+            def is_valid_pair(item: list) -> bool:
+                return isinstance(item, list) and len(item) == 2 and all(isinstance(subitem, str) for subitem in item)
+
             try:
                 telemetry_instance = self._get_instance(instance_id)
                 new_mapping = request.json
-                if not isinstance(new_mapping, list) or not all(isinstance(field, str) for field in new_mapping):
-                    raise TypeError(f"Got: {new_mapping} of type {type(new_mapping)}. Expected {list[str]}")
+                if not isinstance(new_mapping, list):
+                    raise TypeError(f"Got: {new_mapping} of type {type(new_mapping)}. Expected {list}")
 
-                telemetry_instance.boat_status_mapping = tuple(new_mapping)
+                if not all(is_valid_pair(item) for item in new_mapping):
+                    raise TypeError(f"Got {new_mapping}. Expected {list[list[str]]} with format [[field_name, field_type], ...]")
+
+                if not all(hasattr(ctypes, field_type) for _, field_type in new_mapping):
+                    raise TypeError("Invalid field type in mapping. Each field type must correspond to a valid ctypes type.")
+
+                telemetry_instance.boat_status_mapping = new_mapping
                 db.session.commit()
 
                 return jsonify("Boat status mapping updated successfully."), 200
