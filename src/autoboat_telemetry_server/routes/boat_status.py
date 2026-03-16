@@ -210,6 +210,7 @@ class BoatStatusEndpoint:
                     raise ValueError("Invalid data size for boat status payload.")
 
                 try:
+
                     class TempPayload(ctypes.LittleEndianStructure):
                         _pack_: ClassVar[int] = 1
                         _fields_: ClassVar[tuple[tuple[str, ctypes._SimpleCData], ...]] = tuple(
@@ -228,6 +229,7 @@ class BoatStatusEndpoint:
                 telemetry_instance.boat_status = updated_status
                 telemetry_instance.boat_status_new_flag = True
                 db.session.commit()
+                return jsonify("Boat status updated successfully using fast update method."), 200
 
             except TypeError as e:
                 return jsonify(str(e)), 404
