@@ -202,7 +202,7 @@ class BoatStatusEndpoint:
 
             def form_payload_class(mapping: list[list[str]]) -> type[ctypes.LittleEndianStructure]:
                 """
-                Dynamically forms a ctypes LittleEndianStructure class based on the provided mapping of field names and types.
+                Dynamically forms a ctypes ``LittleEndianStructure`` class based on the provided mapping of field names and types.
 
                 Parameters
                 ----------
@@ -212,7 +212,8 @@ class BoatStatusEndpoint:
                 Returns
                 -------
                 type[ctypes.LittleEndianStructure]
-                    A dynamically created ctypes LittleEndianStructure class with fields defined according to the provided mapping.
+                    A dynamically created ctypes ``LittleEndianStructure`` class with fields
+                    defined according to the provided mapping.
                 """
 
                 class Payload(ctypes.LittleEndianStructure):
@@ -233,7 +234,7 @@ class BoatStatusEndpoint:
                     payload_class = form_payload_class(telemetry_instance.boat_status_mapping)
                     payload = payload_class.from_buffer_copy(update_data)
                     updated_status = {
-                        field_name: getattr(payload, field_name) for field_name, _ in telemetry_instance.boat_status_mapping
+                        field_name: getattr(payload, field_name) for field_name, _ in payload_class._fields_
                     }
 
                 except Exception as e:
