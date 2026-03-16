@@ -22,8 +22,6 @@ from autoboat_telemetry_server.types import AutopilotParametersType, BoatStatusM
 
 db = SQLAlchemy()
 
-PAYLOAD_SIZE = 65536  # 64 KB
-
 
 class TelemetryTable(db.Model):
     """

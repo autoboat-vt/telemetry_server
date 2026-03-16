@@ -200,35 +200,49 @@ class BoatStatusEndpoint:
                 or an error message if the instance is not found or if the input format is invalid.
             """
 
+            def form_payload_class(mapping: list[list[str]]) -> type[ctypes.LittleEndianStructure]:
+                """
+                Dynamically forms a ctypes LittleEndianStructure class based on the provided mapping of field names and types.
+
+                Parameters
+                ----------
+                mapping
+                    A list of pairs of field names and their corresponding data types for the boat status.
+
+                Returns
+                -------
+                type[ctypes.LittleEndianStructure]
+                    A dynamically created ctypes LittleEndianStructure class with fields defined according to the provided mapping.
+                """
+
+                class Payload(ctypes.LittleEndianStructure):
+                    _pack_: ClassVar[int] = 1
+                    _fields_: ClassVar[tuple[tuple[str, ctypes._SimpleCData], ...]] = tuple(
+                        (field_name, getattr(ctypes, field_type)) for field_name, field_type in mapping
+                    )
+
+                return Payload
+
             try:
                 telemetry_instance = self._get_instance(instance_id)
                 if not telemetry_instance.boat_status_mapping:
                     raise TypeError("Set variable mapping for the instance before using the fast update route.")
 
-                update_data = request.get_data(cache=False)
-                if len(update_data) != sum(ctypes.sizeof(getattr(ctypes, t)) for _, t in telemetry_instance.boat_status_mapping):
-                    raise ValueError("Invalid data size for boat status payload.")
-
+                update_data: bytes = request.get_data(cache=False)
                 try:
-
-                    class TempPayload(ctypes.LittleEndianStructure):
-                        _pack_: ClassVar[int] = 1
-                        _fields_: ClassVar[tuple[tuple[str, ctypes._SimpleCData], ...]] = tuple(
-                            (field_name, getattr(ctypes, field_type))
-                            for field_name, field_type in telemetry_instance.boat_status_mapping
-                        )
+                    payload_class = form_payload_class(telemetry_instance.boat_status_mapping)
+                    payload = payload_class.from_buffer_copy(update_data)
+                    updated_status = {
+                        field_name: getattr(payload, field_name) for field_name, _ in telemetry_instance.boat_status_mapping
+                    }
 
                 except Exception as e:
                     raise TypeError(f"Error creating temporary payload structure: {e}") from e
 
-                payload = TempPayload.from_buffer_copy(update_data)
-                updated_status = {
-                    field_name: getattr(payload, field_name) for field_name, _ in telemetry_instance.boat_status_mapping
-                }
-
                 telemetry_instance.boat_status = updated_status
                 telemetry_instance.boat_status_new_flag = True
                 db.session.commit()
+
                 return jsonify("Boat status updated successfully using fast update method."), 200
 
             except TypeError as e:
