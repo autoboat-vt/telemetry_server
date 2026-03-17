@@ -200,7 +200,7 @@ class BoatStatusEndpoint:
                 or an error message if the instance is not found or if the input format is invalid.
             """
 
-            def form_payload_class(mapping: list[list[str]]) -> type[ctypes.LittleEndianStructure]:
+            def form_payload_class(mapping: list[list[str]], pack: int | None = None) -> type[ctypes.LittleEndianStructure]:
                 """
                 Dynamically forms a ctypes ``LittleEndianStructure`` class based on the provided mapping of field names and types.
 
@@ -208,6 +208,9 @@ class BoatStatusEndpoint:
                 ----------
                 mapping
                     A list of pairs of field names and their corresponding data types for the boat status.
+                pack
+                    An optional integer specifying the packing alignment for the structure. If provided, the structure will
+                    be packed with the specified alignment; if not provided, the structure will use the default alignment.
 
                 Returns
                 -------
@@ -217,10 +220,12 @@ class BoatStatusEndpoint:
                 """
 
                 class Payload(ctypes.LittleEndianStructure):
-                    _pack_: ClassVar[int] = 1
                     _fields_: ClassVar[tuple[tuple[str, ctypes._SimpleCData], ...]] = tuple(
                         (field_name, getattr(ctypes, field_type)) for field_name, field_type in mapping
                     )
+
+                if pack is not None:
+                    Payload._pack_ = pack
 
                 return Payload
 
@@ -231,11 +236,27 @@ class BoatStatusEndpoint:
 
                 update_data: bytes = request.get_data(cache=False)
                 try:
-                    payload_class = form_payload_class(telemetry_instance.boat_status_mapping)
+                    packed_payload_class = form_payload_class(telemetry_instance.boat_status_mapping, pack=1)
+                    packed_size = ctypes.sizeof(packed_payload_class)
+
+                    aligned_payload_class = form_payload_class(telemetry_instance.boat_status_mapping)
+                    aligned_size = ctypes.sizeof(aligned_payload_class)
+
+                    payload_size = len(update_data)
+                    if payload_size == packed_size:
+                        payload_class = packed_payload_class
+
+                    elif payload_size == aligned_size:
+                        payload_class = aligned_payload_class
+
+                    else:
+                        raise TypeError(
+                            "Payload size does not match mapping. "
+                            f"Got {payload_size} bytes; expected {packed_size} (packed) or {aligned_size} (aligned)."
+                        )
+
                     payload = payload_class.from_buffer_copy(update_data)
-                    updated_status = {
-                        field_name: getattr(payload, field_name) for field_name, _ in payload_class._fields_
-                    }
+                    updated_status = {field_name: getattr(payload, field_name) for field_name, _ in payload_class._fields_}
 
                 except Exception as e:
                     raise TypeError(f"Error creating temporary payload structure: {e}") from e
