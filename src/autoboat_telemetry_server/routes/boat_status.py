@@ -202,7 +202,8 @@ class BoatStatusEndpoint:
 
             def form_payload_class(mapping: list[list[str]]) -> type[ctypes.LittleEndianStructure]:
                 """
-                Dynamically forms a ``ctypes`` ``LittleEndianStructure`` class based on the provided mapping of field names and types.
+                Dynamically forms a ``ctypes`` ``LittleEndianStructure`` class based on the
+                provided mapping of field names and types.
 
                 Parameters
                 ----------
@@ -230,15 +231,18 @@ class BoatStatusEndpoint:
                     raise TypeError("Set variable mapping for the instance before using the fast update route.")
 
                 update_data: bytes = request.get_data(cache=False)
-                try:
-                    payload_class = form_payload_class(telemetry_instance.boat_status_mapping)
-                    payload = payload_class.from_buffer_copy(update_data)
-                    updated_status = {
-                        field_name: getattr(payload, field_name) for field_name, _ in telemetry_instance.boat_status_mapping
-                    }
 
-                except Exception as e:
-                    raise TypeError(f"Error creating temporary payload structure: {e}") from e
+                class TempPayload(ctypes.LittleEndianStructure):
+                    _pack_: ClassVar[int] = 1
+                    _fields_: ClassVar[tuple[tuple[str, ctypes._SimpleCData], ...]] = tuple(
+                        (field_name, getattr(ctypes, field_type))
+                        for field_name, field_type in telemetry_instance.boat_status_mapping
+                    )
+
+                payload = TempPayload.from_buffer_copy(update_data)
+                updated_status = {
+                    field_name: getattr(payload, field_name) for field_name, _ in telemetry_instance.boat_status_mapping
+                }
 
                 telemetry_instance.boat_status = updated_status
                 telemetry_instance.boat_status_new_flag = True
