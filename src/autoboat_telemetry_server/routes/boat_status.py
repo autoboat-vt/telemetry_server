@@ -5,7 +5,7 @@ from flask import Blueprint, jsonify, request
 
 from autoboat_telemetry_server import shared_lock_manager
 from autoboat_telemetry_server.models import TelemetryTable, db
-from autoboat_telemetry_server.types import BoatStatusMappingType, ResponseType
+from autoboat_telemetry_server.types import ResponseType
 
 
 class BoatStatusEndpoint:
@@ -46,94 +46,6 @@ class BoatStatusEndpoint:
             raise TypeError("Instance not found.")
 
         return instance
-
-    def _normalize_mapping(self, mapping: list) -> BoatStatusMappingType:
-        """
-        Normalize mapping input into a tuple-of-tuples in the same order.
-
-        Parameters
-        ----------
-        mapping``
-            The input mapping to normalize, expected to be a list of ``[field_name, field_type]`` pairs.
-
-        Returns
-        -------
-        BoatStatusMappingType
-            Mapping normalized as ``list[list[str]]``.
-
-        Raises
-        ------
-        TypeError
-            If mapping structure or ctypes names are invalid.
-        """
-
-        if not isinstance(mapping, list):
-            raise TypeError(f"Got: {mapping} of type {type(mapping)}. Expected list[list[str]]")
-
-        normalized: BoatStatusMappingType = []
-        for item in mapping:
-            if not isinstance(item, list) or len(item) != 2:
-                raise TypeError("Invalid mapping format. Expected sequence of [field_name, field_type] pairs.")
-
-            field_name, field_type = item
-            if not isinstance(field_name, str) or not isinstance(field_type, str):
-                raise TypeError("Invalid mapping format. field_name and field_type must be strings.")
-
-            if not hasattr(ctypes, field_type):
-                raise TypeError(f"Invalid field type in mapping: {field_type}")
-
-            normalized.append([field_name, field_type])
-
-        return normalized
-
-    def _decode_payload(self, update_data: bytes, mapping: BoatStatusMappingType) -> dict[str, int | float]:
-        """
-        Decode raw payload bytes into a dictionary using a tuple of tuples mapping.
-
-        Parameters
-        ----------
-        update_data
-            Raw bytes from request body.
-        mapping
-            Field mapping as a list of ``[field_name, field_type]`` pairs defining the structure of the payload.
-
-        Returns
-        -------
-        dict[str, int | float]
-            Decoded field values.
-
-        Raises
-        ------
-        TypeError
-            If payload length does not match the expected struct layout.
-        """
-
-        class AlignedPayload(ctypes.LittleEndianStructure):
-            _fields_: ClassVar[tuple[tuple[str, ctypes._SimpleCData], ...]] = tuple(
-                (field_name, getattr(ctypes, field_type)) for field_name, field_type in mapping
-            )
-
-        class PackedPayload(ctypes.LittleEndianStructure):
-            _pack_ = 1
-            _fields_: ClassVar[tuple[tuple[str, ctypes._SimpleCData], ...]] = tuple(
-                (field_name, getattr(ctypes, field_type)) for field_name, field_type in mapping
-            )
-
-        aligned_size = ctypes.sizeof(AlignedPayload)
-        packed_size = ctypes.sizeof(PackedPayload)
-        payload_size = len(update_data)
-
-        if payload_size == aligned_size:
-            payload = AlignedPayload.from_buffer_copy(update_data)
-            return {field_name: getattr(payload, field_name) for field_name, _ in AlignedPayload._fields_}
-
-        if payload_size == packed_size:
-            payload = PackedPayload.from_buffer_copy(update_data)
-            return {field_name: getattr(payload, field_name) for field_name, _ in PackedPayload._fields_}
-
-        raise TypeError(
-            f"Payload length mismatch. Got {payload_size} bytes, expected aligned={aligned_size} or packed={packed_size} bytes."
-        )
 
     def _register_routes(self) -> str:
         """
@@ -288,13 +200,45 @@ class BoatStatusEndpoint:
                 or an error message if the instance is not found or if the input format is invalid.
             """
 
+            def form_payload_class(mapping: list[list[str]]) -> type[ctypes.LittleEndianStructure]:
+                """
+                Dynamically forms a ``ctypes`` ``LittleEndianStructure`` class based on the provided mapping of field names and types.
+
+                Parameters
+                ----------
+                mapping
+                    A list of pairs of field names and their corresponding data types for the boat status.
+
+                Returns
+                -------
+                type[ctypes.LittleEndianStructure]
+                    A dynamically created ``ctypes`` ``LittleEndianStructure`` class with fields
+                    defined according to the provided mapping.
+                """
+
+                class Payload(ctypes.LittleEndianStructure):
+                    _pack_: ClassVar[int] = 1
+                    _fields_: ClassVar[tuple[tuple[str, ctypes._SimpleCData], ...]] = tuple(
+                        (field_name, getattr(ctypes, field_type)) for field_name, field_type in mapping
+                    )
+
+                return Payload
+
             try:
                 telemetry_instance = self._get_instance(instance_id)
                 if not telemetry_instance.boat_status_mapping:
                     raise TypeError("Set variable mapping for the instance before using the fast update route.")
 
                 update_data: bytes = request.get_data(cache=False)
-                updated_status = self._decode_payload(update_data, telemetry_instance.boat_status_mapping)
+                try:
+                    payload_class = form_payload_class(telemetry_instance.boat_status_mapping)
+                    payload = payload_class.from_buffer_copy(update_data)
+                    updated_status = {
+                        field_name: getattr(payload, field_name) for field_name, _ in telemetry_instance.boat_status_mapping
+                    }
+
+                except Exception as e:
+                    raise TypeError(f"Error creating temporary payload structure: {e}") from e
 
                 telemetry_instance.boat_status = updated_status
                 telemetry_instance.boat_status_new_flag = True
@@ -332,13 +276,22 @@ class BoatStatusEndpoint:
                 or an error message if the instance is not found or if the input format is invalid.
             """
 
+            def is_valid_pair(item: list) -> bool:
+                return isinstance(item, list) and len(item) == 2 and all(isinstance(subitem, str) for subitem in item)
+
             try:
                 telemetry_instance = self._get_instance(instance_id)
                 new_mapping = request.json
+                if not isinstance(new_mapping, list):
+                    raise TypeError(f"Got: {new_mapping} of type {type(new_mapping)}. Expected {list}")
 
-                mapping = self._normalize_mapping(new_mapping)
+                if not all(is_valid_pair(item) for item in new_mapping):
+                    raise TypeError(f"Got {new_mapping}. Expected {list[list[str]]} with format [[field_name, field_type], ...]")
 
-                telemetry_instance.boat_status_mapping = mapping
+                if not all(hasattr(ctypes, field_type) for _, field_type in new_mapping):
+                    raise TypeError("Invalid field type in mapping. Each field type must correspond to a valid ctypes type.")
+
+                telemetry_instance.boat_status_mapping = new_mapping
                 db.session.commit()
 
                 return jsonify("Boat status mapping updated successfully."), 200
