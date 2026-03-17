@@ -288,7 +288,9 @@ class BoatStatusEndpoint:
                 if not all(hasattr(ctypes, field_type) for _, field_type in new_mapping):
                     raise TypeError("Invalid field type in mapping. Each field type must correspond to a valid ctypes type.")
 
-                telemetry_instance.boat_status_mapping = sorted(new_mapping, key=lambda x: ctypes.sizeof(x[1]), reverse=True)
+                telemetry_instance.boat_status_mapping = sorted(
+                    new_mapping, key=lambda x: ctypes.sizeof(getattr(ctypes, x[1])), reverse=True
+                )
                 db.session.commit()
 
                 return jsonify("Boat status mapping updated successfully."), 200
