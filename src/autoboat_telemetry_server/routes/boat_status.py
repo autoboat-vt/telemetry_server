@@ -200,31 +200,6 @@ class BoatStatusEndpoint:
                 or an error message if the instance is not found or if the input format is invalid.
             """
 
-            def form_payload_class(mapping: list[list[str]]) -> type[ctypes.LittleEndianStructure]:
-                """
-                Dynamically forms a ``ctypes`` ``LittleEndianStructure`` class based on the
-                provided mapping of field names and types.
-
-                Parameters
-                ----------
-                mapping
-                    A list of pairs of field names and their corresponding data types for the boat status.
-
-                Returns
-                -------
-                type[ctypes.LittleEndianStructure]
-                    A dynamically created ``ctypes`` ``LittleEndianStructure`` class with fields
-                    defined according to the provided mapping.
-                """
-
-                class Payload(ctypes.LittleEndianStructure):
-                    _pack_: ClassVar[int] = 1
-                    _fields_: ClassVar[tuple[tuple[str, ctypes._SimpleCData], ...]] = tuple(
-                        (field_name, getattr(ctypes, field_type)) for field_name, field_type in mapping
-                    )
-
-                return Payload
-
             try:
                 telemetry_instance = self._get_instance(instance_id)
                 if not telemetry_instance.boat_status_mapping:
