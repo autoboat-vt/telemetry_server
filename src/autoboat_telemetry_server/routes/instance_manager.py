@@ -1,11 +1,11 @@
 from datetime import UTC, datetime, timedelta
 from typing import Literal
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 
 from autoboat_telemetry_server import shared_lock_manager
 from autoboat_telemetry_server.models import TelemetryTable, db
-from autoboat_telemetry_server.types import ResponseType
+from autoboat_telemetry_server.types import DiagnosticMessageIntensity, ResponseType
 
 
 class InstanceManagerEndpoint:
@@ -308,6 +308,86 @@ class InstanceManagerEndpoint:
             try:
                 telemetry_instance = self._get_instance(instance_id)
                 return jsonify(telemetry_instance.instance_identifier), 200
+
+            except TypeError as e:
+                return jsonify(str(e)), 404
+
+            except Exception as e:
+                return jsonify(str(e)), 500
+
+        @self._blueprint.route("/set_diagnostic_message/<int:instance_id>", methods=["POST"])
+        @shared_lock_manager.require_write_lock
+        def set_diagnostic_message(instance_id: int) -> ResponseType:
+            """
+            Set the diagnostic message for a telemetry instance.
+
+            Method: POST
+
+            Parameters
+            ----------
+            instance_id
+                The ID of the telemetry instance to set the diagnostic message for.
+
+            Returns
+            -------
+            ResponseType
+                A tuple containing a JSON response confirming the diagnostic message has been set and a status code of 200.
+            """
+
+            try:
+                telemetry_instance = self._get_instance(instance_id)
+                message_data = request.json
+
+                if not isinstance(message_data, list) or len(message_data) != 2:
+                    raise ValueError(
+                        "Invalid diagnostic message format. Expected a list of [intensity, message]. Recieved: "
+                        + str(message_data)
+                    )
+
+                if not isinstance(message_data[0], int) or not isinstance(message_data[1], str):
+                    raise TypeError("Diagnostic message must be a list of [intensity, message] with correct types.")
+
+                if message_data[0] not in DiagnosticMessageIntensity:
+                    raise ValueError("Diagnostic message intensity must be a valid DiagnosticMessageIntensity value.")
+
+                telemetry_instance.diagnostic_message = message_data
+                db.session.commit()
+
+                return jsonify(f"Instance {instance_id} diagnostic message set."), 200
+
+            except TypeError as e:
+                return jsonify(str(e)), 404
+
+            except ValueError as e:
+                return jsonify(str(e)), 400
+
+            except Exception as e:
+                db.session.rollback()
+                return jsonify(str(e)), 500
+
+        @self._blueprint.route("/get_diagnostic_message/<int:instance_id>", methods=["GET"])
+        @shared_lock_manager.require_read_lock
+        def get_diagnostic_message(instance_id: int) -> ResponseType:
+            """
+            Get the diagnostic message of a telemetry instance by its ID.
+
+            Method: GET
+
+            Parameters
+            ----------
+            instance_id
+                The ID of the telemetry instance to retrieve the diagnostic message for.
+
+            Returns
+            -------
+            ResponseType
+                A tuple containing a JSON response with the instance diagnostic message or an error
+                message if the instance is not found.
+            """
+
+            try:
+                telemetry_instance = self._get_instance(instance_id)
+                return jsonify(telemetry_instance.diagnostic_message), 200
 
             except TypeError as e:
                 return jsonify(str(e)), 404

@@ -11,7 +11,16 @@ from .models import db
 
 shared_lock_manager = LockManager()
 
-HOME_DIR = Path("/home/ubuntu")
+home_directories: list[Path] = [d for d in Path("/home").iterdir() if d.is_dir()]
+if len(home_directories) == 0:
+    raise RuntimeError("No home directories found in /home. Expected at least one user directory.")
+
+elif len(home_directories) == 1:
+    HOME_DIR = home_directories[0]
+
+else:
+    HOME_DIR = Path.home()
+
 INSTANCE_DIR = HOME_DIR / "telemetry_server" / "src" / "instance"
 
 from autoboat_telemetry_server.routes import (  # noqa: E402

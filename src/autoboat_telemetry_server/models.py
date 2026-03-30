@@ -18,7 +18,13 @@ from sqlalchemy import JSON, Boolean, Integer, String, event
 from sqlalchemy.engine import Connection
 from sqlalchemy.orm import Mapped, Mapper, mapped_column, validates
 
-from autoboat_telemetry_server.types import AutopilotParametersType, BoatStatusMappingType, BoatStatusType, WaypointSequenceType
+from autoboat_telemetry_server.types import (
+    AutopilotParametersType,
+    BoatStatusMappingType,
+    BoatStatusType,
+    DiagnosticMessageIntensity,
+    WaypointSequenceType,
+)
 
 db = SQLAlchemy()
 
@@ -42,6 +48,8 @@ class TelemetryTable(db.Model):
         User associated with the telemetry instance.
         Should be set by the telemetry node in the simulation.
         Can only be changed once when the instance is created.
+    diagnostic_message : tuple[DiagnosticMessageIntensity, str]
+        Optional diagnostic message consisting of an intensity level and a message string.
 
     current_config_hash : str
         SHA-256 hash of the current autopilot parameters configuration.
@@ -75,6 +83,7 @@ class TelemetryTable(db.Model):
     instance_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     instance_identifier: Mapped[str] = mapped_column(String, default="", nullable=True)
     user: Mapped[str] = mapped_column(String, default="unknown", nullable=False)
+    diagnostic_message: Mapped[tuple[DiagnosticMessageIntensity, str]] = mapped_column(JSON, nullable=True)
 
     current_config_hash: Mapped[str] = mapped_column(String, default="", nullable=False)
     default_autopilot_parameters: Mapped[AutopilotParametersType] = mapped_column(JSON, nullable=False)
