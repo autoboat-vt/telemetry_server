@@ -340,7 +340,7 @@ class InstanceManagerEndpoint:
 
                 if not isinstance(message_data, list) or len(message_data) != 2:
                     raise ValueError(
-                        "Invalid diagnostic message format. Expected a list of [intensity, message]. Recieved: "
+                        "Invalid diagnostic message format. Expected a list of [intensity, message]. Received: "
                         + str(message_data)
                     )
 

@@ -292,7 +292,7 @@ class HashTable(db.Model):
         """
 
         if not isinstance(config, dict):
-            return False, f"The configuration must be a dictionary, recieved data: {config} of type {type(config)}."
+            return False, f"The configuration must be a dictionary, received data: {config} of type {type(config)}."
 
         if config == {}:
             return False, "The configuration cannot be an empty dictionary."

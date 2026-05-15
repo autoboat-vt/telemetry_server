@@ -1,6 +1,6 @@
 [project]
 name        = "telemetry_server"
-version     = "4.5.2"
+version     = "4.5.3"
 readme      = "README.md"
 description = "Telemetry server for Autoboat"
 
