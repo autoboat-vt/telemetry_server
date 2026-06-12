@@ -12,6 +12,7 @@ Autopilot Routes:
 - `/autopilot_parameters/get_all_hashes`: Get all stored autopilot configuration hashes.
 - `/autopilot_parameters/get_hash_exists/<config_hash>`: Check if a specific configuration hash exists.
 - `/autopilot_parameters/set/<int:instance_id>`: Set the autopilot parameters from the request data.
+- `autopilot_parameters/update_existing_parameter/<int:instance_id>/<parameter_key>`: Update an existing autopilot parameter with a new value from the request data.
 - `/autopilot_parameters/set_default/<int:instance_id>`: Set the default autopilot parameters from the request data.
 - `/autopilot_parameters/set_hash_description/<config_hash>/<description>`: Set the description for a specific configuration hash.
 - `/autopilot_parameters/set_default_from_hash/<int:instance_id>/<config_hash>`: Set the default autopilot parameters using a stored configuration hash.

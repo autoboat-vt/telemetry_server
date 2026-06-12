@@ -388,6 +388,61 @@ class AutopilotParametersEndpoint:
                 db.session.rollback()
                 return jsonify(str(e)), 500
 
+        @self._blueprint.route("/update_existing_parameter/<int:instance_id>/<parameter_key>", methods=["POST"])
+        @shared_lock_manager.require_write_lock
+        def update_existing_parameter_route(instance_id: int, parameter_key: str) -> ResponseType:
+            """
+            Update a single existing autopilot parameter from the request data.
+
+            Method: POST
+
+            Parameters
+            ----------
+            instance_id
+                The ID of the telemetry instance to update the autopilot parameter for.
+            parameter_key
+                The key of the autopilot parameter to update.
+
+            Returns
+            -------
+            ResponseType
+                A tuple containing a JSON response confirming the autopilot parameter has been
+                updated successfully, or an error message if the instance is not found, if the
+                parameter key is invalid, or if the input format is invalid.
+            """
+
+            try:
+                telemetry_instance = self._get_instance(instance_id)
+                new_value = json.loads(request.json)
+
+                if not isinstance(new_value, (str, int, float, bool, list)):
+                    raise TypeError("Invalid autopilot parameter value format. Expected a primitive type or a list.")
+
+                if not telemetry_instance.default_autopilot_parameters:
+                    raise ValueError("Default autopilot parameters must be set before updating individual parameters.")
+
+                if parameter_key not in telemetry_instance.default_autopilot_parameters:
+                    raise ValueError("Parameter key does not exist in the default autopilot parameters.")
+
+                current_parameters = telemetry_instance.autopilot_parameters or {}
+                current_parameters[parameter_key] = new_value
+
+                telemetry_instance.autopilot_parameters_new_flag = telemetry_instance.autopilot_parameters != current_parameters
+                telemetry_instance.autopilot_parameters = current_parameters
+                db.session.commit()
+
+                return jsonify("Autopilot parameter updated successfully."), 200
+
+            except TypeError as e:
+                return jsonify(str(e)), 400
+
+            except ValueError as e:
+                return jsonify(str(e)), 400
+
+            except Exception as e:
+                db.session.rollback()
+                return jsonify(str(e)), 500
+
         @self._blueprint.route("/set_default/<int:instance_id>", methods=["POST"])
         @shared_lock_manager.require_write_lock
         def set_default_route(instance_id: int) -> ResponseType:
