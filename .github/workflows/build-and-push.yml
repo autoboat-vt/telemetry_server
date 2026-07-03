@@ -217,15 +217,18 @@ jobs:
       # -----------------------------------------------------------------------
       # NOTE on per-arch tag cleanup:
       # The intermediate :tag-amd64 / :tag-arm64 versions on GHCR are NOT
-      # deleted by this workflow — the default GITHUB_TOKEN has packages:write
-      # but NOT delete:packages scope, so API deletion fails with 403.
-      #
-      # Instead, rely on GHCR's built-in retention policy:
+      # deleted by this workflow. GHCR has no built-in retention policy, and
+      # API deletion via the default GITHUB_TOKEN requires the repository to
+      # have the "Admin" role on the package (not just "Write"), which is
+      # configured at:
       #   https://github.com/orgs/autoboat-vt/packages/container/telemetry_server/settings
-      # Enable "Automatically delete public package versions" and set a
-      # retention count (e.g. 10). Per-arch tags are overwritten each build
-      # (same name, new digest), so only untagged orphans accumulate — and
-      # the retention policy prunes those automatically.
+      # under "Manage Actions access".
+      #
+      # If that role is elevated to Admin, a cleanup step using GITHUB_TOKEN
+      # can be re-added here (delete versions whose tags all end in -amd64/
+      # -arm64). Until then, orphans accumulate harmlessly — per-arch tags
+      # are overwritten each build (same name, new digest), so only untagged
+      # versions pile up. Run /tmp/ghcr_cleanup.sh locally to prune them.
       #
       # Docker Hub stays clean automatically: only final multi-arch manifests
       # are mirrored there (no per-arch tags are ever pushed to Docker Hub).
