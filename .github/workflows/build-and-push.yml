@@ -3,10 +3,10 @@
 # (amd64 + arm64) so it runs on both x86 VMs (AWS, GCP) and ARM instances
 # (Oracle Ampere, Graviton).
 #
-# Strategy: each architecture is built on a NATIVE runner (amd64 on ubuntu-latest,
-# arm64 on ubuntu-24.04-arm) in parallel, then a final job merges the per-arch
-# images into a single multi-arch manifest. This is ~5-10x faster than the old
-# QEMU-emulated single-job build.
+# Strategy: each architecture is built on a NATIVE runner (amd64 on
+# ubuntu-22.04, arm64 on ubuntu-22.04-arm) in parallel, then a publish job
+# merges the per-arch images into a single multi-arch manifest. This is
+# ~5-10x faster than QEMU-emulated single-job builds.
 #
 # Trigger:
 #   - On every push to main (builds and tags :main + :latest)
@@ -22,6 +22,8 @@
 #   - DOCKERHUB_USERNAME : Docker Hub username (must own the vtautoboat namespace)
 #   - DOCKERHUB_TOKEN    : Personal access token from Docker Hub
 #                         (https://hub.docker.com/settings/security)
+#
+# Pattern adapted from autoboat-vt/autoboat_vt's build-and-release.yml.
 
 name: Build and Push Image
 
@@ -37,25 +39,22 @@ env:
 
 jobs:
   build:
-    # Build each architecture on a NATIVE runner (no QEMU emulation).
-    # - linux/amd64 -> ubuntu-latest (x86_64)
-    # - linux/arm64 -> ubuntu-24.04-arm (native ARM, in public preview as of
-    #   2026; if unavailable, fall back to ubuntu-latest + QEMU by replacing
-    #   the runs-on for arm64 with ubuntu-latest and uncommenting setup-qemu.)
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: linux/amd64
-            runner: ubuntu-latest
-            suffix: amd64
-          - platform: linux/arm64
-            runner: ubuntu-24.04-arm
-            suffix: arm64
+    name: Build (${{ matrix.architecture }})
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
       packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        architecture: [amd64, arm64]
+        include:
+          - architecture: amd64
+            runner: ubuntu-22.04
+            platform: linux/amd64
+          - architecture: arm64
+            runner: ubuntu-22.04-arm
+            platform: linux/arm64
 
     steps:
       - name: Checkout repository
@@ -65,16 +64,11 @@ jobs:
         run: |
           echo "OWNER_LC=${GITHUB_REPOSITORY_OWNER,,}" >> ${GITHUB_ENV}
 
-      # Only needed when building arm64 on an x86 runner via QEMU emulation.
-      # Left here for reference; harmless on native arm64 runners (no-op).
-      - name: Set up QEMU (only used if arm64 falls back to an x86 runner)
-        if: matrix.platform == 'linux/arm64' && matrix.runner == 'ubuntu-latest'
-        uses: docker/setup-qemu-action@v3
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to Docker Hub
+        # Only push images to the registry when not on a pull request.
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
@@ -82,6 +76,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Log in to GHCR
+        # Only push images to the registry when not on a pull request.
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
@@ -89,49 +84,62 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata (tags, labels)
+      # -----------------------------------------------------------------------
+      # Compute the image tags from the git ref.
+      #   - main branch push -> tag :main and :latest
+      #   - testing branch push -> tag :testing
+      #   - v1.2.3 tag push -> tags :1.2.3, :1.2, :1, and :latest
+      # Each tag is suffixed with the architecture (e.g. :main-amd64) so the
+      # publish job can combine them into multi-arch manifests at the base tags.
+      # -----------------------------------------------------------------------
+      - name: Compute image tags
         id: meta
-        uses: docker/metadata-action@v5
-        with:
-          # Both registries get the same set of tags, suffixed per-arch so the
-          # merge job can combine them into multi-arch manifests without
-          # collisions.
-          images: |
-            ghcr.io/${{ env.OWNER_LC }}/telemetry_server
-            ${{ env.DOCKERHUB_REPO }}
-          tags: |
-            type=ref,event=branch,suffix=-${{ matrix.suffix }}
-            type=semver,pattern={{version}},suffix=-${{ matrix.suffix }}
-            type=semver,pattern={{major}}.{{minor}},suffix=-${{ matrix.suffix }}
-            type=raw,value=latest-${{ matrix.suffix }},enable={{is_default_branch}}
+        run: |
+          tags=""
+          if [ "${GITHUB_REF_TYPE}" = "branch" ]; then
+            tags="${GITHUB_REF_NAME}"
+            if [ "${GITHUB_REF_NAME}" = "main" ]; then
+              tags="${tags} latest"
+            fi
+          elif [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            v="${GITHUB_REF_NAME#v}"
+            major=$(echo "$v" | cut -d. -f1)
+            minor=$(echo "$v" | cut -d. -f1,2)
+            tags="$v $minor $major latest"
+          fi
+          # Emit one -arch-suffixed tag per line for build-push-action.
+          suffixed=""
+          for t in $tags; do
+            suffixed="${suffixed}${t}-${{ matrix.architecture }}\n"
+          done
+          {
+            echo "tags<<EOF"
+            printf "%b" "$suffixed"
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
 
       - name: Build and push (single arch)
-        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
           platforms: ${{ matrix.platform }}
-          push: true
+          push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
           # Per-arch GHA cache to avoid cross-arch cache thrash
-          cache-from: type=gha,ref=${{ matrix.suffix }}
-          cache-to: type=gha,ref=${{ matrix.suffix }},mode=max
+          cache-from: type=gha,scope=${{ matrix.architecture }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.architecture }}
 
-  merge:
-    # Combine the per-arch images into a single multi-arch manifest for each
-    # tag. Runs after both build jobs succeed.
+  publish:
+    name: Publish Multi-Arch Manifest
     needs: build
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
       - name: Lowercase repository owner
         run: |
           echo "OWNER_LC=${GITHUB_REPOSITORY_OWNER,,}" >> ${GITHUB_ENV}
@@ -140,84 +148,51 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to Docker Hub
-        if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Log in to GHCR
-        if: github.event_name != 'pull_request'
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Compute base tags
-        id: tags
+      # -----------------------------------------------------------------------
+      # Combine the per-arch images into a single multi-arch manifest for each
+      # tag. `docker compose pull` resolves the multi-arch manifest and picks
+      # the right arch at pull time.
+      # -----------------------------------------------------------------------
+      - name: Create and Push Multi-Arch Manifests
         run: |
-          # Mirror docker/metadata-action's tag logic, but WITHOUT the -arch suffix.
-          # The merge job creates a multi-arch manifest at these base tags by
-          # combining the per-arch suffixed tags pushed by the build jobs.
-          refs=""
+          OWNER_LC=${GITHUB_REPOSITORY_OWNER,,}
+          GHCR_REPO="ghcr.io/${OWNER_LC}/telemetry_server"
+          DOCKER_HUB_REPO="${{ env.DOCKERHUB_REPO }}"
+
+          # Compute base tags (same logic as the build job, WITHOUT the -arch suffix)
+          tags=""
           if [ "${GITHUB_REF_TYPE}" = "branch" ]; then
-            refs="${GITHUB_REF_NAME}"
+            tags="${GITHUB_REF_NAME}"
             if [ "${GITHUB_REF_NAME}" = "main" ]; then
-              refs="${refs} latest"
+              tags="${tags} latest"
             fi
           elif [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            # v1.2.3 -> 1.2.3, 1.2, latest
             v="${GITHUB_REF_NAME#v}"
-            major_minor=$(echo "$v" | cut -d. -f1,2)
-            refs="$v ${major_minor} latest"
+            major=$(echo "$v" | cut -d. -f1)
+            minor=$(echo "$v" | cut -d. -f1,2)
+            tags="$v $minor $major latest"
           fi
-          {
-            echo "tags<<EOF"
-            echo "$refs"
-            echo "EOF"
-          } >> "${GITHUB_OUTPUT}"
 
-      - name: Merge per-arch images into multi-arch manifest
-        env:
-          TAGS: ${{ steps.tags.outputs.tags }}
-          GHCR: ghcr.io/${{ env.OWNER_LC }}/telemetry_server
-          DH: ${{ env.DOCKERHUB_REPO }}
-        run: |
-          set -euo pipefail
-          for tag in $TAGS; do
-            echo "=== Merging tag :$tag ==="
-            # GHCR
-            docker buildx imagetools create -t "${GHCR}:${tag}" \
-              "${GHCR}:${tag}-amd64" \
-              "${GHCR}:${tag}-arm64"
-            # Docker Hub
-            docker buildx imagetools create -t "${DH}:${tag}" \
-              "${DH}:${tag}-amd64" \
-              "${DH}:${tag}-arm64"
-          done
+          for tag in $tags; do
+            echo "==> Creating multi-arch manifest for ${DOCKER_HUB_REPO}:${tag}..."
+            docker buildx imagetools create -t ${DOCKER_HUB_REPO}:${tag} \
+              ${DOCKER_HUB_REPO}:${tag}-amd64 \
+              ${DOCKER_HUB_REPO}:${tag}-arm64
 
-      - name: Clean up per-arch suffixed tags (optional, best effort)
-        # These intermediate tags (-amd64, -arm64) are no longer needed once
-        # the multi-arch manifest exists. Best-effort: ignores failures (some
-        # registries need an API token to delete tags, which GHCR supports via
-        # GITHUB_TOKEN but Docker Hub does not for public repos).
-        continue-on-error: true
-        env:
-          TAGS: ${{ steps.tags.outputs.tags }}
-          GHCR: ghcr.io/${{ env.OWNER_LC }}/telemetry_server
-          DH: ${{ env.DOCKERHUB_REPO }}
-        run: |
-          set -euo pipefail
-          for tag in $TAGS; do
-            for suffix in amd64 arm64; do
-              # GHCR tag delete via API
-              owner="${GITHUB_REPOSITORY_OWNER,,}"
-              repo="${GITHUB_REPOSITORY#*/}"
-              curl -s -X DELETE \
-                -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-                -H "Accept: application/vnd.github+json" \
-                "https://api.github.com/orgs/${owner}/packages/container/${repo}/versions" \
-                >/dev/null 2>&1 || true
-            done
+            echo "==> Creating multi-arch manifest for ${GHCR_REPO}:${tag}..."
+            docker buildx imagetools create -t ${GHCR_REPO}:${tag} \
+              ${GHCR_REPO}:${tag}-amd64 \
+              ${GHCR_REPO}:${tag}-arm64
           done
