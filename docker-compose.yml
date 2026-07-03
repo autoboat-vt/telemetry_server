@@ -1,0 +1,119 @@
+# Docker Compose configuration for the Autoboat telemetry server.
+#
+# Replaces server_files/install.sh. Traffic reaches the apps via a Cloudflare
+# Tunnel (cloudflared), which dials OUT to Cloudflare's edge — so no inbound
+# ports need to be open on the host (works behind NAT, CGNAT, or a firewall).
+# Cloudflare terminates TLS at the edge; no nginx or certbot is needed.
+#
+# Services:
+#   - telemetry-prod : gunicorn app on :8000 (production)
+#   - telemetry-test  : gunicorn app on :6001 (testing)
+#   - cloudflared     : outbound tunnel to Cloudflare, routes hostnames -> apps
+#   - cron            : calls /instance_manager/clean_instances every 5 min
+#
+# Usage:
+#   cp .env.example .env   # set TUNNEL_TOKEN (and DOMAIN, TESTING_DOMAIN)
+#   docker compose up -d        # pulls prebuilt image from GHCR (fast)
+#   docker compose up -d --build  # build locally instead (for development)
+#
+# The prebuilt image is published by the GitHub Action in
+# .github/workflows/build-and-push.yml on every push to main. It's multi-arch
+# (amd64 + arm64) and public, so `docker compose pull` works without login.
+#
+# First-time Cloudflare setup (dashboard-managed tunnel, recommended):
+#   1. Go to https://one.dash.cloudflare.com/ -> Networks -> Tunnels -> Create
+#   2. Create a tunnel; copy the install token into .env as TUNNEL_TOKEN
+#   3. Add public hostnames in the dashboard:
+#        vt-autoboat-telemetry.uk      -> http://telemetry-prod:8000
+#        www.vt-autoboat-telemetry.uk  -> http://telemetry-prod:8000
+#        test.vt-autoboat-telemetry.uk -> http://telemetry-test:6001
+#   4. In Cloudflare DNS, the tunnel's CNAMEs are added automatically.
+
+services:
+  telemetry-prod:
+    # Prebuilt image from GitHub Container Registry. Override locally with
+    # `docker compose up -d --build` to build from source instead.
+    image: ghcr.io/autoboat-vt/telemetry_server:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: telemetry-prod
+    restart: unless-stopped
+    environment:
+      PATH: "/home/ubuntu/telemetry_server/venv/bin:/usr/local/bin:/usr/bin:/bin"
+      VIRTUAL_ENV: "/home/ubuntu/telemetry_server/venv"
+    volumes:
+      # Persist the SQLite databases (instances.db, hashes.db) across restarts.
+      - prod-instance-data:/home/ubuntu/telemetry_server/src/instance
+    expose:
+      - "8000"
+    networks:
+      - telemetry-net
+
+  telemetry-test:
+    # Uses the :testing tag, which is built from the `testing` branch by the
+    # GitHub Action in .github/workflows/build-and-push.yml. This lets us run
+    # pre-release code on test.vt-autoboat-telemetry.uk without affecting prod.
+    # To build locally instead, run: docker compose up -d --build telemetry-test
+    image: ghcr.io/autoboat-vt/telemetry_server:testing
+    container_name: telemetry-test
+    restart: unless-stopped
+    environment:
+      PATH: "/home/ubuntu/telemetry_server/venv/bin:/usr/local/bin:/usr/bin:/bin"
+      VIRTUAL_ENV: "/home/ubuntu/telemetry_server/venv"
+    volumes:
+      - test-instance-data:/home/ubuntu/telemetry_server/src/instance
+    expose:
+      - "6001"
+    # The app listens on 8000 inside the container (see Dockerfile CMD).
+    # Bind it to 6001 here so cloudflared routes http://telemetry-test:6001.
+    command:
+      - "/home/ubuntu/telemetry_server/venv/bin/gunicorn"
+      - "-w"
+      - "1"
+      - "--bind"
+      - "0.0.0.0:6001"
+      - "autoboat_telemetry_server:create_app()"
+    networks:
+      - telemetry-net
+
+  cloudflared:
+    # The cloudflare/cloudflared image is distroless (no shell). Its default
+    # ENTRYPOINT is `cloudflared --no-autoupdate`, so we just override CMD.
+    # Dashboard-managed mode: pass `tunnel run --token <TUNNEL_TOKEN>`.
+    # File-managed mode: see the USE_CONFIG_FILE branch below.
+    image: cloudflare/cloudflared:latest
+    container_name: telemetry-cloudflared
+    restart: unless-stopped
+    depends_on:
+      - telemetry-prod
+      - telemetry-test
+    networks:
+      - telemetry-net
+    command: ${TUNNEL_COMMAND:-tunnel run --token ${TUNNEL_TOKEN:?TUNNEL_TOKEN is required. See .env.example}}
+
+  cron:
+    build:
+      context: ./server_files/docker/cron
+      dockerfile: Dockerfile
+    # Local-only image (built from server_files/docker/cron/Dockerfile).
+    # `docker compose pull` skips services with no registry image.
+    image: telemetry-cron:latest
+    container_name: telemetry-cron
+    restart: unless-stopped
+    volumes:
+      - cron-logs:/var/log
+    depends_on:
+      - telemetry-prod
+    networks:
+      - telemetry-net
+
+networks:
+  telemetry-net:
+    driver: bridge
+
+volumes:
+  prod-instance-data:
+  test-instance-data:
+  cloudflared-creds:
+  cron-logs:

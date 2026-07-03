@@ -1,37 +1,48 @@
-FROM python:3.12
+# Dockerfile for the Autoboat telemetry server.
+#
+# The app's create_app() locates its instance directory by scanning /home for
+# a single user directory and resolving HOME_DIR/telemetry_server/src/instance.
+# To preserve that behavior we create an "ubuntu" user (matching the original
+# supervisor-based deployment) and lay the source out under /home/ubuntu.
 
-ARG USERNAME=ubuntu
-ARG USER_UID=1000
-ARG USER_GID=$USER_UID
+FROM python:3.12-slim
 
-WORKDIR /home/${USERNAME}/telemetry_server
+# Create the ubuntu user and install runtime dependencies.
+RUN useradd -m -s /bin/bash ubuntu \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN groupadd --gid $USER_GID $USERNAME \
-    && useradd --uid $USER_UID --gid $USER_GID -m $USERNAME
+WORKDIR /home/ubuntu/telemetry_server
 
-RUN apt update && apt install nginx supervisor git -y && rm -rf /var/lib/apt/lists/* \
-    && rm -f /etc/nginx/sites-enabled/default
+# WORKDIR creates the directory owned by root; chown it so the ubuntu user
+# can create the venv and write into it during the build.
+RUN chown -R ubuntu:ubuntu /home/ubuntu/telemetry_server
 
-COPY . /home/${USERNAME}/telemetry_server/
+# Copy project metadata and source.
+COPY --chown=ubuntu:ubuntu pyproject.toml README.md ./
+COPY --chown=ubuntu:ubuntu src/ ./src/
 
-COPY server_files/supervisor_autoboat.conf /etc/supervisor/conf.d/
+# Back up the default config.py. When a named volume is mounted over the
+# instance directory at runtime, config.py will be hidden, so the entrypoint
+# restores it from this backup on first start.
+RUN mkdir -p /opt \
+    && cp /home/ubuntu/telemetry_server/src/instance/config.py /opt/config.py
 
-RUN cp /home/${USERNAME}/telemetry_server/server_files/nginx_autoboat_nossl.conf /etc/nginx/sites-available/ \
-    && ln -sf /etc/nginx/sites-available/nginx_autoboat_nossl.conf /etc/nginx/sites-enabled/nginx_autoboat.conf \
-    && nginx -t
+# Build the virtual environment and install the package as the ubuntu user.
+USER ubuntu
+RUN python -m venv /home/ubuntu/telemetry_server/venv \
+    && /home/ubuntu/telemetry_server/venv/bin/pip install --upgrade pip \
+    && /home/ubuntu/telemetry_server/venv/bin/pip install .
 
-RUN python3 -m venv /home/${USERNAME}/telemetry_server/venv \
-    && /home/${USERNAME}/telemetry_server/venv/bin/pip install --upgrade pip \
-    && /home/${USERNAME}/telemetry_server/venv/bin/pip install /home/${USERNAME}/telemetry_server
+# Install the entrypoint script (needs root to place it in /opt, then drop back).
+USER root
+COPY server_files/docker/app-entrypoint.sh /opt/app-entrypoint.sh
+RUN chmod +x /opt/app-entrypoint.sh
 
-RUN git clone https://github.com/autoboat-vt/telemetry_server /home/${USERNAME}/telemetry_server_testing \
-    && cd /home/${USERNAME}/telemetry_server_testing && git checkout testing \
-    && python3 -m venv /home/${USERNAME}/telemetry_server_testing/venv \
-    && /home/${USERNAME}/telemetry_server_testing/venv/bin/pip install --upgrade pip \
-    && /home/${USERNAME}/telemetry_server_testing/venv/bin/pip install /home/${USERNAME}/telemetry_server_testing
+USER ubuntu
 
-RUN chown -R ${USERNAME}:${USERNAME} /home/${USERNAME}
+EXPOSE 8000
 
-EXPOSE 80
-
-CMD ["/usr/bin/supervisord", "-n", "-c", "/etc/supervisor/supervisord.conf"]
+ENTRYPOINT ["/opt/app-entrypoint.sh"]
+CMD ["/home/ubuntu/telemetry_server/venv/bin/gunicorn", "-w", "1", "--bind", "0.0.0.0:8000", "autoboat_telemetry_server:create_app()"]
