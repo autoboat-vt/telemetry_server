@@ -1,27 +1,32 @@
-# Build the telemetry-server Docker image and push it to GitHub Container
-# Registry (GHCR). The resulting image is multi-arch (amd64 + arm64) so it
-# runs on both x86 VMs (AWS, GCP) and ARM instances (Oracle Ampere, Graviton).
+# Build the telemetry-server Docker image and push it to both GitHub Container
+# Registry (GHCR) and Docker Hub. The resulting image is multi-arch
+# (amd64 + arm64) so it runs on both x86 VMs (AWS, GCP) and ARM instances
+# (Oracle Ampere, Graviton).
 #
 # Trigger:
 #   - On every push to main (builds and tags :main)
 #   - On version tags v* (builds and tags :vX.Y.Z + :latest)
 #   - Manually via the "Run workflow" button in the Actions tab
 #
-# The image is public, so the install script can `docker compose pull` it
-# without authentication.
+# Both registries host a public image, so the install script can
+# `docker compose pull` from either without authentication.
+#
+# Required secrets (Settings → Secrets and variables → Actions):
+#   - DOCKERHUB_USERNAME : Docker Hub username (must own the vtautoboat namespace)
+#   - DOCKERHUB_TOKEN    : Personal access token from Docker Hub
+#                         (https://hub.docker.com/settings/security)
 
 name: Build and Push Image
 
 on:
   push:
     branches: [main]
-    tags: ['v*']
+    tags: ["v*"]
   workflow_dispatch:
 
 env:
-  REGISTRY: ghcr.io
-  # ghcr.io/<owner>/<repo> — lowercased because GHCR requires lowercase
-  IMAGE_NAME: ghcr.io/${{ github.repository }}
+  # Docker Hub namespace (matches the org's existing Docker Hub account)
+  DOCKERHUB_REPO: vtautoboat/telemetry_server
 
 jobs:
   build-and-push:
@@ -31,8 +36,12 @@ jobs:
       packages: write
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Lowercase repository owner
+        run: |
+          echo "OWNER_LC=${GITHUB_REPOSITORY_OWNER,,}" >> ${GITHUB_ENV}
 
       - name: Set up QEMU (for multi-arch builds)
         uses: docker/setup-qemu-action@v3
@@ -40,10 +49,20 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to GHCR
+      - name: Log in to Docker Hub
+        # Only push images to the registry when pushing to the main branch.
+        if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Log in to GHCR
+        # Only push images to the registry when pushing to the main branch.
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
@@ -51,7 +70,10 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.IMAGE_NAME }}
+          # Both registries get the same set of tags
+          images: |
+            ghcr.io/${{ env.OWNER_LC }}/telemetry_server
+            ${{ env.DOCKERHUB_REPO }}
           tags: |
             # On main branch pushes -> tag :main
             type=ref,event=branch
