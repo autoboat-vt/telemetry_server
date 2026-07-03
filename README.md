@@ -109,6 +109,18 @@ Dashboard-managed tunnel (recommended):
 
 4. DNS CNAMEs are added automatically by Cloudflare.
 
+> **Secret management:** also store the tunnel token as a GitHub
+> **organization variable** named `TUNNEL_TOKEN` (org Settings → Actions →
+> Variables → New organization variable; set Access to "Selected repositories"
+> and pick this repo). Org variables are plaintext, so any team member with
+> repo access can read it from the Actions UI when provisioning a new host —
+> no need to ping an admin. The trade-off: it is **not** masked, so anyone
+> with repo read access can read it; if the repo is ever compromised, rotate
+> the token in Cloudflare immediately. In workflows it's referenced as
+> `${{ vars.TUNNEL_TOKEN }}` (note: `vars.`, not `secrets.`). When you rotate
+> the token in Cloudflare, update **both** the org variable and `.env` on the
+> host.
+
 For file-managed mode (manage routing locally instead of in the dashboard),
 see `.env.example`.
 
