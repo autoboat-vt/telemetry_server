@@ -215,21 +215,62 @@ jobs:
           done
 
       # -----------------------------------------------------------------------
-      # NOTE on per-arch tag cleanup:
-      # The intermediate :tag-amd64 / :tag-arm64 versions on GHCR are NOT
-      # deleted by this workflow. GHCR has no built-in retention policy, and
-      # API deletion via the default GITHUB_TOKEN requires the repository to
-      # have the "Admin" role on the package (not just "Write"), which is
-      # configured at:
-      #   https://github.com/orgs/autoboat-vt/packages/container/telemetry_server/settings
-      # under "Manage Actions access".
+      # Clean up intermediate per-arch tags on GHCR.
       #
-      # If that role is elevated to Admin, a cleanup step using GITHUB_TOKEN
-      # can be re-added here (delete versions whose tags all end in -amd64/
-      # -arm64). Until then, orphans accumulate harmlessly — per-arch tags
-      # are overwritten each build (same name, new digest), so only untagged
-      # versions pile up. Run /tmp/ghcr_cleanup.sh locally to prune them.
+      # The build job pushes :tag-amd64 and :tag-arm64 versions to GHCR; the
+      # manifest step assembles them into a multi-arch :tag. The per-arch
+      # versions are then orphans (overwritten by name each build, so only
+      # untagged versions actually pile up). This step deletes any package
+      # version whose tags are ALL -amd64/-arm64 suffixed, plus untagged
+      # versions, keeping GHCR tidy.
+      #
+      # Requires the repository to have the "Admin" role on the package
+      # (configured under "Manage Actions access" at the package settings
+      # URL) so the default GITHUB_TOKEN can call the delete API.
+      #
+      # continue-on-error: true so a transient API failure doesn't fail the
+      # whole publish job — orphan cleanup is best-effort.
       #
       # Docker Hub stays clean automatically: only final multi-arch manifests
       # are mirrored there (no per-arch tags are ever pushed to Docker Hub).
       # -----------------------------------------------------------------------
+      - name: Clean up intermediate per-arch tags (GHCR only)
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          OWNER_LC=${GITHUB_REPOSITORY_OWNER,,}
+          REPO_NAME="${GITHUB_REPOSITORY#*/}"
+          PACKAGE_NAME="${REPO_NAME,,}"
+          page=1
+          while :; do
+            resp=$(curl -fsS \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/orgs/${OWNER_LC}/packages/container/${PACKAGE_NAME}/versions?per_page=100&page=${page}")
+            if [ -z "$resp" ] || [ "$resp" = "[]" ]; then break; fi
+            echo "$resp" | jq -r '.[] | "\(.id)\t\(.metadata.container.tags | join(","))"' | while IFS=$'\t' read -r id tags_str; do
+              if [ -z "$tags_str" ]; then
+                echo "==> Deleting untagged GHCR package version ${id}"
+                curl -fsS -X DELETE \
+                  -H "Authorization: Bearer ${GH_TOKEN}" \
+                  -H "Accept: application/vnd.github+json" \
+                  "https://api.github.com/orgs/${OWNER_LC}/packages/container/${PACKAGE_NAME}/versions/${id}" \
+                  || echo "  (failed to delete version ${id}, continuing)"
+                continue
+              fi
+              all_suffixed=1
+              for t in ${tags_str//,/ }; do
+                case "$t" in *-amd64|*-arm64) ;; *) all_suffixed=0; break ;; esac
+              done
+              if [ "$all_suffixed" -eq 1 ]; then
+                echo "==> Deleting GHCR package version ${id} (tags: ${tags_str})"
+                curl -fsS -X DELETE \
+                  -H "Authorization: Bearer ${GH_TOKEN}" \
+                  -H "Accept: application/vnd.github+json" \
+                  "https://api.github.com/orgs/${OWNER_LC}/packages/container/${PACKAGE_NAME}/versions/${id}" \
+                  || echo "  (failed to delete version ${id}, continuing)"
+              fi
+            done
+            page=$((page + 1))
+          done
