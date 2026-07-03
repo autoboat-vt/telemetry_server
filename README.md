@@ -148,20 +148,3 @@ pip install -e .
     ```bash
     flask run
     ```
-
-## CI / CD
-
-The [Build and Push Image](https://github.com/autoboat-vt/telemetry_server/actions/workflows/build-and-push.yml)
-workflow builds the multi-arch image on:
-
-- every push to `main` (tags `:main` and `:latest`)
-- version tags `v*` (tags `:vX.Y.Z`, `:vX.Y`, `:latest`)
-- manual dispatch from the Actions tab
-
-It pushes to both GHCR and Docker Hub. Required repository secrets:
-
-- `DOCKERHUB_USERNAME` — Docker Hub account with push access to `vtautoboat`
-- `DOCKERHUB_TOKEN` — Docker Hub access token
-  ([create one here](https://hub.docker.com/settings/security))
-
-`GITHUB_TOKEN` is used automatically for GHCR auth.
