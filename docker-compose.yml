@@ -51,13 +51,11 @@ services:
       - telemetry-net
 
   telemetry-test:
-    # By default this uses the same image as prod. To run the `testing` branch
-    # instead, point this at a separate image / build context, e.g.:
-    #   image: ghcr.io/autoboat-vt/telemetry_server_testing:latest
-    #   build:
-    #     context: ../telemetry_server_testing
-    #     dockerfile: Dockerfile
-    image: ghcr.io/autoboat-vt/telemetry_server:latest
+    # Uses the :testing tag, which is built from the `testing` branch by the
+    # GitHub Action in .github/workflows/build-and-push.yml. This lets us run
+    # pre-release code on test.vt-autoboat-telemetry.uk without affecting prod.
+    # To build locally instead, run: docker compose up -d --build telemetry-test
+    image: ghcr.io/autoboat-vt/telemetry_server:testing
     container_name: telemetry-test
     restart: unless-stopped
     environment:

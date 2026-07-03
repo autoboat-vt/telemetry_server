@@ -4,12 +4,14 @@
 # (Oracle Ampere, Graviton).
 #
 # Trigger:
-#   - On every push to main (builds and tags :main)
+#   - On every push to main (builds and tags :main + :latest)
+#   - On every push to testing (builds and tags :testing)
 #   - On version tags v* (builds and tags :vX.Y.Z + :latest)
 #   - Manually via the "Run workflow" button in the Actions tab
 #
-# Both registries host a public image, so the install script can
-# `docker compose pull` from either without authentication.
+# Both registries host public images, so the install script can
+# `docker compose pull` from either without authentication. The `testing`
+# tag is used by the telemetry-test service in docker-compose.yml.
 #
 # Required secrets (Settings → Secrets and variables → Actions):
 #   - DOCKERHUB_USERNAME : Docker Hub username (must own the vtautoboat namespace)
@@ -20,7 +22,7 @@ name: Build and Push Image
 
 on:
   push:
-    branches: [main]
+    branches: [main, testing]
     tags: ["v*"]
   workflow_dispatch:
 
