@@ -4,8 +4,9 @@
 
 A lightweight Flask-based web server to collect, display, and manage telemetry
 data from the Virginia Tech Autoboat project. Ships as a multi-arch Docker
-image, fronted by a Cloudflare Tunnel — no inbound ports, no nginx, no
-certbot.
+image, fronted by a Cloudflare Tunnel — no inbound ports, no nginx, no certbot.
+
+h
 
 ## Project Structure
 
@@ -50,14 +51,14 @@ The production stack runs as four Docker Compose services:
 | `cloudflared`    | Outbound tunnel to Cloudflare; routes hostnames → containers |
 | `cron`           | Calls `/instance_manager/clean_instances` every 5 min        |
 
-`cloudflared` dials **out** to Cloudflare's edge, so no inbound ports need to
-be open on the host — works behind NAT, CGNAT, or a firewall. Cloudflare
-terminates TLS at the edge.
+`cloudflared` dials **out** to Cloudflare's edge, so no inbound ports need to be
+open on the host — works behind NAT, CGNAT, or a firewall. Cloudflare terminates
+TLS at the edge.
 
 ### Prebuilt image
 
-A multi-arch image (`linux/amd64` + `linux/arm64`) is built by GitHub Actions
-on every push to `main` and published to **both** registries:
+A multi-arch image (`linux/amd64` + `linux/arm64`) is built by GitHub Actions on
+every push to `main` and published to **both** registries:
 
 - GHCR: `ghcr.io/autoboat-vt/telemetry_server:latest`
 - Docker Hub: `docker.io/vtautoboat/telemetry_server:latest`
@@ -76,8 +77,8 @@ curl -fsSL https://raw.githubusercontent.com/autoboat-vt/telemetry_server/main/s
 ```
 
 Get the tunnel token from
-[Cloudflare Zero Trust](https://one.dash.cloudflare.com/) → Networks →
-Tunnels → (your tunnel) → Install.
+[Cloudflare Zero Trust](https://one.dash.cloudflare.com/) → Networks → Tunnels →
+(your tunnel) → Install.
 
 ### Manual install
 
@@ -103,28 +104,27 @@ Dashboard-managed tunnel (recommended):
 2. Create a tunnel; copy the install token into `.env` as `TUNNEL_TOKEN`.
 3. Add public hostnames (Routes) in the dashboard:
 
-   | Hostname                    | Service                    |
-   | --------------------------- | -------------------------- |
-   | `vt-autoboat-telemetry.uk`  | `http://telemetry-prod:8000`  |
-   | `www.vt-autoboat-telemetry.uk` | `http://telemetry-prod:8000` |
+   | Hostname                        | Service                      |
+   | ------------------------------- | ---------------------------- |
+   | `vt-autoboat-telemetry.uk`      | `http://telemetry-prod:8000` |
+   | `www.vt-autoboat-telemetry.uk`  | `http://telemetry-prod:8000` |
    | `test.vt-autoboat-telemetry.uk` | `http://telemetry-test:6001` |
 
 4. DNS CNAMEs are added automatically by Cloudflare.
 
-> **Secret management:** also store the tunnel token as a GitHub
-> **organization variable** named `TUNNEL_TOKEN` (org Settings → Actions →
-> Variables → New organization variable; set Access to "Selected repositories"
-> and pick this repo). Org variables are plaintext, so any team member with
-> repo access can read it from the Actions UI when provisioning a new host —
-> no need to ping an admin. The trade-off: it is **not** masked, so anyone
-> with repo read access can read it; if the repo is ever compromised, rotate
-> the token in Cloudflare immediately. In workflows it's referenced as
-> `${{ vars.TUNNEL_TOKEN }}` (note: `vars.`, not `secrets.`). When you rotate
-> the token in Cloudflare, update **both** the org variable and `.env` on the
-> host.
+> **Secret management:** also store the tunnel token as a GitHub **organization
+> variable** named `TUNNEL_TOKEN` (org Settings → Actions → Variables → New
+> organization variable; set Access to "Selected repositories" and pick this
+> repo). Org variables are plaintext, so any team member with repo access can
+> read it from the Actions UI when provisioning a new host — no need to ping an
+> admin. The trade-off: it is **not** masked, so anyone with repo read access
+> can read it; if the repo is ever compromised, rotate the token in Cloudflare
+> immediately. In workflows it's referenced as `${{ vars.TUNNEL_TOKEN }}` (note:
+> `vars.`, not `secrets.`). When you rotate the token in Cloudflare, update
+> **both** the org variable and `.env` on the host.
 
-For file-managed mode (manage routing locally instead of in the dashboard),
-see `.env.example`.
+For file-managed mode (manage routing locally instead of in the dashboard), see
+`.env.example`.
 
 ### Deploying updates
 
@@ -158,12 +158,12 @@ pip install -e .
 
 1. Production ([Gunicorn](https://gunicorn.org/)):
 
-    ```bash
-    gunicorn "autoboat_telemetry_server:create_app()"
-    ```
+   ```bash
+   gunicorn "autoboat_telemetry_server:create_app()"
+   ```
 
 2. Development (Flask):
 
-    ```bash
-    flask run
-    ```
+   ```bash
+   flask run
+   ```
