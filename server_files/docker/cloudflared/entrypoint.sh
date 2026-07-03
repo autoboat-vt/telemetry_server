@@ -9,8 +9,8 @@
 #    configured in the dashboard UI. This is the simplest mode.
 #
 # 2. File-managed tunnel: set USE_CONFIG_FILE=1 and TUNNEL_ID in .env, and
-#    place the credentials JSON at docker/cloudflared/<TUNNEL_ID>.json. Routing
-#    uses docker/cloudflared/config.yml.
+#    place the credentials JSON at server_files/docker/cloudflared/<TUNNEL_ID>.json.
+#    Routing uses server_files/docker/cloudflared/config.yml.
 #
 # In both modes cloudflared dials OUT to Cloudflare's edge, so no inbound
 # ports need to be open on the host.

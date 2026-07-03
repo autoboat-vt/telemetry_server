@@ -96,7 +96,7 @@ services:
 
   cron:
     build:
-      context: ./docker/cron
+      context: ./server_files/docker/cron
       dockerfile: Dockerfile
     image: telemetry-cron:latest
     container_name: telemetry-cron

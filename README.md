@@ -24,14 +24,14 @@ instance/
     ├── config.py                 # Configuration file
     ├── app.db                    # Database file
 
-docker/
-├── cloudflared/                  # Optional file-managed tunnel config
-└── cron/                         # Cron image (calls /instance_manager/clean_instances)
-
 server_files/
 ├── quick-install.sh              # One-line installer for cloud VMs
 ├── cloud-init-user-data.sh       # Same, as cloud-init user-data
-└── install.sh                    # Legacy bare-metal install (nginx + supervisor)
+├── install.sh                    # Legacy bare-metal install (nginx + supervisor)
+└── docker/
+    ├── app-entrypoint.sh         # Restores config.py into the mounted instance volume
+    ├── cloudflared/              # Optional file-managed tunnel config
+    └── cron/                     # Cron image (calls /instance_manager/clean_instances)
 
 .github/workflows/
 └── build-and-push.yml            # CI: builds & pushes image to GHCR + Docker Hub

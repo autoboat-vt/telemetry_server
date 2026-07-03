@@ -54,7 +54,7 @@ Dockerfile                        # Python app image (gunicorn)
 docker-compose.yml                # Orchestrates all 4 services
 .env.example                      # DOMAIN / TESTING_DOMAIN / TUNNEL_TOKEN defaults
 .dockerignore                     # Excludes build artifacts from image context
-docker/
+server_files/docker/
   app-entrypoint.sh               # Restores config.py into the mounted instance volume
   cloudflared/
     entrypoint.sh                 # Runs cloudflared in dashboard- or file-managed mode
@@ -104,12 +104,12 @@ docker/
 
 ### Alternative: file-managed tunnel
 
-If you'd rather manage routing in `docker/cloudflared/config.yml` than in the
-dashboard:
+If you'd rather manage routing in `server_files/docker/cloudflared/config.yml`
+than in the dashboard:
 
 1. Install `cloudflared` locally and run `cloudflared tunnel create autoboat`.
 2. Copy the resulting `<UUID>.json` credentials file to
-   `docker/cloudflared/<UUID>.json`.
+   `server_files/docker/cloudflared/<UUID>.json`.
 3. In `.env`, set `USE_CONFIG_FILE=1` and `TUNNEL_ID=<UUID>`, and leave
    `TUNNEL_TOKEN` blank.
 4. Add DNS CNAMEs:
