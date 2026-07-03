@@ -91,10 +91,17 @@ jobs:
       #   - v1.2.3 tag push -> tags :1.2.3, :1.2, :1, and :latest
       # Each tag is suffixed with the architecture (e.g. :main-amd64) so the
       # publish job can combine them into multi-arch manifests at the base tags.
+      #
+      # build-push-action expects FULL image references (repo:tag), one per
+      # line. We emit both the GHCR and Docker Hub references for each tag.
       # -----------------------------------------------------------------------
       - name: Compute image tags
         id: meta
         run: |
+          OWNER_LC=${GITHUB_REPOSITORY_OWNER,,}
+          GHCR_REPO="ghcr.io/${OWNER_LC}/telemetry_server"
+          DH_REPO="${{ env.DOCKERHUB_REPO }}"
+
           tags=""
           if [ "${GITHUB_REF_TYPE}" = "branch" ]; then
             tags="${GITHUB_REF_NAME}"
@@ -107,14 +114,17 @@ jobs:
             minor=$(echo "$v" | cut -d. -f1,2)
             tags="$v $minor $major latest"
           fi
-          # Emit one -arch-suffixed tag per line for build-push-action.
-          suffixed=""
+
+          # Emit one full image reference per line for build-push-action.
+          # Both registries get each -arch-suffixed tag.
+          refs=""
           for t in $tags; do
-            suffixed="${suffixed}${t}-${{ matrix.architecture }}\n"
+            refs="${refs}${GHCR_REPO}:${t}-${{ matrix.architecture }}\n"
+            refs="${refs}${DH_REPO}:${t}-${{ matrix.architecture }}\n"
           done
           {
             echo "tags<<EOF"
-            printf "%b" "$suffixed"
+            printf "%b" "$refs"
             echo "EOF"
           } >> "${GITHUB_OUTPUT}"
 
