@@ -1,0 +1,30 @@
+# VCS / metadata
+.git
+.github
+.gitattributes
+.vscode
+
+# Python caches and build artifacts
+__pycache__
+**/__pycache__
+*.pyc
+build/
+*.egg-info
+venv/
+
+# Runtime databases / instance data at repo root (src/instance/config.py is still included)
+/instance/
+
+# Logs and OS junk
+*.log
+.DS_Store
+
+# Original host-based deployment files (not needed in the image)
+server_files/
+# The Dockerfile needs docker/app-entrypoint.sh COPYed into the image, so do
+# NOT ignore the docker/ directory wholesale. Exclude the bits the image
+# doesn't need (cloudflared runs in its own image, cron builds separately):
+docker/README.md
+docker/cron/
+docker/cloudflared/
+TODO.md

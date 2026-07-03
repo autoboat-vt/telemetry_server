@@ -6,3 +6,6 @@ build
 *.egg-info
 venv
 *.db
+
+# Local environment secrets (contains CF_API_TOKEN — never commit)
+.env

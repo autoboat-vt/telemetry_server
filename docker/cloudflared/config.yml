@@ -1,0 +1,38 @@
+# Cloudflare Tunnel configuration.
+#
+# This file is used when running cloudflared WITHOUT a tunnel token (i.e. the
+# "named tunnel" flow managed via cloudflared config.yml). If you created a
+# tunnel via the Cloudflare dashboard ("Remote Management") and have a
+# TUNNEL_TOKEN, you do NOT need this file — the dashboard config takes
+# precedence and the routes below are configured in the UI.
+#
+# To use this file instead of a dashboard-managed tunnel:
+#   1. Create a tunnel:  cloudflared tunnel create autoboat
+#   2. Set TUNNEL_ID in .env to the returned tunnel UUID
+#   3. Add CNAME records pointing <domain> -> <UUID>.cfargotunnel.com, OR run:
+#        cloudflared tunnel route dns autoboat vt-autoboat-telemetry.uk
+#        cloudflared tunnel route dns autoboat www.vt-autoboat-telemetry.uk
+#   4. Set TUNNEL_TOKEN="" (empty) in .env, and set USE_CONFIG_FILE=1
+#
+# Then docker compose up will run cloudflared with this config.yml.
+
+tunnel: ${TUNNEL_ID}
+credentials-file: /etc/cloudflared/${TUNNEL_ID}.json
+
+# Ingress rules: route by hostname to the app containers on the internal
+# docker network. Cloudflare terminates TLS at the edge; cloudflared forwards
+# plain HTTP to the container, so no nginx / certbot is needed.
+ingress:
+  # Production app: apex domain and www
+  - hostname: ${DOMAIN}
+    service: http://telemetry-prod:8000
+  - hostname: www.${DOMAIN}
+    service: http://telemetry-prod:8000
+  # Testing app: served on a subdomain (set TESTING_DOMAIN in .env, e.g.
+  # test.vt-autoboat-telemetry.uk). The original setup used port 8443 for the
+  # testing instance; with a tunnel we use a separate hostname instead since
+  # tunnels route by hostname, not port.
+  - hostname: ${TESTING_DOMAIN:-test.vt-autoboat-telemetry.uk}
+    service: http://telemetry-test:6001
+  # Catch-all: return 404 for anything unmatched
+  - service: http_status:404
