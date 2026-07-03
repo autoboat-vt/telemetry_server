@@ -1,5 +1,7 @@
 # Autoboat Telemetry Server
 
+[![Build and Push Image](https://github.com/autoboat-vt/telemetry_server/actions/workflows/build-and-push.yml/badge.svg)](https://github.com/autoboat-vt/telemetry_server/actions/workflows/build-and-push.yml)
+
 A lightweight Flask-based web server to collect, display, and manage telemetry
 data from the Virginia Tech Autoboat project. Ships as a multi-arch Docker
 image, fronted by a Cloudflare Tunnel — no inbound ports, no nginx, no
