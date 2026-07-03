@@ -1,0 +1,74 @@
+# Build the telemetry-server Docker image and push it to GitHub Container
+# Registry (GHCR). The resulting image is multi-arch (amd64 + arm64) so it
+# runs on both x86 VMs (AWS, GCP) and ARM instances (Oracle Ampere, Graviton).
+#
+# Trigger:
+#   - On every push to main (builds and tags :main)
+#   - On version tags v* (builds and tags :vX.Y.Z + :latest)
+#   - Manually via the "Run workflow" button in the Actions tab
+#
+# The image is public, so the install script can `docker compose pull` it
+# without authentication.
+
+name: Build and Push Image
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  # ghcr.io/<owner>/<repo> — lowercased because GHCR requires lowercase
+  IMAGE_NAME: ghcr.io/${{ github.repository }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU (for multi-arch builds)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            # On main branch pushes -> tag :main
+            type=ref,event=branch
+            # On v* tags -> tag :v1.2.3 and :latest
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push (multi-arch)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Cache between runs to speed up subsequent builds
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

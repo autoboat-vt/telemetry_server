@@ -102,12 +102,13 @@ fi
 if grep -q 'PASTE-YOUR-TUNNEL-TOKEN-HERE' "$INSTALL_DIR/.env"; then
     echo "ERROR: TUNNEL_TOKEN is still the placeholder."
     echo "Edit $INSTALL_DIR/.env and paste your real token, then run:"
-    echo "  cd $INSTALL_DIR && docker compose up -d --build"
+    echo "  cd $INSTALL_DIR && docker compose up -d"
     exit 1
 fi
 
-echo "=== [4/5] Building and starting the stack ==="
-$DOCKER compose up -d --build
+echo "=== [4/5] Pulling prebuilt image and starting the stack ==="
+$DOCKER compose pull telemetry-prod telemetry-test
+$DOCKER compose up -d
 
 echo "=== [5/5] Waiting for cloudflared to register tunnel connections ==="
 sleep 10
@@ -127,4 +128,4 @@ echo "Look for 'Registered tunnel connection' lines (usually 4)."
 echo "Once connected, https://vt-autoboat-telemetry.uk should serve from this instance."
 echo
 echo "To deploy updates later:"
-echo "  cd $INSTALL_DIR && git pull && docker compose up -d --build"
+echo "  cd $INSTALL_DIR && git pull && docker compose pull && docker compose up -d"

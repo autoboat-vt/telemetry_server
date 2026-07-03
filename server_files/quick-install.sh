@@ -156,10 +156,17 @@ sed -i "s|^TUNNEL_TOKEN=.*|TUNNEL_TOKEN=${TUNNEL_TOKEN}|" "$INSTALL_DIR/.env"
 ok ".env configured"
 
 # ---------------------------------------------------------------------------
-# 5. Build and start
+# 5. Pull the prebuilt image and start the stack
 # ---------------------------------------------------------------------------
-info "Building and starting the stack (this takes a few minutes)"
-$DOCKER compose up -d --build
+# The image is built by GitHub Actions and pushed to GHCR (public, multi-arch).
+# Pulling is much faster than building on the VM (especially on low-RAM
+# instances like GCP e2-micro). To build locally instead, use --build.
+info "Pulling prebuilt image from GHCR (fast)"
+$DOCKER compose pull telemetry-prod telemetry-test
+ok "Image pulled"
+
+info "Starting the stack"
+$DOCKER compose up -d
 ok "Stack started"
 
 # ---------------------------------------------------------------------------
@@ -189,7 +196,7 @@ echo "  cd $INSTALL_DIR"
 echo "  docker compose ps                  # status"
 echo "  docker compose logs -f cloudflared # tunnel logs"
 echo "  docker compose logs -f telemetry-prod  # app logs"
-echo "  git pull && docker compose up -d --build  # deploy updates"
+echo "  git pull && docker compose pull && docker compose up -d  # deploy updates"
 echo
 warn "IMPORTANT: if you were running this stack elsewhere (e.g. your Mac),"
 warn "stop it there so the tunnel connector moves to this host:"
