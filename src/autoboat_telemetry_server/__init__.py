@@ -67,6 +67,6 @@ def create_app() -> _flask:
             Confirmation message indicating which server is running.
         """
 
-        return "This is the telemetry server. It is running!"
+        return "This is the test telemetry server. It is running!"
 
     return app
