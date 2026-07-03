@@ -6,8 +6,6 @@ A lightweight Flask-based web server to collect, display, and manage telemetry
 data from the Virginia Tech Autoboat project. Ships as a multi-arch Docker
 image, fronted by a Cloudflare Tunnel — no inbound ports, no nginx, no certbot.
 
-h
-
 ## Project Structure
 
 ```txt
