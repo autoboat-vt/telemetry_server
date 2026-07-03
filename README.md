@@ -116,8 +116,13 @@ see `.env.example`.
 
 ```bash
 cd ~/telemetry_server
-git pull && docker compose pull && docker compose up -d
+git pull
+docker compose pull telemetry-prod telemetry-test cloudflared
+docker compose up -d
 ```
+
+(The `cron` image is built locally from `server_files/docker/cron/Dockerfile`,
+so it isn't pulled from a registry — `docker compose up -d` builds it.)
 
 ### Useful commands
 

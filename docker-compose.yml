@@ -98,6 +98,8 @@ services:
     build:
       context: ./server_files/docker/cron
       dockerfile: Dockerfile
+    # Local-only image (built from server_files/docker/cron/Dockerfile).
+    # `docker compose pull` skips services with no registry image.
     image: telemetry-cron:latest
     container_name: telemetry-cron
     restart: unless-stopped
