@@ -215,60 +215,18 @@ jobs:
           done
 
       # -----------------------------------------------------------------------
-      # Clean up the intermediate per-arch suffixed tags from GHCR.
-      # Once the multi-arch manifest exists, the :tag-amd64 / :tag-arm64 images
-      # are no longer needed (docker compose pull uses the multi-arch manifest).
+      # NOTE on per-arch tag cleanup:
+      # The intermediate :tag-amd64 / :tag-arm64 versions on GHCR are NOT
+      # deleted by this workflow — the default GITHUB_TOKEN has packages:write
+      # but NOT delete:packages scope, so API deletion fails with 403.
       #
-      # GHCR supports tag deletion via the Packages API using GITHUB_TOKEN.
-      # Docker Hub doesn't need cleanup because the publish job mirrors only
-      # the final multi-arch manifests there (no per-arch tags are pushed).
+      # Instead, rely on GHCR's built-in retention policy:
+      #   https://github.com/orgs/autoboat-vt/packages/container/telemetry_server/settings
+      # Enable "Automatically delete public package versions" and set a
+      # retention count (e.g. 10). Per-arch tags are overwritten each build
+      # (same name, new digest), so only untagged orphans accumulate — and
+      # the retention policy prunes those automatically.
+      #
+      # Docker Hub stays clean automatically: only final multi-arch manifests
+      # are mirrored there (no per-arch tags are ever pushed to Docker Hub).
       # -----------------------------------------------------------------------
-      - name: Clean up intermediate per-arch tags (GHCR only)
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          OWNER_LC=${GITHUB_REPOSITORY_OWNER,,}
-          REPO_NAME="${GITHUB_REPOSITORY#*/}"
-          # GHCR package name is the repository name (lowercased implicitly by GHCR)
-          PACKAGE_NAME="${REPO_NAME,,}"
-
-          # Fetch all package versions (paginated). Each version has a list of
-          # tags; we delete the version iff ALL its tags end in -amd64 or -arm64.
-          # (A version may be referenced by both a -amd64 tag and a multi-arch
-          #  tag — we only delete versions whose tags are ALL suffixed.)
-          page=1
-          while :; do
-            resp=$(curl -fsS \
-              -H "Authorization: Bearer ${GH_TOKEN}" \
-              -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/orgs/${OWNER_LC}/packages/container/${PACKAGE_NAME}/versions?per_page=100&page=${page}")
-            if [ -z "$resp" ] || [ "$resp" = "[]" ]; then
-              break
-            fi
-
-            # Print the version id + tags for each version, parse with jq.
-            echo "$resp" | jq -r '.[] | "\(.id)\t\(.metadata.container.tags | join(","))"' | while IFS=$'\t' read -r id tags_str; do
-              if [ -z "$tags_str" ]; then
-                continue
-              fi
-              # Convert comma-separated tags to space-separated, check each.
-              all_suffixed=1
-              for t in ${tags_str//,/ }; do
-                case "$t" in
-                  *-amd64|*-arm64) ;;
-                  *) all_suffixed=0; break ;;
-                esac
-              done
-              if [ "$all_suffixed" -eq 1 ]; then
-                echo "==> Deleting GHCR package version ${id} (tags: ${tags_str})"
-                curl -fsS -X DELETE \
-                  -H "Authorization: Bearer ${GH_TOKEN}" \
-                  -H "Accept: application/vnd.github+json" \
-                  "https://api.github.com/orgs/${OWNER_LC}/packages/container/${PACKAGE_NAME}/versions/${id}" \
-                  || echo "  (failed to delete version ${id}, continuing)"
-              fi
-            done
-
-            page=$((page + 1))
-          done
