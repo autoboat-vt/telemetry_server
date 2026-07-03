@@ -93,14 +93,16 @@ jobs:
       # publish job can combine them into multi-arch manifests at the base tags.
       #
       # build-push-action expects FULL image references (repo:tag), one per
-      # line. We emit both the GHCR and Docker Hub references for each tag.
+      # line. Per-arch images are pushed ONLY to GHCR; the publish job then
+      # builds the multi-arch manifest on GHCR and mirrors it to Docker Hub.
+      # This keeps Docker Hub free of intermediate -arch tags (Docker Hub has
+      # no public API for deleting them, unlike GHCR's Packages API).
       # -----------------------------------------------------------------------
       - name: Compute image tags
         id: meta
         run: |
           OWNER_LC=${GITHUB_REPOSITORY_OWNER,,}
           GHCR_REPO="ghcr.io/${OWNER_LC}/telemetry_server"
-          DH_REPO="${{ env.DOCKERHUB_REPO }}"
 
           tags=""
           if [ "${GITHUB_REF_TYPE}" = "branch" ]; then
@@ -115,12 +117,12 @@ jobs:
             tags="$v $minor $major latest"
           fi
 
-          # Emit one full image reference per line for build-push-action.
-          # Both registries get each -arch-suffixed tag.
+          # Emit one full GHCR image reference per line for build-push-action.
+          # Only GHCR gets the -arch-suffixed tags; Docker Hub receives only
+          # the final multi-arch manifests (mirrored in the publish job).
           refs=""
           for t in $tags; do
             refs="${refs}${GHCR_REPO}:${t}-${{ matrix.architecture }}\n"
-            refs="${refs}${DH_REPO}:${t}-${{ matrix.architecture }}\n"
           done
           {
             echo "tags<<EOF"
@@ -174,6 +176,12 @@ jobs:
       # Combine the per-arch images into a single multi-arch manifest for each
       # tag. `docker compose pull` resolves the multi-arch manifest and picks
       # the right arch at pull time.
+      #
+      # GHCR gets the manifest assembled from its own -amd64/-arm64 images.
+      # Docker Hub gets the finished manifest mirrored from GHCR via
+      # `imagetools create -t <dh> <ghcr>`, which copies the manifest and all
+      # arch blobs across registries in one step — so Docker Hub never holds
+      # intermediate -arch tags.
       # -----------------------------------------------------------------------
       - name: Create and Push Multi-Arch Manifests
         run: |
@@ -196,15 +204,14 @@ jobs:
           fi
 
           for tag in $tags; do
-            echo "==> Creating multi-arch manifest for ${DOCKER_HUB_REPO}:${tag}..."
-            docker buildx imagetools create -t ${DOCKER_HUB_REPO}:${tag} \
-              ${DOCKER_HUB_REPO}:${tag}-amd64 \
-              ${DOCKER_HUB_REPO}:${tag}-arm64
-
-            echo "==> Creating multi-arch manifest for ${GHCR_REPO}:${tag}..."
+            echo "==> Assembling multi-arch manifest on GHCR: ${GHCR_REPO}:${tag}"
             docker buildx imagetools create -t ${GHCR_REPO}:${tag} \
               ${GHCR_REPO}:${tag}-amd64 \
               ${GHCR_REPO}:${tag}-arm64
+
+            echo "==> Mirroring manifest to Docker Hub: ${DOCKER_HUB_REPO}:${tag}"
+            docker buildx imagetools create -t ${DOCKER_HUB_REPO}:${tag} \
+              ${GHCR_REPO}:${tag}
           done
 
       # -----------------------------------------------------------------------
@@ -213,8 +220,8 @@ jobs:
       # are no longer needed (docker compose pull uses the multi-arch manifest).
       #
       # GHCR supports tag deletion via the Packages API using GITHUB_TOKEN.
-      # Docker Hub has no public API for deleting tags on public repos, so
-      # DH cleanup is skipped (the intermediate tags will accumulate there).
+      # Docker Hub doesn't need cleanup because the publish job mirrors only
+      # the final multi-arch manifests there (no per-arch tags are pushed).
       # -----------------------------------------------------------------------
       - name: Clean up intermediate per-arch tags (GHCR only)
         continue-on-error: true
