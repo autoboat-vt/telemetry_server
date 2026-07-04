@@ -73,28 +73,19 @@ while :; do
 
     for entry in "${entries[@]}"; do
         IFS=$'\t' read -r id tags_str <<<"$entry"
-        # Keep only exact tags `main` or `testing`.
-        keep=0
-        if [ -n "$tags_str" ]; then
-            for t in ${tags_str//,/ }; do
-                case "$t" in
-                main | testing)
-                    keep=1
-                    break
-                    ;;
-                esac
-            done
-        fi
-        if [ "$keep" -eq 1 ]; then
-            echo "==> Keeping GHCR package version ${id} (tags: ${tags_str})"
-        else
-            echo "==> Deleting GHCR package version ${id} (tags: ${tags_str})"
+        # Only delete UNTAGGED orphan versions.
+        # Multi-arch manifests reference per-arch images by digest, so deleting
+        # tagged versions (even -amd64/-arm64 suffixed ones) breaks pulls.
+        if [ -z "$tags_str" ]; then
+            echo "==> Deleting untagged GHCR package version ${id}"
             curl -fsS -X DELETE \
                 -H "Authorization: Bearer ${GH_TOKEN}" \
                 -H "Accept: application/vnd.github+json" \
                 "https://api.github.com/orgs/${OWNER_LC}/packages/container/${PACKAGE_NAME}/versions/${id}" ||
                 echo "  (failed to delete version ${id}, continuing)"
             found_deleted_in_page=$((found_deleted_in_page + 1))
+        else
+            echo "==> Keeping GHCR package version ${id} (tags: ${tags_str})"
         fi
     done
 
