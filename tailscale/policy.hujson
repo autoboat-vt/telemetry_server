@@ -60,15 +60,23 @@
         // Allow all tailnet members to SSH into tag:server nodes (the
         // telemetry-tailscale container) in check mode. Check mode records
         // who logged in via the tailnet's audit log and re-validates the
-        // client's Tailscale identity on each connection. `autogroup:nonroot`
-        // disallows root logins — the container's shell runs as the
-        // `tailscale` user (or whatever non-root user is set). Add "root"
-        // to the users list if you need root shells in the container.
+        // client's Tailscale identity on each connection.
+        //
+        // We allow both non-root users and root. The container runs as
+        // root (user: "0:0" in docker-compose.yml), and the upstream
+        // tailscale/tailscale image only has `tailscale` and `root` users
+        // — there's no per-user account matching your Tailscale username.
+        // So you must specify a user when connecting:
+        //   tailscale ssh root@telemetry-server
+        //   tailscale ssh tailscale@telemetry-server
+        // (The default — your Tailscale account username — won't exist in
+        // the container's /etc/passwd and will fail with "failed to look
+        // up local user".)
         {
             "action": "check",
             "src": ["autogroup:member"],
             "dst": ["tag:server"],
-            "users": ["autogroup:nonroot"]
+            "users": ["autogroup:nonroot", "root"]
         }
     ]
 }
