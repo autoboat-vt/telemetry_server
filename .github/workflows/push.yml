@@ -138,7 +138,13 @@ jobs:
               echo "==> Unexpected API response; aborting GHCR cleanup"
               break
             fi
-            echo "$resp" | jq -r '.[] | "\(.id)\t\(.metadata.container.tags | join(","))"' | while IFS=$'\t' read -r id tags_str; do
+            per_page=100
+            items=$(echo "$resp" | jq 'length')
+            # Read entries into an array to avoid subshells so we can detect untagged deletions per page
+            mapfile -t entries < <(echo "$resp" | jq -r '.[] | "\(.id)\t\(.metadata.container.tags | join(","))"')
+            found_untagged_in_page=0
+            for entry in "${entries[@]}"; do
+              IFS=$'\t' read -r id tags_str <<< "$entry"
               if [ -z "$tags_str" ]; then
                 echo "==> Deleting untagged GHCR package version ${id}"
                 curl -fsS -X DELETE \
@@ -146,20 +152,16 @@ jobs:
                   -H "Accept: application/vnd.github+json" \
                   "https://api.github.com/orgs/${OWNER_LC}/packages/container/${PACKAGE_NAME}/versions/${id}" \
                   || echo "  (failed to delete version ${id}, continuing)"
-                continue
-              fi
-              all_suffixed=1
-              for t in ${tags_str//,/ }; do
-                case "$t" in *-amd64|*-arm64) ;; *) all_suffixed=0; break ;; esac
-              done
-              if [ "$all_suffixed" -eq 1 ]; then
-                echo "==> Deleting GHCR package version ${id} (tags: ${tags_str})"
-                curl -fsS -X DELETE \
-                  -H "Authorization: Bearer ${GH_TOKEN}" \
-                  -H "Accept: application/vnd.github+json" \
-                  "https://api.github.com/orgs/${OWNER_LC}/packages/container/${PACKAGE_NAME}/versions/${id}" \
-                  || echo "  (failed to delete version ${id}, continuing)"
+                found_untagged_in_page=$((found_untagged_in_page + 1))
+              else
+                echo "==> Keeping GHCR package version ${id} (tags: ${tags_str})"
               fi
             done
+            # If this page had no untagged versions and it's the last page (items < per_page),
+            # then no untagged versions remain and we can stop early.
+            if [ "$found_untagged_in_page" -eq 0 ] && [ "$items" -lt "$per_page" ]; then
+              echo "==> No untagged versions remain; stopping cleanup"
+              break
+            fi
             page=$((page + 1))
           done

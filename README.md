@@ -1,8 +1,5 @@
 # Autoboat Telemetry Server
 
-[![PR Build Check](https://github.com/autoboat-vt/telemetry_server/actions/workflows/build.yml/badge.svg)](https://github.com/autoboat-vt/telemetry_server/actions/workflows/build.yml)
-[![Build and Push Image](https://github.com/autoboat-vt/telemetry_server/actions/workflows/push.yml/badge.svg)](https://github.com/autoboat-vt/telemetry_server/actions/workflows/push.yml)
-
 A lightweight Flask-based web server to collect, display, and manage telemetry data from the Virginia Tech Autoboat project.
 
 ## Project Structure
