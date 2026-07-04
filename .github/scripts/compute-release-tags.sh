@@ -11,39 +11,49 @@ set -eu
 mode="${1:-base}"
 arch="${2:-}"
 
-case "${GITHUB_REF_TYPE:-}" in
-  branch)
-    tags="${GITHUB_REF_NAME:-}"
-    if [ "${GITHUB_REF_NAME:-}" = "main" ]; then
-      tags="${tags} latest"
+ref_name="${SOURCE_REF_NAME:-${GITHUB_REF_NAME:-}}"
+ref_type="${SOURCE_REF_TYPE:-${GITHUB_REF_TYPE:-}}"
+
+if [ -z "$ref_type" ]; then
+    case "$ref_name" in
+    v*) ref_type="tag" ;;
+    *) ref_type="branch" ;;
+    esac
+fi
+
+case "$ref_type" in
+branch)
+    tags="$ref_name"
+    if [ "$ref_name" = "main" ]; then
+        tags="${tags} latest"
     fi
     ;;
-  tag)
-    version="${GITHUB_REF_NAME#v}"
+tag)
+    version="${ref_name#v}"
     major=$(echo "$version" | cut -d. -f1)
     minor=$(echo "$version" | cut -d. -f1,2)
     tags="$version $minor $major latest"
     ;;
-  *)
+*)
     tags=""
     ;;
 esac
 
 for tag in $tags; do
-  case "$mode" in
+    case "$mode" in
     base)
-      printf '%s\n' "$tag"
-      ;;
+        printf '%s\n' "$tag"
+        ;;
     suffix)
-      if [ -z "$arch" ]; then
-        echo "arch argument is required for suffix mode" >&2
-        exit 1
-      fi
-      printf '%s-%s\n' "$tag" "$arch"
-      ;;
+        if [ -z "$arch" ]; then
+            echo "arch argument is required for suffix mode" >&2
+            exit 1
+        fi
+        printf '%s-%s\n' "$tag" "$arch"
+        ;;
     *)
-      echo "unknown mode: $mode" >&2
-      exit 1
-      ;;
-  esac
+        echo "unknown mode: $mode" >&2
+        exit 1
+        ;;
+    esac
 done

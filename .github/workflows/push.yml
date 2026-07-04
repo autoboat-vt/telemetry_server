@@ -2,17 +2,19 @@ name: Publish telemetry-server image
 
 env:
   DOCKERHUB_REPO: vtautoboat/telemetry_server
+  SOURCE_REF_NAME: ${{ github.event.workflow_run.head_branch }}
 
 on:
-  push:
-    branches: [main, testing]
-    tags: ["v*"]
+  workflow_run:
+    workflows: ["Build telemetry-server image"]
+    types: [completed]
   workflow_dispatch:
 
 jobs:
   build:
     name: Build (${{ matrix.architecture }})
     runs-on: ${{ matrix.runner }}
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     permissions:
       contents: read
       packages: write
@@ -98,11 +100,15 @@ jobs:
     name: Publish Multi-Arch Manifest
     needs: build
     runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     permissions:
       contents: read
       packages: write
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Lowercase repository owner
         run: |
           echo "OWNER_LC=${GITHUB_REPOSITORY_OWNER,,}" >> ${GITHUB_ENV}
