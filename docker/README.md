@@ -1,7 +1,7 @@
 # Docker Deployment
 
 This directory contains a Docker-based deployment that replaces the original
-host-installed stack in `server_files/install.sh` (nginx + supervisor + certbot
+host-installed stack in `install.sh` (nginx + supervisor + certbot
 + cron). All services run in containers and are orchestrated by Docker Compose.
 
 Traffic reaches the apps through a **Cloudflare Tunnel** (`cloudflared`), which
@@ -54,7 +54,7 @@ Dockerfile                        # Python app image (gunicorn)
 docker-compose.yml                # Orchestrates all 4 services
 .env.example                      # DOMAIN / TESTING_DOMAIN / TUNNEL_TOKEN defaults
 .dockerignore                     # Excludes build artifacts from image context
-server_files/docker/
+docker/
   app-entrypoint.sh               # Restores config.py into the mounted instance volume
   cloudflared/
     entrypoint.sh                 # Runs cloudflared in dashboard- or file-managed mode
@@ -104,12 +104,12 @@ server_files/docker/
 
 ### Alternative: file-managed tunnel
 
-If you'd rather manage routing in `server_files/docker/cloudflared/config.yml`
+If you'd rather manage routing in `docker/cloudflared/config.yml`
 than in the dashboard:
 
 1. Install `cloudflared` locally and run `cloudflared tunnel create autoboat`.
 2. Copy the resulting `<UUID>.json` credentials file to
-   `server_files/docker/cloudflared/<UUID>.json`.
+  `docker/cloudflared/<UUID>.json`.
 3. In `.env`, set `USE_CONFIG_FILE=1` and `TUNNEL_ID=<UUID>`, and leave
    `TUNNEL_TOKEN` blank.
 4. Add DNS CNAMEs:
@@ -159,7 +159,7 @@ docker compose down                # stop everything (volumes preserved)
 docker compose down -v             # stop and DELETE all volumes (DBs!)
 ```
 
-## Comparison to `server_files/install.sh`
+## Comparison to `install.sh`
 
 | Original (`install.sh`)                     | Docker equivalent                                   |
 | ------------------------------------------- | --------------------------------------------------- |

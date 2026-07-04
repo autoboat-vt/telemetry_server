@@ -2,9 +2,7 @@
 
 [![Build and Push Image](https://github.com/autoboat-vt/telemetry_server/actions/workflows/build-and-push.yml/badge.svg)](https://github.com/autoboat-vt/telemetry_server/actions/workflows/build-and-push.yml)
 
-A lightweight Flask-based web server to collect, display, and manage telemetry
-data from the Virginia Tech Autoboat project. Ships as a multi-arch Docker
-image, fronted by a Cloudflare Tunnel — no inbound ports, no nginx, no certbot.
+A lightweight Flask-based web server to collect, display, and manage telemetry data from the Virginia Tech Autoboat project.
 
 ## Project Structure
 
@@ -25,14 +23,12 @@ instance/
     ├── config.py                 # Configuration file
     ├── app.db                    # Database file
 
-server_files/
-├── quick-install.sh              # One-line installer for cloud VMs
-├── cloud-init-user-data.sh       # Same, as cloud-init user-data
-├── install.sh                    # Legacy bare-metal install (nginx + supervisor)
-└── docker/
-    ├── app-entrypoint.sh         # Restores config.py into the mounted instance volume
-    ├── cloudflared/              # Optional file-managed tunnel config
-    └── cron/                     # Cron image (calls /instance_manager/clean_instances)
+install.sh                        # Cloud installer
+
+docker/
+├── app-entrypoint.sh             # Restores config.py into the mounted instance volume
+├── cloudflared/                  # Optional file-managed tunnel config
+└── cron/                         # Cron image (calls /instance_manager/clean_instances)
 
 .github/workflows/
 └── build-and-push.yml            # CI: builds & pushes image to GHCR + Docker Hub
@@ -70,7 +66,7 @@ prebuilt image, and starts the stack. Works on any Ubuntu/Debian VM (GCP, AWS,
 DigitalOcean, etc.):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/autoboat-vt/telemetry_server/main/server_files/quick-install.sh \
+curl -fsSL https://raw.githubusercontent.com/autoboat-vt/telemetry_server/main/install.sh \
   | TUNNEL_TOKEN=eyJ... bash
 ```
 
@@ -78,14 +74,26 @@ Get the tunnel token from
 [Cloudflare Zero Trust](https://one.dash.cloudflare.com/) → Networks → Tunnels →
 (your tunnel) → Install.
 
+If the repository is already cloned, run the root installer directly:
+
+```bash
+bash install.sh
+```
+
+If you want a one-line bootstrap from a raw download, the same script can be
+piped directly from GitHub:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/autoboat-vt/telemetry_server/main/install.sh \
+   | TUNNEL_TOKEN=eyJ... bash
+```
+
 ### Manual install
 
 ```bash
 git clone https://github.com/autoboat-vt/telemetry_server.git
 cd telemetry_server
-cp .env.example .env        # set TUNNEL_TOKEN (and DOMAIN, TESTING_DOMAIN)
-docker compose pull         # pull prebuilt image (fast)
-docker compose up -d        # start the stack
+bash install.sh             # or: TUNNEL_TOKEN=eyJ... bash install.sh
 ```
 
 To build locally instead of pulling the prebuilt image:
@@ -133,7 +141,7 @@ docker compose pull telemetry-prod telemetry-test cloudflared
 docker compose up -d
 ```
 
-(The `cron` image is built locally from `server_files/docker/cron/Dockerfile`,
+(The `cron` image is built locally from `docker/cron/Dockerfile`,
 so it isn't pulled from a registry — `docker compose up -d` builds it.)
 
 ### Useful commands

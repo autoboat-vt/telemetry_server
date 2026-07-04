@@ -1,6 +1,6 @@
 # Docker Compose configuration for the Autoboat telemetry server.
 #
-# Replaces server_files/install.sh. Traffic reaches the apps via a Cloudflare
+# Replaces the original host-based install.sh. Traffic reaches the apps via a Cloudflare
 # Tunnel (cloudflared), which dials OUT to Cloudflare's edge — so no inbound
 # ports need to be open on the host (works behind NAT, CGNAT, or a firewall).
 # Cloudflare terminates TLS at the edge; no nginx or certbot is needed.
@@ -94,9 +94,9 @@ services:
 
   cron:
     build:
-      context: ./server_files/docker/cron
+      context: ./docker/cron
       dockerfile: Dockerfile
-    # Local-only image (built from server_files/docker/cron/Dockerfile).
+    # Local-only image (built from docker/cron/Dockerfile).
     # `docker compose pull` skips services with no registry image.
     image: telemetry-cron:latest
     container_name: telemetry-cron
