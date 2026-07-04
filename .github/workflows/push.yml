@@ -83,9 +83,8 @@ jobs:
       # version whose tags are ALL -amd64/-arm64 suffixed, plus untagged
       # versions, keeping GHCR tidy.
       #
-      # Requires the repository to have the "Admin" role on the package
-      # (configured under "Manage Actions access" at the package settings
-      # URL) so the default GITHUB_TOKEN can call the delete API.
+      # Requires a PAT stored as GHCR_DELETE_TOKEN with delete:packages scope
+      # so the cleanup step can delete package versions.
       #
       # continue-on-error: true so a transient API failure doesn't fail the
       # whole publish job — orphan cleanup is best-effort.
@@ -96,8 +95,13 @@ jobs:
       - name: Clean up intermediate per-arch tags (GHCR only)
         continue-on-error: true
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GHCR_DELETE_TOKEN }}
         run: |
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "==> GHCR_DELETE_TOKEN is not set; skipping GHCR cleanup"
+            exit 0
+          fi
+
           OWNER_LC=${GITHUB_REPOSITORY_OWNER,,}
           REPO_NAME="${GITHUB_REPOSITORY#*/}"
           PACKAGE_NAME="${REPO_NAME,,}"
