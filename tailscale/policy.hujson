@@ -37,10 +37,18 @@
     ],
 
     // Define users and devices that can use Tailscale SSH.
-    // NOTE: This section governs Tailscale's BUILT-IN SSH server, which this
-    // project does NOT use (we forward to the host's regular sshd via
-    // TS_DEST_IP). Access to the telemetry-server host is controlled by the
-    // `grants` section above, not this one.
+    //
+    // Tailscale SSH authenticates via your Tailscale identity (SSO-backed),
+    // not SSH keys. The session spawns inside the container running
+    // `tailscale up --ssh` — in this project, that's the tailscale sidecar
+    // container (NOT the host). So `tailscale ssh telemetry-server` drops
+    // you into a shell in the telemetry-tailscale container, which is useful
+    // for debugging containerboot, inspecting tailscale state, etc.
+    //
+    // To SSH into the HOST instead, use regular `ssh telemetry-server`
+    // (host networking puts the tailnet IP on the host's sshd) — that path
+    // requires an SSH key in the host's ~/.ssh/authorized_keys and is
+    // independent of this `ssh` section.
     "ssh": [
         // Allow all users to SSH into their own devices in check mode.
         {
@@ -48,6 +56,19 @@
             "src": ["autogroup:member"],
             "dst": ["autogroup:self"],
             "users": ["autogroup:nonroot", "root"]
+        },
+        // Allow all tailnet members to SSH into tag:server nodes (the
+        // telemetry-tailscale container) in check mode. Check mode records
+        // who logged in via the tailnet's audit log and re-validates the
+        // client's Tailscale identity on each connection. `autogroup:nonroot`
+        // disallows root logins — the container's shell runs as the
+        // `tailscale` user (or whatever non-root user is set). Add "root"
+        // to the users list if you need root shells in the container.
+        {
+            "action": "check",
+            "src": ["autogroup:member"],
+            "dst": ["tag:server"],
+            "users": ["autogroup:nonroot"]
         }
     ]
 }

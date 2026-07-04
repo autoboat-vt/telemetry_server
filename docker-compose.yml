@@ -182,7 +182,13 @@ services:
       # OAuth-registered nodes must be tagged. The OAuth client has tag:server
       # in its tag set, and we advertise tag:server here — that's an exact
       # match, so Tailscale allows the assignment without any tagOwners entry.
-      TS_EXTRA_ARGS: --advertise-tags=tag:server
+      #
+      # --ssh enables Tailscale's BUILT-IN SSH server in the container. This
+      # lets you run `tailscale ssh telemetry-server` from anywhere on your
+      # tailnet to get a shell IN THE CONTAINER (not on the host). Auth is
+      # identity-based (Tailscale account, SSO-backed) — no SSH keys needed.
+      # Access is gated by the `ssh` grant in tailscale/policy.hujson.
+      TS_EXTRA_ARGS: --advertise-tags=tag:server --ssh
     volumes:
       - tailscale-state:/var/lib/tailscale
       - /dev/net/tun:/dev/net/tun
