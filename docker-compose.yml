@@ -108,6 +108,82 @@ services:
     networks:
       - telemetry-net
 
+  tailscale:
+    # Optional: joins your Tailscale tailnet so you can SSH into the host from
+    # anywhere on your tailnet. Opt in with:
+    #   docker compose --profile tailscale up -d
+    #
+    # The container dials OUT to Tailscale's coordination server (just like
+    # cloudflared dials out to Cloudflare), so no inbound ports need to be
+    # open on the host. TS_DEST_IP forwards traffic arriving at the Tailscale
+    # node to the host via the docker gateway (host.docker.internal), so:
+    #   ssh <user>@telemetry-server  ->  host's sshd on port 22
+    #
+    # Auth: uses an OAuth CLIENT (TS_CLIENT_ID + TS_CLIENT_SECRET), NOT an
+    # auth key. Auth keys expire after at most 90 days and there's no way to
+    # extend them -- you'd have to regenerate and redeploy every 90 days.
+    # OAuth client secrets do NOT expire, so this runs unattended forever.
+    # The trade-off: OAuth-registered nodes MUST be tagged (Tailscale
+    # requirement), so we pass --advertise-tags=tag:server via TS_EXTRA_ARGS.
+    # Create the OAuth client at
+    #   https://login.tailscale.com/admin/settings/trust-credentials
+    # with the "Devices - core" (devices:core) scope and assign tag:server.
+    #
+    # No tagOwners entry needed: Tailscale lets an OAuth client assign a tag
+    # if the requested tags EXACTLY MATCH the client's tags (no tagOwners
+    # consultation). Since the client has tag:server and we advertise
+    # tag:server, it's an exact match. tagOwners is only needed if you want
+    # regular users or OTHER tags to be able to assign tag:server.
+    #
+    # Requires:
+    #   - TS_CLIENT_ID and TS_CLIENT_SECRET in .env
+    #   - /dev/net/tun on the host (Linux: `modprobe tun` if missing)
+    #   - Host sshd listening on 0.0.0.0:22 (default on most distros)
+    #
+    # Also store the OAuth client secret as a GitHub REPO SECRET named
+    # TS_CLIENT_SECRET (repo Settings -> Secrets and variables -> Actions).
+    # The client ID is non-secret and goes in a plain org/repo variable
+    # named TS_CLIENT_ID. Unlike TUNNEL_TOKEN (an org variable so the team
+    # can read it), the OAuth client secret grants tailnet access, so it
+    # should be masked. Like TUNNEL_TOKEN, neither value reaches the host
+    # automatically -- you still need to put them in .env on the host.
+    image: tailscale/tailscale:latest
+    container_name: telemetry-tailscale
+    restart: unless-stopped
+    hostname: telemetry-server
+    profiles:
+      - tailscale
+    environment:
+      # Use ${VAR:-} (not ${VAR:?}) so the default `docker compose up -d`
+      # flow (which doesn't enable the tailscale profile and doesn't set
+      # these vars) still parses. When the profile IS enabled without them,
+      # the tailscale container will start and log an auth error — check
+      # `docker compose logs tailscale`.
+      TS_CLIENT_ID: ${TS_CLIENT_ID:-}
+      TS_CLIENT_SECRET: ${TS_CLIENT_SECRET:-}
+      TS_HOSTNAME: telemetry-server
+      TS_STATE_DIR: /var/lib/tailscale
+      # OAuth-registered nodes must be tagged. The OAuth client has tag:server
+      # in its tag set, and we advertise tag:server here — that's an exact
+      # match, so Tailscale allows the assignment without any tagOwners entry.
+      TS_EXTRA_ARGS: --advertise-tags=tag:server
+      # Forward traffic arriving at the Tailscale node to the host's sshd.
+      # host.docker.internal is resolved to the docker bridge gateway via
+      # the extra_hosts mapping below.
+      TS_DEST_IP: host.docker.internal
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    sysctls:
+      - net.ipv4.ip_forward=1
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - telemetry-net
+
 networks:
   telemetry-net:
     driver: bridge
@@ -117,3 +193,4 @@ volumes:
   test-instance-data:
   cloudflared-creds:
   cron-logs:
+  tailscale-state:

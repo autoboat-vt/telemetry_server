@@ -1,0 +1,72 @@
+name: Sync Tailscale ACLs
+
+# Syncs tailscale/policy.hujson to Tailscale on push to main, and validates
+# it on pull requests targeting main. See docker/README.md, "Managing the
+# tailnet policy via GitHub".
+#
+# Required GitHub configuration (org Settings -> Secrets and variables ->
+# Actions -- matches the TUNNEL_TOKEN pattern):
+#   TS_TAILNET      - ORG SECRET. Your tailnet ID (find it at
+#                     https://login.tailscale.com/admin/settings/general).
+#   TS_OAUTH_ID      - ORG SECRET. OAuth client ID for the policy-file
+#                     OAuth client (starts with k).
+#   TS_OAUTH_SECRET  - ORG SECRET. OAuth client secret (starts with
+#                     tskey-client-).
+#
+# All three are org secrets scoped to selected repositories (this repo only),
+# so a future second boat project can reuse them without duplication. Storing
+# the non-secret values (tailnet ID, client ID) as secrets too keeps the setup
+# simple -- one place to look, one permission model -- at the cost of needing
+# an org admin to read them. Trade-off accepted.
+#
+# Create the OAuth client at
+#   https://login.tailscale.com/admin/settings/trust-credentials
+# with the "Policy File" (policy_file) scope -- read+write, so the action
+# can both test and apply. This is a SEPARATE OAuth client from the one used
+# by the tailscale sidecar container (which only needs devices:core).
+#
+# Alternatively, replace TS_OAUTH_ID/TS_OAUTH_SECRET with an API access token
+# stored as TS_API_KEY -- but API tokens expire after 90 days, while OAuth
+# client secrets do not expire.
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "tailscale/policy.hujson"
+      - ".github/workflows/tailscale.yml"
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "tailscale/policy.hujson"
+      - ".github/workflows/tailscale.yml"
+
+jobs:
+  acls:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy ACL
+        if: github.event_name == 'push'
+        id: deploy-acl
+        uses: tailscale/gitops-acl-action@v1
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tailnet: ${{ secrets.TS_TAILNET }}
+          action: apply
+          policy-file: tailscale/policy.hujson
+
+      - name: Test ACL
+        if: github.event_name == 'pull_request'
+        id: test-acl
+        uses: tailscale/gitops-acl-action@v1
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tailnet: ${{ secrets.TS_TAILNET }}
+          action: test
+          policy-file: tailscale/policy.hujson
