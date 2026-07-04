@@ -1,0 +1,53 @@
+// Tailnet policy file for the autoboat/telemetry_server project.
+//
+// This file is the source of truth for the tailnet's ACLs. It is synced to
+// Tailscale by the tailscale/gitops-acl-action GitHub Action in
+// .github/workflows/tailscale.yml — see docker/README.md, "Managing the
+// tailnet policy via GitHub".
+//
+// Format: HuJSON (JSON with comments). Tailscale accepts HuJSON for the policy
+// file. The trailing commas and // comments are stripped by Tailscale when it
+// parses the file.
+//
+// Workflow: open a PR -> the action runs `test` (validates without applying)
+// -> merge -> the action runs `apply` (validates and applies). Invalid HuJSON
+// or failing `tests` block the merge, so a bad push can never break SSH access.
+
+{
+    // Define the tags which can be applied to devices and by which users.
+    // Empty owner list = only Owners/Admins/Network admins can assign tag:server
+    // to devices they log into. Our OAuth client uses the exact-match rule (not
+    // tagOwners), so this doesn't affect the telemetry-server container's
+    // ability to get tag:server.
+    "tagOwners": {
+        "tag:server": []
+    },
+
+    // Define grants that govern access for users, groups, autogroups, tags,
+    // Tailscale IP addresses, and subnet ranges.
+    "grants": [
+        // Allow all connections. Comment this section out if you want to define
+        // specific restrictions — see "Locking down the wildcard grant" in
+        // docker/README.md for a tag:server-only SSH grant.
+        {
+            "src": ["*"],
+            "dst": ["*"],
+            "ip": ["*"]
+        }
+    ],
+
+    // Define users and devices that can use Tailscale SSH.
+    // NOTE: This section governs Tailscale's BUILT-IN SSH server, which this
+    // project does NOT use (we forward to the host's regular sshd via
+    // TS_DEST_IP). Access to the telemetry-server host is controlled by the
+    // `grants` section above, not this one.
+    "ssh": [
+        // Allow all users to SSH into their own devices in check mode.
+        {
+            "action": "check",
+            "src": ["autogroup:member"],
+            "dst": ["autogroup:self"],
+            "users": ["autogroup:nonroot", "root"]
+        }
+    ]
+}

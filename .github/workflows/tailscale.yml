@@ -1,0 +1,74 @@
+name: Sync Tailscale ACLs
+
+# Syncs tailscale/policy.hujson to Tailscale on push to main, and validates
+# it on pull requests targeting main. See docker/README.md, "Managing the
+# tailnet policy via GitHub".
+#
+# Required GitHub configuration (org Settings -> Secrets and variables ->
+# Actions -- matches the TUNNEL_TOKEN pattern):
+#   TS_TAILNET      - ORG VARIABLE (vars.*). Your tailnet name, e.g.
+#                     beetal-spica.ts.net (find it at
+#                     https://login.tailscale.com/admin/settings/general).
+#                     Not sensitive, so it lives in the Variables store, not
+#                     the Secrets store -- referenced as ${{ vars.TS_TAILNET }}.
+#   TS_OAUTH_ID      - ORG SECRET (secrets.*). OAuth client ID for the
+#                     policy-file OAuth client (starts with k).
+#   TS_OAUTH_SECRET  - ORG SECRET (secrets.*). OAuth client secret (starts
+#                     with tskey-client-).
+#
+# All three are org-scoped to selected repositories (this repo only), so a
+# future second boat project can reuse them without duplication. The two
+# OAuth values are secrets (never logged); the tailnet name is a variable
+# (visible in logs and the admin UI, since it's not sensitive).
+#
+# Create the OAuth client at
+#   https://login.tailscale.com/admin/settings/trust-credentials
+# with the "Policy File" (policy_file) scope -- read+write, so the action
+# can both test and apply. This is a SEPARATE OAuth client from the one used
+# by the tailscale sidecar container (which only needs devices:core).
+#
+# Alternatively, replace TS_OAUTH_ID/TS_OAUTH_SECRET with an API access token
+# stored as TS_API_KEY -- but API tokens expire after 90 days, while OAuth
+# client secrets do not expire.
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "tailscale/policy.hujson"
+      - ".github/workflows/tailscale.yml"
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "tailscale/policy.hujson"
+      - ".github/workflows/tailscale.yml"
+
+jobs:
+  acls:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy ACL
+        if: github.event_name == 'push'
+        id: deploy-acl
+        uses: tailscale/gitops-acl-action@v1
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tailnet: ${{ vars.TS_TAILNET }}
+          action: apply
+          policy-file: tailscale/policy.hujson
+
+      - name: Test ACL
+        if: github.event_name == 'pull_request'
+        id: test-acl
+        uses: tailscale/gitops-acl-action@v1
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tailnet: ${{ vars.TS_TAILNET }}
+          action: test
+          policy-file: tailscale/policy.hujson
