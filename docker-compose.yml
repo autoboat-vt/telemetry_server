@@ -158,35 +158,28 @@ services:
     hostname: telemetry-server
     profiles:
       - tailscale
+    # Use host networking: the tailscale interface lives on the host directly,
+    # so SSH to the tailscale IP routes to the host's sshd without any
+    # TS_DEST_IP forwarding, host.docker.internal hackery, or containerboot
+    # router setup. This sidesteps the entire "IP forwarding must be enabled"
+    # and "TS_DEST_IP is not supported with TS_USERSPACE" error chain.
+    network_mode: host
     # The upstream tailscale/tailscale image runs as the non-root `tailscale`
-    # user by default. containerboot auto-enables userspace networking when
-    # euid != 0, but TS_DEST_IP (host forwarding) requires kernel mode. Run
-    # as root and explicitly disable userspace to make TS_DEST_IP work.
+    # user by default. Running as root lets containerboot manage /dev/net/tun
+    # and /var/lib/tailscale without permission errors on this GCP host.
     user: "0:0"
-    # containerboot parses TS_DEST_IP as a literal IP address — it does NOT
-    # resolve DNS. The extra_hosts mapping puts host.docker.internal into
-    # /etc/hosts, so we resolve it to an IP there before exec'ing
-    # containerboot. ($$ escapes to $ for the shell; compose doesn't
-    # interpolate it.)
-    entrypoint:
-      - "/bin/sh"
-      - "-c"
-      - "export TS_DEST_IP=$$(awk '/host.docker.internal/{print $$1}' /etc/hosts); exec /usr/local/bin/containerboot"
     environment:
       # TS_CLIENT_ID and TS_CLIENT_SECRET come from the image (baked in at
       # build time via docker/tailscale/Dockerfile). No host-side .env needed.
       TS_HOSTNAME: telemetry-server
       TS_STATE_DIR: /var/lib/tailscale
-      # Kernel mode (not userspace) — required for TS_DEST_IP forwarding.
+      # Kernel mode (not userspace) — host networking requires the kernel
+      # tailscaled, and we want the tailnet IP directly on the host.
       TS_USERSPACE: "false"
       # OAuth-registered nodes must be tagged. The OAuth client has tag:server
       # in its tag set, and we advertise tag:server here — that's an exact
       # match, so Tailscale allows the assignment without any tagOwners entry.
       TS_EXTRA_ARGS: --advertise-tags=tag:server
-      # Forward traffic arriving at the Tailscale node to the host's sshd.
-      # host.docker.internal is resolved to the docker bridge gateway via
-      # the extra_hosts mapping below.
-      TS_DEST_IP: host.docker.internal
     volumes:
       - tailscale-state:/var/lib/tailscale
       - /dev/net/tun:/dev/net/tun
@@ -195,10 +188,6 @@ services:
       - NET_RAW
     sysctls:
       - net.ipv4.ip_forward=1
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    networks:
-      - telemetry-net
 
 networks:
   telemetry-net:
