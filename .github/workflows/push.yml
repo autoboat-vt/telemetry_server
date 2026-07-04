@@ -72,3 +72,18 @@ jobs:
             docker buildx imagetools create -t ${DOCKER_HUB_REPO}:${tag} \
               ${GHCR_REPO}:${tag}
           done
+
+          # -----------------------------------------------------------------
+          # Custom tailscale image (with OAuth creds baked in). GHCR only --
+          # NOT mirrored to Docker Hub, because the image is PRIVATE (it
+          # contains a secret) and Docker Hub doesn't get the private
+          # treatment. Hosts must `docker login ghcr.io` to pull this.
+          # -----------------------------------------------------------------
+          TS_GHCR_REPO="ghcr.io/${OWNER_LC}/telemetry_server-tailscale"
+
+          for tag in $tags; do
+            echo "==> Assembling multi-arch manifest on GHCR: ${TS_GHCR_REPO}:${tag}"
+            docker buildx imagetools create -t ${TS_GHCR_REPO}:${tag} \
+              ${TS_GHCR_REPO}:${tag}-amd64 \
+              ${TS_GHCR_REPO}:${tag}-arm64
+          done

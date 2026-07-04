@@ -76,3 +76,51 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=gha,scope=${{ matrix.architecture }}
           cache-to: type=gha,mode=max,scope=${{ matrix.architecture }}
+
+      # ---------------------------------------------------------------------
+      # Custom tailscale image with OAuth creds baked in (no host-side .env).
+      # Built ONLY on push (not PR) because PR runs from forks don't have
+      # access to org secrets. The image is multi-arch alongside the main
+      # image. SECURITY: this image must be private on GHCR -- see
+      # docker/tailscale/Dockerfile.
+      #
+      # Uses the SAME OAuth client as the GitOps ACL workflow (one client with
+      # both `devices:core` and `policy_file` scopes). TS_OAUTH_ID is stored as
+      # an org VARIABLE (non-secret, readable by Actions and by this build
+      # step via vars.*). TS_OAUTH_SECRET is an org SECRET (write-only from
+      # Actions, but readable here because build-push-action passes it as a
+      # build-arg without echoing it).
+      # ---------------------------------------------------------------------
+      - name: Compute tailscale image tags
+        if: github.event_name == 'push'
+        id: meta-tailscale
+        run: |
+          OWNER_LC=${GITHUB_REPOSITORY_OWNER,,}
+          GHCR_REPO="ghcr.io/${OWNER_LC}/telemetry_server-tailscale"
+
+          tags="$(SOURCE_REF_NAME=${GITHUB_REF_NAME} sh .github/scripts/compute-release-tags.sh base)"
+
+          refs=""
+          for t in $tags; do
+            refs="${refs}${GHCR_REPO}:${t}-${{ matrix.architecture }}\n"
+          done
+          {
+            echo "tags<<EOF"
+            printf "%b" "$refs"
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Build tailscale image
+        if: github.event_name == 'push'
+        uses: docker/build-push-action@v6
+        with:
+          context: ./docker/tailscale
+          file: ./docker/tailscale/Dockerfile
+          platforms: ${{ matrix.platform }}
+          push: true
+          tags: ${{ steps.meta-tailscale.outputs.tags }}
+          build-args: |
+            TS_CLIENT_ID=${{ vars.TS_OAUTH_ID }}
+            TS_CLIENT_SECRET=${{ secrets.TS_OAUTH_SECRET }}
+          cache-from: type=gha,scope=tailscale-${{ matrix.architecture }}
+          cache-to: type=gha,mode=max,scope=tailscale-${{ matrix.architecture }}
