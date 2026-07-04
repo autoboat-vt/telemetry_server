@@ -169,8 +169,11 @@ services:
     # and /var/lib/tailscale without permission errors on this GCP host.
     user: "0:0"
     environment:
-      # TS_CLIENT_ID and TS_CLIENT_SECRET come from the image (baked in at
-      # build time via docker/tailscale/Dockerfile). No host-side .env needed.
+      # TS_CLIENT_ID and TS_AUTHKEY come from the image (baked in at build
+      # time via docker/tailscale/Dockerfile). No host-side .env needed.
+      # We use TS_AUTHKEY (not TS_CLIENT_SECRET) because of a containerboot
+      # v1.98 bug where TS_CLIENT_SECRET causes a 403 on check-prefs before
+      # OAuth auth completes. See docker/tailscale/Dockerfile for details.
       TS_HOSTNAME: telemetry-server
       TS_STATE_DIR: /var/lib/tailscale
       # Kernel mode (not userspace) — host networking requires the kernel
