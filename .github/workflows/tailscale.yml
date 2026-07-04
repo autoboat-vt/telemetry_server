@@ -6,18 +6,20 @@ name: Sync Tailscale ACLs
 #
 # Required GitHub configuration (org Settings -> Secrets and variables ->
 # Actions -- matches the TUNNEL_TOKEN pattern):
-#   TS_TAILNET      - ORG SECRET. Your tailnet ID (find it at
+#   TS_TAILNET      - ORG VARIABLE (vars.*). Your tailnet name, e.g.
+#                     beetal-spica.ts.net (find it at
 #                     https://login.tailscale.com/admin/settings/general).
-#   TS_OAUTH_ID      - ORG SECRET. OAuth client ID for the policy-file
-#                     OAuth client (starts with k).
-#   TS_OAUTH_SECRET  - ORG SECRET. OAuth client secret (starts with
-#                     tskey-client-).
+#                     Not sensitive, so it lives in the Variables store, not
+#                     the Secrets store -- referenced as ${{ vars.TS_TAILNET }}.
+#   TS_OAUTH_ID      - ORG SECRET (secrets.*). OAuth client ID for the
+#                     policy-file OAuth client (starts with k).
+#   TS_OAUTH_SECRET  - ORG SECRET (secrets.*). OAuth client secret (starts
+#                     with tskey-client-).
 #
-# All three are org secrets scoped to selected repositories (this repo only),
-# so a future second boat project can reuse them without duplication. Storing
-# the non-secret values (tailnet ID, client ID) as secrets too keeps the setup
-# simple -- one place to look, one permission model -- at the cost of needing
-# an org admin to read them. Trade-off accepted.
+# All three are org-scoped to selected repositories (this repo only), so a
+# future second boat project can reuse them without duplication. The two
+# OAuth values are secrets (never logged); the tailnet name is a variable
+# (visible in logs and the admin UI, since it's not sensitive).
 #
 # Create the OAuth client at
 #   https://login.tailscale.com/admin/settings/trust-credentials
@@ -49,19 +51,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Debug secrets
-        env:
-          TS_TAILNET: ${{ secrets.TS_TAILNET }}
-          TS_OAUTH_ID: ${{ secrets.TS_OAUTH_ID }}
-          TS_OAUTH_SECRET: ${{ secrets.TS_OAUTH_SECRET }}
-        run: |
-          echo "TS_TAILNET length: ${#TS_TAILNET}"
-          echo "TS_OAUTH_ID length: ${#TS_OAUTH_ID}"
-          echo "TS_OAUTH_SECRET length: ${#TS_OAUTH_SECRET}"
-          if [ -z "$TS_TAILNET" ]; then echo "TS_TAILNET is EMPTY"; fi
-          if [ -z "$TS_OAUTH_ID" ]; then echo "TS_OAUTH_ID is EMPTY"; fi
-          if [ -z "$TS_OAUTH_SECRET" ]; then echo "TS_OAUTH_SECRET is EMPTY"; fi
-
       - name: Deploy ACL
         if: github.event_name == 'push'
         id: deploy-acl
@@ -69,7 +58,7 @@ jobs:
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          tailnet: ${{ secrets.TS_TAILNET }}
+          tailnet: ${{ vars.TS_TAILNET }}
           action: apply
           policy-file: tailscale/policy.hujson
 
@@ -80,6 +69,6 @@ jobs:
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          tailnet: ${{ secrets.TS_TAILNET }}
+          tailnet: ${{ vars.TS_TAILNET }}
           action: test
           policy-file: tailscale/policy.hujson
