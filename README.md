@@ -1,6 +1,7 @@
 # Autoboat Telemetry Server
 
-[![Build and Push Image](https://github.com/autoboat-vt/telemetry_server/actions/workflows/build-and-push.yml/badge.svg)](https://github.com/autoboat-vt/telemetry_server/actions/workflows/build-and-push.yml)
+[![PR Build Check](https://github.com/autoboat-vt/telemetry_server/actions/workflows/build.yml/badge.svg)](https://github.com/autoboat-vt/telemetry_server/actions/workflows/build.yml)
+[![Build and Push Image](https://github.com/autoboat-vt/telemetry_server/actions/workflows/push.yml/badge.svg)](https://github.com/autoboat-vt/telemetry_server/actions/workflows/push.yml)
 
 A lightweight Flask-based web server to collect, display, and manage telemetry data from the Virginia Tech Autoboat project.
 
@@ -31,7 +32,8 @@ docker/
 └── cron/                         # Cron image (calls /instance_manager/clean_instances)
 
 .github/workflows/
-└── build-and-push.yml            # CI: builds & pushes image to GHCR + Docker Hub
+├── build.yml                     # PR build check, no push
+└── push.yml                      # Build + push releases to GHCR + Docker Hub
 ```
 
 ## Deployment (Docker + Cloudflare Tunnel)
@@ -143,6 +145,14 @@ docker compose up -d
 
 (The `cron` image is built locally from `docker/cron/Dockerfile`,
 so it isn't pulled from a registry — `docker compose up -d` builds it.)
+
+### Workflow split
+
+Use the workflows separately:
+
+1. [build.yml](.github/workflows/build.yml) runs on pull requests and pushes to `main`/`testing`, and it only validates Docker builds.
+2. [push.yml](.github/workflows/push.yml) runs on pushes to `main` and `testing`, version tags, and manual dispatch, then publishes images.
+3. `testing` is the staging branch and `main` is the production branch.
 
 ### Useful commands
 

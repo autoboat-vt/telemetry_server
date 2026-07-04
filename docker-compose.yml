@@ -17,7 +17,7 @@
 #   docker compose up -d --build  # build locally instead (for development)
 #
 # The prebuilt image is published by the GitHub Action in
-# .github/workflows/build-and-push.yml on every push to main. It's multi-arch
+# .github/workflows/push.yml on every push to main. It's multi-arch
 # (amd64 + arm64) and public, so `docker compose pull` works without login.
 #
 # First-time Cloudflare setup (dashboard-managed tunnel, recommended):
@@ -52,7 +52,7 @@ services:
 
   telemetry-test:
     # Uses the :testing tag, which is built from the `testing` branch by the
-    # GitHub Action in .github/workflows/build-and-push.yml. This lets us run
+    # GitHub Action in .github/workflows/push.yml. This lets us run
     # pre-release code on test.vt-autoboat-telemetry.uk without affecting prod.
     # To build locally instead, run: docker compose up -d --build telemetry-test
     image: ghcr.io/autoboat-vt/telemetry_server:testing

@@ -1,41 +1,13 @@
-# Build the telemetry-server Docker image and push it to both GitHub Container
-# Registry (GHCR) and Docker Hub. The resulting image is multi-arch
-# (amd64 + arm64) so it runs on both x86 VMs (AWS, GCP) and ARM instances
-# (Oracle Ampere, Graviton).
-#
-# Strategy: each architecture is built on a NATIVE runner (amd64 on
-# ubuntu-22.04, arm64 on ubuntu-22.04-arm) in parallel, then a publish job
-# merges the per-arch images into a single multi-arch manifest. This is
-# ~5-10x faster than QEMU-emulated single-job builds.
-#
-# Trigger:
-#   - On every push to main (builds and tags :main + :latest)
-#   - On every push to testing (builds and tags :testing)
-#   - On version tags v* (builds and tags :vX.Y.Z + :latest)
-#   - Manually via the "Run workflow" button in the Actions tab
-#
-# Both registries host public images, so the install script can
-# `docker compose pull` from either without authentication. The `testing`
-# tag is used by the telemetry-test service in docker-compose.yml.
-#
-# Required secrets (Settings → Secrets and variables → Actions):
-#   - DOCKERHUB_USERNAME : Docker Hub username (must own the vtautoboat namespace)
-#   - DOCKERHUB_TOKEN    : Personal access token from Docker Hub
-#                         (https://hub.docker.com/settings/security)
-#
-# Pattern adapted from autoboat-vt/autoboat_vt's build-and-release.yml.
+name: Publish telemetry-server image
 
-name: Build and Push Image
+env:
+  DOCKERHUB_REPO: vtautoboat/telemetry_server
 
 on:
   push:
     branches: [main, testing]
     tags: ["v*"]
   workflow_dispatch:
-
-env:
-  # Docker Hub namespace (matches the org's existing Docker Hub account)
-  DOCKERHUB_REPO: vtautoboat/telemetry_server
 
 jobs:
   build:
@@ -44,6 +16,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+
     strategy:
       fail-fast: false
       matrix:
@@ -68,16 +41,12 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to Docker Hub
-        # Only push images to the registry when not on a pull request.
-        if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Log in to GHCR
-        # Only push images to the registry when not on a pull request.
-        if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -86,8 +55,8 @@ jobs:
 
       # -----------------------------------------------------------------------
       # Compute the image tags from the git ref.
-      #   - main branch push -> tag :main and :latest
-      #   - testing branch push -> tag :testing
+      #   - push to main -> tags :main and :latest
+      #   - push to testing -> tag :testing
       #   - v1.2.3 tag push -> tags :1.2.3, :1.2, :1, and :latest
       # Each tag is suffixed with the architecture (e.g. :main-amd64) so the
       # publish job can combine them into multi-arch manifests at the base tags.
@@ -95,8 +64,6 @@ jobs:
       # build-push-action expects FULL image references (repo:tag), one per
       # line. Per-arch images are pushed ONLY to GHCR; the publish job then
       # builds the multi-arch manifest on GHCR and mirrors it to Docker Hub.
-      # This keeps Docker Hub free of intermediate -arch tags (Docker Hub has
-      # no public API for deleting them, unlike GHCR's Packages API).
       # -----------------------------------------------------------------------
       - name: Compute image tags
         id: meta
@@ -104,22 +71,8 @@ jobs:
           OWNER_LC=${GITHUB_REPOSITORY_OWNER,,}
           GHCR_REPO="ghcr.io/${OWNER_LC}/telemetry_server"
 
-          tags=""
-          if [ "${GITHUB_REF_TYPE}" = "branch" ]; then
-            tags="${GITHUB_REF_NAME}"
-            if [ "${GITHUB_REF_NAME}" = "main" ]; then
-              tags="${tags} latest"
-            fi
-          elif [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            v="${GITHUB_REF_NAME#v}"
-            major=$(echo "$v" | cut -d. -f1)
-            minor=$(echo "$v" | cut -d. -f1,2)
-            tags="$v $minor $major latest"
-          fi
+          tags="$(sh .github/scripts/compute-release-tags.sh base)"
 
-          # Emit one full GHCR image reference per line for build-push-action.
-          # Only GHCR gets the -arch-suffixed tags; Docker Hub receives only
-          # the final multi-arch manifests (mirrored in the publish job).
           refs=""
           for t in $tags; do
             refs="${refs}${GHCR_REPO}:${t}-${{ matrix.architecture }}\n"
@@ -136,16 +89,14 @@ jobs:
           context: .
           file: ./Dockerfile
           platforms: ${{ matrix.platform }}
-          push: ${{ github.event_name != 'pull_request' }}
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
-          # Per-arch GHA cache to avoid cross-arch cache thrash
           cache-from: type=gha,scope=${{ matrix.architecture }}
           cache-to: type=gha,mode=max,scope=${{ matrix.architecture }}
 
   publish:
     name: Publish Multi-Arch Manifest
     needs: build
-    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -190,18 +141,7 @@ jobs:
           DOCKER_HUB_REPO="${{ env.DOCKERHUB_REPO }}"
 
           # Compute base tags (same logic as the build job, WITHOUT the -arch suffix)
-          tags=""
-          if [ "${GITHUB_REF_TYPE}" = "branch" ]; then
-            tags="${GITHUB_REF_NAME}"
-            if [ "${GITHUB_REF_NAME}" = "main" ]; then
-              tags="${tags} latest"
-            fi
-          elif [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            v="${GITHUB_REF_NAME#v}"
-            major=$(echo "$v" | cut -d. -f1)
-            minor=$(echo "$v" | cut -d. -f1,2)
-            tags="$v $minor $major latest"
-          fi
+          tags="$(sh .github/scripts/compute-release-tags.sh base)"
 
           for tag in $tags; do
             echo "==> Assembling multi-arch manifest on GHCR: ${GHCR_REPO}:${tag}"
