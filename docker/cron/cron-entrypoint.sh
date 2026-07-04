@@ -1,5 +1,5 @@
 #!/bin/sh
-# cron sidecar that replicates server_files/auto_clean.txt.
+# cron sidecar that replicates the old auto_clean.txt crontab.
 #
 # Original crontab:
 #   */5 * * * * curl -X DELETE "https://vt-autoboat-telemetry.uk/instance_manager/clean_instances"

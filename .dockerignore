@@ -19,14 +19,9 @@ venv/
 *.log
 .DS_Store
 
-# Original host-based deployment files (not needed in the image).
-# The Dockerfile needs server_files/docker/app-entrypoint.sh COPYed into the
-# image, so we can't ignore all of server_files/ — re-include that one file
-# and exclude the rest (cloudflared runs in its own image, cron builds
-# separately):
-server_files/
-!server_files/docker/app-entrypoint.sh
-server_files/docker/README.md
-server_files/docker/cron/
-server_files/docker/cloudflared/
+# Docker deployment files that are not needed in the app image.
+!docker/app-entrypoint.sh
+docker/README.md
+docker/cron/
+docker/cloudflared/
 TODO.md

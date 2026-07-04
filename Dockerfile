@@ -37,7 +37,7 @@ RUN python -m venv /home/ubuntu/telemetry_server/venv \
 
 # Install the entrypoint script (needs root to place it in /opt, then drop back).
 USER root
-COPY server_files/docker/app-entrypoint.sh /opt/app-entrypoint.sh
+COPY docker/app-entrypoint.sh /opt/app-entrypoint.sh
 RUN chmod +x /opt/app-entrypoint.sh
 
 USER ubuntu

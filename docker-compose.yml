@@ -1,6 +1,6 @@
 # Docker Compose configuration for the Autoboat telemetry server.
 #
-# Replaces server_files/install.sh. Traffic reaches the apps via a Cloudflare
+# Replaces the original host-based install.sh. Traffic reaches the apps via a Cloudflare
 # Tunnel (cloudflared), which dials OUT to Cloudflare's edge — so no inbound
 # ports need to be open on the host (works behind NAT, CGNAT, or a firewall).
 # Cloudflare terminates TLS at the edge; no nginx or certbot is needed.
@@ -17,7 +17,7 @@
 #   docker compose up -d --build  # build locally instead (for development)
 #
 # The prebuilt image is published by the GitHub Action in
-# .github/workflows/build-and-push.yml on every push to main. It's multi-arch
+# .github/workflows/push.yml on every push to main. It's multi-arch
 # (amd64 + arm64) and public, so `docker compose pull` works without login.
 #
 # First-time Cloudflare setup (dashboard-managed tunnel, recommended):
@@ -52,7 +52,7 @@ services:
 
   telemetry-test:
     # Uses the :testing tag, which is built from the `testing` branch by the
-    # GitHub Action in .github/workflows/build-and-push.yml. This lets us run
+    # GitHub Action in .github/workflows/push.yml. This lets us run
     # pre-release code on test.vt-autoboat-telemetry.uk without affecting prod.
     # To build locally instead, run: docker compose up -d --build telemetry-test
     image: ghcr.io/autoboat-vt/telemetry_server:testing
@@ -94,9 +94,9 @@ services:
 
   cron:
     build:
-      context: ./server_files/docker/cron
+      context: ./docker/cron
       dockerfile: Dockerfile
-    # Local-only image (built from server_files/docker/cron/Dockerfile).
+    # Local-only image (built from docker/cron/Dockerfile).
     # `docker compose pull` skips services with no registry image.
     image: telemetry-cron:latest
     container_name: telemetry-cron
