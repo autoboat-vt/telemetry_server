@@ -163,6 +163,15 @@ services:
     # euid != 0, but TS_DEST_IP (host forwarding) requires kernel mode. Run
     # as root and explicitly disable userspace to make TS_DEST_IP work.
     user: "0:0"
+    # containerboot parses TS_DEST_IP as a literal IP address — it does NOT
+    # resolve DNS. The extra_hosts mapping puts host.docker.internal into
+    # /etc/hosts, so we resolve it to an IP there before exec'ing
+    # containerboot. ($$ escapes to $ for the shell; compose doesn't
+    # interpolate it.)
+    entrypoint:
+      - "/bin/sh"
+      - "-c"
+      - "export TS_DEST_IP=$$(awk '/host.docker.internal/{print $$1}' /etc/hosts); exec /usr/local/bin/containerboot"
     environment:
       # TS_CLIENT_ID and TS_CLIENT_SECRET come from the image (baked in at
       # build time via docker/tailscale/Dockerfile). No host-side .env needed.
