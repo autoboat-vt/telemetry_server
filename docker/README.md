@@ -218,23 +218,21 @@ tagged devices can *do*. See step 5 below.
 1. Create an OAuth client at
    <https://login.tailscale.com/admin/settings/trust-credentials>
    → *Credentials* → *Generate credential* → *OAuth*:
-   - Grant the **Devices - core** (`devices:core`) scope.
+   - Grant **BOTH** the **Devices - core** (`devices:core`) AND **Policy File**
+     (`policy_file`) scopes. (The same client is reused by the GitOps ACL
+     workflow in `.github/workflows/tailscale.yml` — no need for a second one.)
    - Assign the **`tag:server`** tag (the client will carry this tag; the
      container advertises the same tag, which is an exact match and so doesn't
      require a `tagOwners` entry — see "About `tagOwners`" above).
 2. Copy the **client ID** (non-secret, starts with `k`) and **client secret**
    (secret, starts with `tskey-client-`).
-3. Store the secret as a GitHub **repo secret** named `TS_CLIENT_SECRET`
-   (repo Settings → Secrets and variables → Actions). Store the client ID as a
-   plain repo/org **variable** named `TS_CLIENT_ID` (it's non-secret). As with
-   `TUNNEL_TOKEN`, GitHub Actions can't push these to the host behind NAT — you
-   still have to paste them into `.env` on the host manually.
-4. On the host, add to `.env`:
-   ```bash
-   TS_CLIENT_ID=k1234567890abcdef
-   TS_CLIENT_SECRET=tskey-client-XXXX...
-   ```
-5. Make sure your tailnet policy file permits SSH to `tag:server` from your
+3. Store them as GitHub **org** secrets/variables (org Settings → Secrets and
+   variables → Actions), scoped to this repo only:
+   - `TS_OAUTH_ID` — org **variable** (`vars.*`). Client ID. Non-secret, so a
+     variable lets the build workflow read it via `${{ vars.TS_OAUTH_ID }}`.
+   - `TS_OAUTH_SECRET` — org **secret** (`secrets.*`). Client secret. Read by
+     both the GitOps ACL workflow and the image build workflow.
+4. Make sure your tailnet policy file permits SSH to `tag:server` from your
    user(s). The default policy (with its wildcard
    `"src": ["*"], "dst": ["*"]` grant) already permits SSH, and this repo
    ships a ready-to-use policy file at
@@ -249,12 +247,20 @@ tagged devices can *do*. See step 5 below.
    > If your tailnet still uses the legacy `acls` array instead of `grants`,
    > the equivalent rule is:
    > `{"action": "accept", "src": ["your-email@example.com"], "dst": ["tag:server:22"]}`
-6. Ensure the host's SSH daemon is listening on `0.0.0.0:22` (default on most
+5. Ensure the host's SSH daemon is listening on `0.0.0.0:22` (default on most
    Linux distros; on Ubuntu verify with `sudo ss -tlnp | grep :22`).
-7. On Linux hosts, ensure the `tun` kernel module is loaded:
+6. On Linux hosts, ensure the `tun` kernel module is loaded:
    ```bash
    sudo modprobe tun
    ```
+7. **One-time `docker login` on the host** — the custom tailscale image is
+   **private** on GHCR (it has the OAuth client secret baked in, see
+   [`docker/tailscale/Dockerfile`](tailscale/Dockerfile)). Create a classic PAT
+   at <https://github.com/settings/tokens> with `read:packages` scope, then:
+   ```bash
+   echo "<PAT>" | docker login ghcr.io -u <github-username> --password-stdin
+   ```
+   This caches creds in `~/.docker/config.json` — do it once per host.
 8. Start the sidecar:
    ```bash
    docker compose --profile tailscale up -d

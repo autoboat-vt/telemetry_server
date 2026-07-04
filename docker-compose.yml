@@ -127,7 +127,10 @@ services:
     # requirement), so we pass --advertise-tags=tag:server via TS_EXTRA_ARGS.
     # Create the OAuth client at
     #   https://login.tailscale.com/admin/settings/trust-credentials
-    # with the "Devices - core" (devices:core) scope and assign tag:server.
+    # with BOTH the "Devices - core" (devices:core) AND "Policy File"
+    # (policy_file) scopes, and assign the tag:server tag. The same OAuth
+    # client is reused by the GitOps ACL workflow in
+    # .github/workflows/tailscale.yml.
     #
     # No tagOwners entry needed: Tailscale lets an OAuth client assign a tag
     # if the requested tags EXACTLY MATCH the client's tags (no tagOwners
@@ -136,31 +139,28 @@ services:
     # regular users or OTHER tags to be able to assign tag:server.
     #
     # Requires:
-    #   - TS_CLIENT_ID and TS_CLIENT_SECRET in .env
     #   - /dev/net/tun on the host (Linux: `modprobe tun` if missing)
     #   - Host sshd listening on 0.0.0.0:22 (default on most distros)
     #
-    # Also store the OAuth client secret as a GitHub REPO SECRET named
-    # TS_CLIENT_SECRET (repo Settings -> Secrets and variables -> Actions).
-    # The client ID is non-secret and goes in a plain org/repo variable
-    # named TS_CLIENT_ID. Unlike TUNNEL_TOKEN (an org variable so the team
-    # can read it), the OAuth client secret grants tailnet access, so it
-    # should be masked. Like TUNNEL_TOKEN, neither value reaches the host
-    # automatically -- you still need to put them in .env on the host.
-    image: tailscale/tailscale:latest
+    # The OAuth credentials are BAKED INTO the custom image (built in
+    # .github/workflows/build.yml from docker/tailscale/Dockerfile). The
+    # upstream tailscale/tailscale image is extended with ENV vars set from
+    # build args passed by GitHub Actions (where the org secrets are
+    # available). This means NO .env paste is required on the host -- the
+    # image is self-contained.
+    #
+    # SECURITY: this image is PRIVATE on GHCR (it contains the OAuth client
+    # secret). Hosts must `docker login ghcr.io` before `docker compose pull`.
+    # See docker/README.md and docker/tailscale/Dockerfile for details.
+    image: ghcr.io/autoboat-vt/telemetry_server-tailscale:latest
     container_name: telemetry-tailscale
     restart: unless-stopped
     hostname: telemetry-server
     profiles:
       - tailscale
     environment:
-      # Use ${VAR:-} (not ${VAR:?}) so the default `docker compose up -d`
-      # flow (which doesn't enable the tailscale profile and doesn't set
-      # these vars) still parses. When the profile IS enabled without them,
-      # the tailscale container will start and log an auth error — check
-      # `docker compose logs tailscale`.
-      TS_CLIENT_ID: ${TS_CLIENT_ID:-}
-      TS_CLIENT_SECRET: ${TS_CLIENT_SECRET:-}
+      # TS_CLIENT_ID and TS_CLIENT_SECRET come from the image (baked in at
+      # build time via docker/tailscale/Dockerfile). No host-side .env needed.
       TS_HOSTNAME: telemetry-server
       TS_STATE_DIR: /var/lib/tailscale
       # OAuth-registered nodes must be tagged. The OAuth client has tag:server
