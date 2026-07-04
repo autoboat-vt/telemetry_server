@@ -49,6 +49,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Debug secrets
+        env:
+          TS_TAILNET: ${{ secrets.TS_TAILNET }}
+          TS_OAUTH_ID: ${{ secrets.TS_OAUTH_ID }}
+          TS_OAUTH_SECRET: ${{ secrets.TS_OAUTH_SECRET }}
+        run: |
+          echo "TS_TAILNET length: ${#TS_TAILNET}"
+          echo "TS_OAUTH_ID length: ${#TS_OAUTH_ID}"
+          echo "TS_OAUTH_SECRET length: ${#TS_OAUTH_SECRET}"
+          if [ -z "$TS_TAILNET" ]; then echo "TS_TAILNET is EMPTY"; fi
+          if [ -z "$TS_OAUTH_ID" ]; then echo "TS_OAUTH_ID is EMPTY"; fi
+          if [ -z "$TS_OAUTH_SECRET" ]; then echo "TS_OAUTH_SECRET is EMPTY"; fi
+
       - name: Deploy ACL
         if: github.event_name == 'push'
         id: deploy-acl
