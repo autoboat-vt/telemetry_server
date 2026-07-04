@@ -158,9 +158,18 @@ start with `docker compose up -d`. This keeps the default deployment unchanged
 and avoids surprising you with a new node on your tailnet.
 
 It works exactly like `cloudflared`: the container dials **out** to Tailscale's
-coordination server, so no inbound ports need to be open on the host. Traffic
-arriving at the Tailscale node is forwarded to the host's SSH daemon via the
-Docker bridge gateway (`host.docker.internal`).
+coordination server, so no inbound ports need to be open on the host. The
+container runs Tailscale's built-in SSH server (`--ssh` in `TS_EXTRA_ARGS`),
+so `tailscale ssh root@telemetry-server` from anywhere on your tailnet drops
+you into a shell **in the container** (not on the host). Auth is
+identity-based (Tailscale account, SSO-backed) — no SSH keys to manage.
+
+> **Why `root@`?** Tailscale SSH defaults to your Tailscale account username,
+> but the upstream `tailscale/tailscale` Alpine image only has `root` and
+> `tailscale` (nologin) in `/etc/passwd`. Specifying `root@` works for any
+> tailnet member regardless of their username. The ACL in
+> [`tailscale/policy.hujson`](../tailscale/policy.hujson) gates access — only
+> authorized tailnet members can log in.
 
 ### Why an OAuth client, not an auth key
 
@@ -207,11 +216,13 @@ You'll still need a **grant** (or legacy `acls` entry) to actually permit SSH
 to `tag:server` — `tagOwners` only controls who can *assign* the tag, not what
 tagged devices can *do*. See step 5 below.
 
-> **Note: Tailscale SSH vs. host sshd.** This setup uses `TS_DEST_IP` to forward
-> tailnet traffic to the **host's regular sshd** (port 22). It does **not** use
-> Tailscale's built-in SSH server (we don't set `TS_ENABLE_SSH` or pass
-> `--ssh`). As a result, the `ssh` section of your tailnet policy file does not
-> govern access to this host — the `grants` (or `acls`) section does.
+> **Note: Tailscale SSH vs. host sshd.** This setup uses Tailscale's
+> **built-in SSH server** (`--ssh` in `TS_EXTRA_ARGS`) to provide shells **in
+> the container**, not on the host. The `ssh` section of your tailnet policy
+> file governs who can log in. If you want to SSH into the **host** instead,
+> use regular `ssh telemetry-server` (host networking puts the tailnet IP on
+> the host's sshd) — that path requires an SSH key in the host's
+> `~/.ssh/authorized_keys` and is independent of the `ssh` policy section.
 
 ### One-time setup
 
@@ -247,13 +258,11 @@ tagged devices can *do*. See step 5 below.
    > If your tailnet still uses the legacy `acls` array instead of `grants`,
    > the equivalent rule is:
    > `{"action": "accept", "src": ["your-email@example.com"], "dst": ["tag:server:22"]}`
-5. Ensure the host's SSH daemon is listening on `0.0.0.0:22` (default on most
-   Linux distros; on Ubuntu verify with `sudo ss -tlnp | grep :22`).
-6. On Linux hosts, ensure the `tun` kernel module is loaded:
+5. On Linux hosts, ensure the `tun` kernel module is loaded:
    ```bash
    sudo modprobe tun
    ```
-7. **One-time `docker login` on the host** — the custom tailscale image is
+6. **One-time `docker login` on the host** — the custom tailscale image is
    **private** on GHCR (it has the OAuth client secret baked in, see
    [`docker/tailscale/Dockerfile`](tailscale/Dockerfile)). Create a classic PAT
    at <https://github.com/settings/tokens> with `read:packages` scope, then:
@@ -261,10 +270,17 @@ tagged devices can *do*. See step 5 below.
    echo "<PAT>" | docker login ghcr.io -u <github-username> --password-stdin
    ```
    This caches creds in `~/.docker/config.json` — do it once per host.
-8. Start the sidecar:
+7. Start the sidecar:
    ```bash
    docker compose --profile tailscale up -d
    ```
+8. SSH in from anywhere on your tailnet:
+   ```bash
+   tailscale ssh root@telemetry-server
+   ```
+   The first connection triggers a browser check (Tailscale `check` mode
+   re-validates your identity). Subsequent connections within the check
+   window are instant.
 
 ### Locking down the wildcard grant (optional)
 

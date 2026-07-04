@@ -43,7 +43,7 @@ The production stack runs as four Docker Compose services:
 | `telemetry-test` | Gunicorn app on `:6001` (testing)                            |
 | `cloudflared`    | Outbound tunnel to Cloudflare; routes hostnames → containers |
 | `cron`           | Calls `/instance_manager/clean_instances` every 5 min        |
-| `tailscale`      | Optional (`--profile tailscale`). Joins your Tailscale tailnet so you can SSH into the host from anywhere on your tailnet. See [docker/README.md](docker/README.md#ssh-access-via-tailscale-optional). |
+| `tailscale`      | Optional (`--profile tailscale`). Joins your Tailscale tailnet so you can SSH into the container from anywhere on your tailnet. See [docker/README.md](docker/README.md#ssh-access-via-tailscale-optional). |
 
 `cloudflared` dials **out** to Cloudflare's edge, so no inbound ports need to be
 open on the host — works behind NAT, CGNAT, or a firewall. Cloudflare terminates
