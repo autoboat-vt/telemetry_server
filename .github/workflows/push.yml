@@ -72,29 +72,3 @@ jobs:
             docker buildx imagetools create -t ${DOCKER_HUB_REPO}:${tag} \
               ${GHCR_REPO}:${tag}
           done
-
-      # -----------------------------------------------------------------------
-      # Clean up intermediate per-arch tags on GHCR.
-      #
-      # The build job pushes :tag-amd64 and :tag-arm64 versions to GHCR; the
-      # manifest step assembles them into a multi-arch :tag. The per-arch
-      # versions are then orphans (overwritten by name each build, so only
-      # untagged versions actually pile up). This step deletes any package
-      # version whose tags are ALL -amd64/-arm64 suffixed, plus untagged
-      # versions, keeping GHCR tidy.
-      #
-      # Requires a PAT stored as GHCR_DELETE_TOKEN with delete:packages scope
-      # so the cleanup step can delete package versions.
-      #
-      # continue-on-error: true so a transient API failure doesn't fail the
-      # whole publish job — orphan cleanup is best-effort.
-      #
-      # Docker Hub stays clean automatically: only final multi-arch manifests
-      # are mirrored there (no per-arch tags are ever pushed to Docker Hub).
-      # -----------------------------------------------------------------------
-      - name: Clean up intermediate per-arch tags (GHCR only)
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ secrets.GHCR_DELETE_TOKEN }}
-        run: |
-          bash .github/scripts/ghcr_cleanup.sh
