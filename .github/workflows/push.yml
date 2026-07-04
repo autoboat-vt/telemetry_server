@@ -13,7 +13,7 @@ jobs:
   publish:
     name: Publish Multi-Arch Manifest
     runs-on: ubuntu-latest
-    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    if: github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch')
     permissions:
       contents: read
       packages: write
