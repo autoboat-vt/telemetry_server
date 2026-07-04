@@ -158,11 +158,18 @@ services:
     hostname: telemetry-server
     profiles:
       - tailscale
+    # The upstream tailscale/tailscale image runs as the non-root `tailscale`
+    # user by default. containerboot auto-enables userspace networking when
+    # euid != 0, but TS_DEST_IP (host forwarding) requires kernel mode. Run
+    # as root and explicitly disable userspace to make TS_DEST_IP work.
+    user: "0:0"
     environment:
       # TS_CLIENT_ID and TS_CLIENT_SECRET come from the image (baked in at
       # build time via docker/tailscale/Dockerfile). No host-side .env needed.
       TS_HOSTNAME: telemetry-server
       TS_STATE_DIR: /var/lib/tailscale
+      # Kernel mode (not userspace) — required for TS_DEST_IP forwarding.
+      TS_USERSPACE: "false"
       # OAuth-registered nodes must be tagged. The OAuth client has tag:server
       # in its tag set, and we advertise tag:server here — that's an exact
       # match, so Tailscale allows the assignment without any tagOwners entry.
