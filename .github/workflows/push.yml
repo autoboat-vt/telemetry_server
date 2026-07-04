@@ -112,16 +112,22 @@ jobs:
               echo "==> Reached max page ${max_pages}; aborting GHCR cleanup"
               break
             fi
-            resp_and_code=$(curl -sS -w "HTTPSTATUS:%{http_code}" \
+            tmpfile=$(mktemp)
+            http_status=$(curl -sS -o "$tmpfile" -w '%{http_code}' \
               -H "Authorization: Bearer ${GH_TOKEN}" \
               -H "Accept: application/vnd.github+json" \
               "https://api.github.com/orgs/${OWNER_LC}/packages/container/${PACKAGE_NAME}/versions?per_page=100&page=${page}") || {
               echo "==> curl failed; aborting GHCR cleanup"
+              rm -f "$tmpfile"
               break
             }
-            http_status=$(echo "$resp_and_code" | sed -e 's/.*HTTPSTATUS://')
-            resp=$(echo "$resp_and_code" | sed -e 's/HTTPSTATUS:.*//')
+            resp=$(cat "$tmpfile")
+            rm -f "$tmpfile"
             echo "==> GHCR API HTTP status: ${http_status}"
+            if ! printf '%s' "$http_status" | grep -E '^[0-9]+$' >/dev/null 2>&1; then
+              echo "==> Invalid HTTP status value; aborting GHCR cleanup"
+              break
+            fi
             if [ "$http_status" -ne 200 ]; then
               echo "==> Non-200 HTTP status; aborting GHCR cleanup"
               break
