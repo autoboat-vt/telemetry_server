@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # Emit release tags for the telemetry server workflows.
 #
 # Usage:
