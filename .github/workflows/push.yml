@@ -106,7 +106,8 @@ jobs:
             resp=$(curl -fsS \
               -H "Authorization: Bearer ${GH_TOKEN}" \
               -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/orgs/${OWNER_LC}/packages/container/${PACKAGE_NAME}/versions?per_page=100&page=${page}")
+              "https://api.github.com/orgs/${OWNER_LC}/packages/container/${PACKAGE_NAME}/versions?per_page=100&page=${page}" \
+              || true)
             if [ -z "$resp" ] || [ "$resp" = "[]" ]; then break; fi
             echo "$resp" | jq -r '.[] | "\(.id)\t\(.metadata.container.tags | join(","))"' | while IFS=$'\t' read -r id tags_str; do
               if [ -z "$tags_str" ]; then
