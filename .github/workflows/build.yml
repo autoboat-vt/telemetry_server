@@ -67,7 +67,7 @@ jobs:
           } >> "${GITHUB_OUTPUT}"
 
       - name: Build image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./Dockerfile
@@ -112,7 +112,7 @@ jobs:
 
       - name: Build tailscale image
         if: github.event_name == 'push'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./docker/tailscale
           file: ./docker/tailscale/Dockerfile
