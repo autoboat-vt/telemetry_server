@@ -42,6 +42,10 @@ services:
     environment:
       PATH: "/home/ubuntu/telemetry_server/venv/bin:/usr/local/bin:/usr/bin:/bin"
       VIRTUAL_ENV: "/home/ubuntu/telemetry_server/venv"
+      # Comma-separated list of origins allowed to make cross-origin requests
+      # to the API. Leave blank (or unset) to use the built-in default list
+      # in src/autoboat_telemetry_server/__init__.py. See .env.example.
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
     volumes:
       # Persist the SQLite databases (instances.db, hashes.db) across restarts.
       - prod-instance-data:/home/ubuntu/telemetry_server/src/instance
@@ -61,6 +65,7 @@ services:
     environment:
       PATH: "/home/ubuntu/telemetry_server/venv/bin:/usr/local/bin:/usr/bin:/bin"
       VIRTUAL_ENV: "/home/ubuntu/telemetry_server/venv"
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
     volumes:
       - test-instance-data:/home/ubuntu/telemetry_server/src/instance
     expose:
@@ -140,7 +145,7 @@ services:
     #
     # Requires:
     #   - /dev/net/tun on the host (Linux: `modprobe tun` if missing)
-    #   - Host sshd listening on 0.0.0.0:22 (default on most distros)
+    #   - Host sshd listening on 0.0.0.0:22 (default on most Linux distros)
     #
     # The OAuth credentials are BAKED INTO the custom image (built in
     # .github/workflows/build.yml from docker/tailscale/Dockerfile). The
