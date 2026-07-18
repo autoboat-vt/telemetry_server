@@ -7,15 +7,9 @@ SQLALCHEMY_BINDS = {
 }
 SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-# Origins allowed to make cross-origin requests to this API.
-#
-# Used by create_app() when the CORS_ORIGINS env var is NOT set. To override
-# on an existing deployment without rebuilding the image, set the
-# CORS_ORIGINS env var (comma-separated) in docker-compose.yml instead of
-# editing this file — src/instance/config.py is persisted in a named volume
-# and is not overwritten on image updates.
-CORS_ORIGINS = [
+DEFAULT_CORS_ORIGINS: list[str] = [
     "https://autoboat.aoe.vt.edu",
+    "https://www.autoboat.aoe.vt.edu",
     "https://vt-autoboat-telemetry.uk",
     "https://www.vt-autoboat-telemetry.uk",
     "https://test.vt-autoboat-telemetry.uk",
