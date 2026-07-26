@@ -1,4 +1,5 @@
-"""Tests for ``autoboat_telemetry_server.__init__`` (the app factory).
+"""
+Tests for ``autoboat_telemetry_server.__init__`` (the app factory).
 
 Covers:
 - ``_parse_cors_origins`` (pure string parsing for the CORS_ORIGINS env var).
@@ -14,6 +15,9 @@ temp instance dir.
 
 from __future__ import annotations
 
+from pathlib import Path
+
+import pytest
 from conftest import FAKE_HOME
 from flask.app import Flask
 from flask.testing import FlaskClient
@@ -85,6 +89,120 @@ class TestDefaultCorsOrigins:
 
         assert isinstance(DEFAULT_CORS_ORIGINS, list)
         assert all(isinstance(o, str) for o in DEFAULT_CORS_ORIGINS)
+
+    def test_includes_www_website_mirror(self) -> None:
+        """The www mirror of the website must be in the default allowlist.
+
+        Regression guard: this entry once lived only in src/instance/config.py
+        and was missing from the module-level DEFAULT_CORS_ORIGINS, so the
+        two lists silently diverged. Keep them in sync.
+        """
+
+        from autoboat_telemetry_server import DEFAULT_CORS_ORIGINS
+
+        assert "https://www.autoboat.aoe.vt.edu" in DEFAULT_CORS_ORIGINS
+
+
+class TestCorsPrecedence:
+    """The three CORS_ORIGIN sources resolve in a fixed precedence order.
+
+    Precedence (highest first):
+      1. ``CORS_ORIGINS`` env var (comma-separated).
+      2. ``app.config["CORS_ORIGINS"]`` (from src/instance/config.py).
+      3. ``DEFAULT_CORS_ORIGINS`` (module-level fallback in __init__.py).
+
+    Regression guard: config.py once defined ``DEFAULT_CORS_ORIGINS`` instead
+    of ``CORS_ORIGINS``, so Flask loaded it into
+    ``app.config["DEFAULT_CORS_ORIGINS"]`` (a key nothing reads) and the
+    level-2 override was silently dead. These tests pin the keys the app
+    actually reads so that drift can't recur.
+    """
+
+    def test_instance_config_defines_cors_origins_key(self) -> None:
+        """src/instance/config.py must define CORS_ORIGINS (not DEFAULT_CORS_ORIGINS).
+
+        ``create_app()`` reads ``app.config["CORS_ORIGINS"]``; Flask's
+        ``from_pyfile`` loads module-level names by their own name, so only
+        ``CORS_ORIGINS`` in config.py reaches that key.
+        """
+
+        import importlib.util
+
+        from autoboat_telemetry_server import INSTANCE_DIR
+
+        spec = importlib.util.spec_from_file_location("_test_instance_config", INSTANCE_DIR / "config.py")
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        assert hasattr(module, "CORS_ORIGINS"), (
+            "src/instance/config.py must define CORS_ORIGINS (the key "
+            "create_app reads as app.config['CORS_ORIGINS']). Defining "
+            "DEFAULT_CORS_ORIGINS here is dead — it lands in a key nothing reads."
+        )
+        assert not hasattr(module, "DEFAULT_CORS_ORIGINS"), (
+            "src/instance/config.py should not define DEFAULT_CORS_ORIGINS — "
+            "the module-level fallback lives in __init__.py. Defining it here "
+            "shadows nothing and misleads readers."
+        )
+
+    def test_instance_config_overrides_default(self, tmp_instance_dir: Path) -> None:
+        """app.config['CORS_ORIGINS'] from config.py beats DEFAULT_CORS_ORIGINS.
+
+        We assert on the observable effect (the CORS response header) rather
+        than app.config internals, because create_app passes the resolved
+        list straight to flask-cors without writing it back to config.
+        """
+
+        import autoboat_telemetry_server as ats
+
+        # Write a config.py with a distinctive CORS_ORIGINS we can detect via
+        # the response header. Include both SQLAlchemy binds so db.create_all
+        # doesn't blow up on the missing 'hashes' bind.
+        (tmp_instance_dir / "config.py").write_text(
+            "SQLALCHEMY_BINDS = {None: 'sqlite:///:memory:', 'hashes': 'sqlite:///:memory:'}\n"
+            "SQLALCHEMY_TRACK_MODIFICATIONS = False\n"
+            "CORS_ORIGINS = ['https://override-marker.example.com']\n"
+        )
+
+        original = ats.INSTANCE_DIR
+        ats.INSTANCE_DIR = tmp_instance_dir
+        try:
+            app = ats.create_app()
+            client = app.test_client()
+            response = client.get("/", headers={"Origin": "https://override-marker.example.com"})
+            assert response.headers.get("Access-Control-Allow-Origin") == "https://override-marker.example.com"
+            # And a non-listed origin does NOT get echoed back.
+            other = client.get("/", headers={"Origin": "https://not-allowed.example.com"})
+            assert other.headers.get("Access-Control-Allow-Origin") != "https://not-allowed.example.com"
+        finally:
+            ats.INSTANCE_DIR = original
+
+    def test_env_var_overrides_instance_config(self, tmp_instance_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """CORS_ORIGINS env var beats app.config['CORS_ORIGINS']."""
+
+        import autoboat_telemetry_server as ats
+
+        (tmp_instance_dir / "config.py").write_text(
+            "SQLALCHEMY_BINDS = {None: 'sqlite:///:memory:', 'hashes': 'sqlite:///:memory:'}\n"
+            "SQLALCHEMY_TRACK_MODIFICATIONS = False\n"
+            "CORS_ORIGINS = ['https://from-config.example.com']\n"
+        )
+
+        monkeypatch.setenv("CORS_ORIGINS", "https://from-env.example.com")
+
+        original = ats.INSTANCE_DIR
+        ats.INSTANCE_DIR = tmp_instance_dir
+        try:
+            app = ats.create_app()
+            client = app.test_client()
+            # The env-var origin is echoed; the config-only origin is not.
+            response = client.get("/", headers={"Origin": "https://from-env.example.com"})
+            assert response.headers.get("Access-Control-Allow-Origin") == "https://from-env.example.com"
+            other = client.get("/", headers={"Origin": "https://from-config.example.com"})
+            assert other.headers.get("Access-Control-Allow-Origin") != "https://from-config.example.com"
+        finally:
+            ats.INSTANCE_DIR = original
 
 
 class TestSharedLockManager:

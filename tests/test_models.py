@@ -1,4 +1,5 @@
-"""Tests for ``autoboat_telemetry_server.models``.
+"""
+Tests for ``autoboat_telemetry_server.models``.
 
 Covers:
 - ``HashTable.compute_hash`` (pure static method: deterministic SHA-256).

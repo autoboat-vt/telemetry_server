@@ -1,4 +1,5 @@
-"""Pytest configuration and shared fixtures.
+"""
+Pytest configuration and shared fixtures.
 
 The package's ``__init__.py`` discovers the instance directory at import time
 by scanning ``/home`` for user directories (it expects exactly one entry in

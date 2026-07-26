@@ -38,8 +38,15 @@ from autoboat_telemetry_server.routes import (  # noqa: E402
 # from the telemetry API in the browser, so the server must send
 # Access-Control-Allow-Origin headers for that origin. Local development of
 # the website (vite dev server on localhost) is also allowed.
+#
+# This is the lowest-precedence fallback. The instance config (src/instance/
+# config.py) may override it by defining CORS_ORIGINS (read as
+# app.config["CORS_ORIGINS"]), and the CORS_ORIGINS env var overrides both.
+# Keep this list in sync with src/instance/config.py unless you deliberately
+# want the deployed config to diverge from the baked-in default.
 DEFAULT_CORS_ORIGINS: list[str] = [
     "https://autoboat.aoe.vt.edu",
+    "https://www.autoboat.aoe.vt.edu",
     "https://vt-autoboat-telemetry.uk",
     "https://www.vt-autoboat-telemetry.uk",
     "https://test.vt-autoboat-telemetry.uk",

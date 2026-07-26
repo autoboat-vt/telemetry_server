@@ -1,4 +1,5 @@
-"""Tests for ``autoboat_telemetry_server.lock_manager``.
+"""
+Tests for ``autoboat_telemetry_server.lock_manager``.
 
 Covers:
 - ``ReaderWriterLock`` concurrency semantics (read/read, read/write,

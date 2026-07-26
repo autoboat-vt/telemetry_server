@@ -1,4 +1,5 @@
-"""Tests for ``autoboat_telemetry_server.types``.
+"""
+Tests for ``autoboat_telemetry_server.types``.
 
 Covers the ``DiagnosticMessageIntensity`` IntEnum (the wire-format contract
 shared with the website and boat firmware) and sanity-checks the type
