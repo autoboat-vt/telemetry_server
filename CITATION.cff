@@ -1,0 +1,31 @@
+cff-version: 1.2.0
+title: "Autoboat Telemetry Server"
+message: "If you use this software, please cite it using these metadata."
+abstract: >-
+  A lightweight Flask-based web server to collect, display, and manage
+  telemetry data from the Virginia Tech Autoboat project. Collects boat
+  status, autopilot parameters, and waypoints from autonomous boats, and
+  serves them to the Autoboat website and telemetry nodes.
+authors:
+  - name: "Virginia Tech Autoboat Team"
+    website: "https://autoboat.aoe.vt.edu"
+type: software
+license: GPL-3.0-or-later
+date-released: "2026-07-26"
+repository-code: "https://github.com/autoboat-vt/telemetry_server"
+homepage: "https://autoboat.aoe.vt.edu"
+documentation: "https://autoboat-vt.github.io/documentation"
+keywords:
+  - autoboat
+  - telemetry
+  - flask
+  - virginia-tech
+  - autonomous-boats
+preferred-citation:
+  type: software
+  title: "Autoboat Telemetry Server"
+  authors:
+    - name: "Virginia Tech Autoboat Team"
+      website: "https://autoboat.aoe.vt.edu"
+  license: GPL-3.0-or-later
+  repository-code: "https://github.com/autoboat-vt/telemetry_server"

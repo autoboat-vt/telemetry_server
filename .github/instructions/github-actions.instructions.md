@@ -151,6 +151,36 @@ Docker Hub has no public API for deleting tags on public repos, so DH
 intermediate tags would accumulate — except we never push per-arch tags to
 DH in the first place (only finished manifests). DH stays clean automatically.
 
+### `.github/workflows/citation.yml` — CITATION.cff date-released sync
+
+Triggers: push to `main` + `workflow_dispatch`. Permissions: `contents: write`
+(bot needs to push a commit). Job guard: `if: github.actor != 'github-actions[bot]'`
+so the bot's own commit doesn't retrigger the workflow (infinite loop).
+
+Steps:
+1. `actions/checkout@v4` with `token: ${{ secrets.GITHUB_TOKEN }}` (the default
+   `GITHUB_TOKEN` works; no PAT needed for pushes to the same repo).
+2. `sed -i -E "s|^date-released: \".*\"$|date-released: \"${TODAY}\"|" CITATION.cff`
+   rewrites the `date-released:` line to today's UTC date. The regex requires
+   the line to already exist (it doesn't insert one). If `CITATION.cff` is
+   missing the `date-released:` field, this step is a silent no-op.
+3. `git diff --quiet CITATION.cff` short-circuits if nothing changed.
+4. Commits as `github-actions[bot]` (`41898282+github-actions[bot]@users.noreply.github.com`)
+   with message `chore: bump CITATION.cff date-released to today`.
+
+Gotchas:
+- The `if: github.actor != 'github-actions[bot]'` guard works because the bot's
+  push triggers a new workflow run where `github.actor` is `github-actions[bot]`,
+  which the guard skips. Verified pattern.
+- Every merge to `main` produces a follow-up bot commit bumping `date-released`.
+  This is intentional (keeps the citation date current) but it does add noise
+  to the commit history. If you only want bumps on actual releases, change the
+  trigger from `push: branches: [main]` to `push: tags: ["v*"]`.
+- Don't manually edit `date-released` — the next push to `main` will overwrite
+  it. Treat it as a derived field.
+- If you change the `date-released:` line format in `CITATION.cff`, update the
+  `sed` regex here to match (it matches `^date-released: ".*"$`).
+
 ## dependabot.yml
 
 Weekly updates for `pip` (root `pyproject.toml`) and `github-actions`. Keep

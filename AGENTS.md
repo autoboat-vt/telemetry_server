@@ -108,7 +108,7 @@ require coordinated updates to all sides.
 | Containerization | Docker + Docker Compose (4 services + 1 optional profile) |
 | Public ingress | Cloudflare Tunnel (`cloudflared`) — outbound only, edge terminates TLS |
 | Optional SSH | Tailscale sidecar (`--profile tailscale`, host networking, OAuth client auth) |
-| CI | GitHub Actions: `build.yml` (test job gates per-arch Docker build; no push on PR), `push.yml` (multi-arch manifest publish to GHCR + Docker Hub), `tailscale.yml` (GitOps ACL sync) |
+| CI | GitHub Actions: `build.yml` (test job gates per-arch Docker build; no push on PR), `push.yml` (multi-arch manifest publish to GHCR + Docker Hub), `tailscale.yml` (GitOps ACL sync), `citation.yml` (auto-bumps `CITATION.cff` `date-released` on push to main) |
 | Registries | GHCR `ghcr.io/autoboat-vt/telemetry_server[:latest|:testing|:vX.Y.Z]` (public); Docker Hub mirror `vtautoboat/telemetry_server` (public); GHCR `ghcr.io/autoboat-vt/telemetry_server-tailscale` (**private** — contains baked-in OAuth secret) |
 | Branches | `main` = production, `testing` = staging |
 | Domains | `vt-autoboat-telemetry.uk` + `www` → prod; `test.vt-autoboat-telemetry.uk` → test |
@@ -155,6 +155,7 @@ tests/                                    # pytest suite (conftest.py + test_*.p
     build.yml                             # Per-arch build (amd64 on ubuntu-22.04, arm64 on ubuntu-22.04-arm), pushes -arch tags on push only
     push.yml                              # Triggered by build.yml via workflow_run; assembles multi-arch manifests on GHCR, mirrors to Docker Hub
     tailscale.yml                         # tailscale/gitops-acl-action: `test` on PR, `apply` on push to main
+    citation.yml                          # On push to main, bumps CITATION.cff `date-released` to today (UTC); self-skips on bot commits
   scripts/
     compute-release-tags.sh               # Emits base tags (main -> main+latest; v1.2.3 -> 1.2.3 1.2 1 latest) or arch-suffixed tags
   dependabot.yml                          # Weekly pip + github-actions updates
@@ -163,6 +164,7 @@ docker-compose.yml                        # telemetry-prod, telemetry-test, clou
 install.sh                                # One-shot cloud VM installer (installs Docker, clones repo, writes .env, brings up stack)
 pyproject.toml                            # PEP 621 metadata + deps + optional dev extras
 ruff.toml                                 # Ruff config (ALL rules + curated ignore list, numpy docstrings, 130 cols)
+CITATION.cff                              # Citation File Format metadata (consumed by GitHub's "Cite this repository" UI)
 TODO.md                                   # Open feature ideas (image storage, version-control node, websockets)
 ```
 
@@ -790,6 +792,17 @@ Two-stage build-and-publish, mirroring the pattern from
    `tailscale/gitops-acl-action@v1` on changes to `tailscale/policy.hujson`.
    `test` mode on PR (validate only), `apply` mode on push to main (validate +
    push to tailnet).
+
+4. **`.github/workflows/citation.yml`** — keeps `CITATION.cff`'s
+   `date-released` field in sync with the date of the latest commit on
+   `main`. Runs on every push to `main` (and on `workflow_dispatch`). The
+   job is guarded by `if: github.actor != 'github-actions[bot]'` so the
+   bot's own push doesn't loop. It rewrites the `date-released:` line to
+   today's UTC date via `sed -i -E`, then commits and pushes only if the
+   file actually changed. **Don't manually edit `date-released`** — the
+   workflow will overwrite it on the next push to `main`; treat it as a
+   derived field. If you change the `date-released:` line format, update
+   the `sed` regex in the workflow to match.
 
 ### Tag computation
 
