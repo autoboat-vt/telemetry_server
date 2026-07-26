@@ -9,10 +9,38 @@ applyTo: ".github/workflows/**, .github/scripts/**, .github/dependabot.yml"
 
 Mirrors the pattern from `autoboat-vt/autoboat_vt`'s `build-and-release.yml`.
 
-### `.github/workflows/build.yml` — per-arch build
+### `.github/workflows/build.yml` — test + per-arch build
 
 Triggers: push to `main`/`testing`, tags `v*`, PRs to `main`/`testing`,
 `workflow_dispatch`.
+
+Two jobs: `test` (non-matrixed) then `build` (matrixed, `needs: test`).
+
+#### `test` job — lint + pytest gate
+
+Runs on `ubuntu-latest` on every trigger (including PRs). Gates the `build`
+job via `needs: test` so a failing test fails fast before Docker build
+minutes are spent.
+
+Steps:
+1. Checkout.
+2. `actions/setup-python@v5` with `python-version: "3.12"`, `cache: pip`,
+   `cache-dependency-path: pyproject.toml`.
+3. `pip install -e ".[dev]"` — installs the package (editable) plus the
+   `dev` extras from `pyproject.toml` (`ruff`, `pytest`, `build`,
+   `pyproject_hooks`).
+4. `ruff check .` — lint.
+5. `ruff format --check .` — format check (non-mutating).
+6. `pytest` — runs the suite in `tests/` (configured via
+   `pyproject.toml`'s `[tool.pytest.ini_options]`: `testpaths = ["tests"]`,
+   `pythonpath = ["src"]`).
+
+**Do not remove the `needs: test` from the `build` job.** The whole point is
+to gate image builds on test success. If you need to force a build past a
+failing test in an emergency, use `workflow_dispatch` on the `build` job
+directly instead of editing out the gate.
+
+#### `build` job — per-arch Docker image
 
 Matrix: `amd64` on `ubuntu-22.04`, `arm64` on `ubuntu-22.04-arm` (native ARM
 runner — faster than QEMU. If unavailable, swap arm64 to `ubuntu-22.04` and
@@ -133,7 +161,7 @@ the schedule weekly — daily updates are noisy for a small project.
 - **`docker/build-push-action` `tags:` input expects `repo:tag`, not bare tag
   names.** If you compute tags in bash (without `docker/metadata-action`),
   emit `ghcr.io/owner/repo:tag` per line — NOT just `tag`. Bare names get
-  interpreted as `docker.io/library/<name>` → push fails with
+  interpreted as `docker.io/library/<name>` -> push fails with
   `insufficient_scope: authorization failed`.
 - **`GITHUB_REPOSITORY_OWNER` is mixed-case; GHCR requires lowercase.** Use
   `OWNER_LC=${GITHUB_REPOSITORY_OWNER,,}` (bash 4+ lowercase) in every step
@@ -143,6 +171,12 @@ the schedule weekly — daily updates are noisy for a small project.
   errors on different arches).
 - **`push: ${{ github.event_name != 'pull_request' }}`** so PR builds are
   cache-only — fork PRs can't push to GHCR anyway (no secret access).
+- **`test` job's `cache: pip` needs a lockfile or `pyproject.toml` hash.**
+  `actions/setup-python@v5`'s pip cache keys on `cache-dependency-path`
+  (set to `pyproject.toml`). If you rename `pyproject.toml` or move deps
+  into a separate requirements file, update `cache-dependency-path` or the
+  cache will never invalidate and stale installs will mask dependency
+  changes.
 - **PyYAML gotcha (for local validation only):** `on:` parses as boolean
   `True` in YAML 1.1. GitHub Actions handles it correctly, but
   `yaml.safe_load` locally needs `wf[True]` to access the triggers.

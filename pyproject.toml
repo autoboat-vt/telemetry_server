@@ -1,37 +1,79 @@
 [project]
-name        = "telemetry_server"
-version     = "0.0.0"
-readme      = "README.md"
-description = "Telemetry server for Autoboat"
+name            = "telemetry_server"
+version         = "0.0.0"
+description     = "Telemetry server for the Virginia Tech Autoboat project."
+readme          = "README.md"
+requires-python = ">=3.12"
+license         = "GPL-3.0-or-later"
+license-files   = ["LICENSE"]
+authors         = [{ name = "Virginia Tech Autoboat Team" }]
+keywords        = ["autoboat", "telemetry", "flask", "virginia-tech"]
+# Note: no "License ::" classifier - PEP 639 requires the `license` SPDX
+# expression below to be the sole source of license metadata.
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Framework :: Flask",
+    "Intended Audience :: Science/Research",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Scientific/Engineering",
+]
 
+# Only direct imports are listed here. Transitive dependencies
+# (blinker, click, itsdangerous, Jinja2, MarkupSafe, packaging, Werkzeug)
+# are pulled in automatically by Flask and Flask-SQLAlchemy and must not be
+# pinned separately - doing so causes drift between what Flask allows and
+# what we pin.
 dependencies = [
     "Flask>=3.1,<4.0",
     "Flask-Cors>=5.0,<7.0",
     "Flask-SQLAlchemy>=3.1,<4.0",
     "gunicorn>=23.0,<27.0",
-    "blinker>=1.9,<2.0",
-    "click>=8.2,<9.0",
-    "itsdangerous>=2.2,<3.0",
-    "Jinja2>=3.1,<4.0",
-    "MarkupSafe>=3.0,<4.0",
-    "packaging>=25.0,<27.0",
     "SQLAlchemy>=2.0,<3.0",
-    "Werkzeug>=3.1,<4.0",
 ]
 
 [project.optional-dependencies]
+# Runtime + tooling for local development. Ruff is pinned here so the same
+# version is used locally and in CI; pytest runs the test suite in tests/.
 dev = [
     "build>=1.3,<2.0",
     "pyproject_hooks>=1.2,<2.0",
+    "ruff>=0.6,<1.0",
+    "pytest>=8.0,<9.0",
     "annotated-types>=0.7,<1.0",
     "typing_extensions>=4.14,<5.0",
     "typing-inspection>=0.4,<1.0",
 ]
 
 [project.urls]
-Github        = "https://github.com/autoboat-vt/telemetry_server"
+Repository    = "https://github.com/autoboat-vt/telemetry_server"
 Documentation = "https://autoboat-vt.github.io/documentation"
+Issues        = "https://github.com/autoboat-vt/telemetry_server/issues"
 
 [build-system]
-requires      = ["setuptools", "wheel"]
+# setuptools >= 77 is required for PEP 639 license-expression support
+# (the `license = "GPL-3.0-or-later"` SPDX field below).
+requires      = ["setuptools>=77.0", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where   = ["src"]
+include = ["autoboat_telemetry_server*"]
+
+[tool.setuptools.package-data]
+autoboat_telemetry_server = ["py.typed"]
+
+# Ruff is configured in ruff.toml (select = ["ALL"] with a curated ignore
+# list). This stub just makes `ruff` aware of the project root when invoked
+# from outside the repo; the authoritative settings live in ruff.toml.
+[tool.ruff]
+line-length = 130
+
+# The test suite lives in tests/ at the repo root (see AGENTS.md §4).
+# Run it with `pytest` after `pip install -e ".[dev]"`.
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths  = ["tests"]
+pythonpath = ["src"]

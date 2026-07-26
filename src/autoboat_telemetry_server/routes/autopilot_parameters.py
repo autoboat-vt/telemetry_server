@@ -424,7 +424,13 @@ class AutopilotParametersEndpoint:
                 if parameter_key not in telemetry_instance.default_autopilot_parameters:
                     raise ValueError("Parameter key does not exist in the default autopilot parameters.")
 
-                current_parameters = telemetry_instance.autopilot_parameters or {}
+                # Copy the dict so SQLAlchemy detects the change. JSON columns
+                # without MutableDict track changes by identity, so mutating the
+                # retrieved dict in place and reassigning the same object is a
+                # no-op as far as the ORM is concerned.
+                current_parameters = (
+                    dict(telemetry_instance.autopilot_parameters) if telemetry_instance.autopilot_parameters else {}
+                )
                 current_parameters[parameter_key] = new_value
 
                 telemetry_instance.autopilot_parameters_new_flag = telemetry_instance.autopilot_parameters != current_parameters

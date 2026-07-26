@@ -108,7 +108,7 @@ require coordinated updates to all sides.
 | Containerization | Docker + Docker Compose (4 services + 1 optional profile) |
 | Public ingress | Cloudflare Tunnel (`cloudflared`) — outbound only, edge terminates TLS |
 | Optional SSH | Tailscale sidecar (`--profile tailscale`, host networking, OAuth client auth) |
-| CI | GitHub Actions: `build.yml` (per-arch build, no push on PR), `push.yml` (multi-arch manifest publish to GHCR + Docker Hub), `tailscale.yml` (GitOps ACL sync) |
+| CI | GitHub Actions: `build.yml` (test job gates per-arch Docker build; no push on PR), `push.yml` (multi-arch manifest publish to GHCR + Docker Hub), `tailscale.yml` (GitOps ACL sync) |
 | Registries | GHCR `ghcr.io/autoboat-vt/telemetry_server[:latest|:testing|:vX.Y.Z]` (public); Docker Hub mirror `vtautoboat/telemetry_server` (public); GHCR `ghcr.io/autoboat-vt/telemetry_server-tailscale` (**private** — contains baked-in OAuth secret) |
 | Branches | `main` = production, `testing` = staging |
 | Domains | `vt-autoboat-telemetry.uk` + `www` → prod; `test.vt-autoboat-telemetry.uk` → test |
@@ -148,6 +148,7 @@ docker/
 tailscale/
   policy.hujson                           # Tailnet ACL source of truth (synced by .github/workflows/tailscale.yml)
 scripts/                                  # Misc helper scripts
+tests/                                    # pytest suite (conftest.py + test_*.py; run with `pytest`)
 .github/
   workflows/
     build.yml                             # Per-arch build (amd64 on ubuntu-22.04, arm64 on ubuntu-22.04-arm), pushes -arch tags on push only
@@ -361,6 +362,32 @@ so they don't roll back. If you add a GET that reads-then-writes (like
 `get_new`), it's decorated with `require_write_lock` and the catch-all should
 roll back — copy the `boat_status.get_new_route` pattern.
 
+### 3.13 JSON columns don't track in-place mutations
+
+`TelemetryTable`'s JSON columns (`boat_status`, `boat_status_mapping`,
+`autopilot_parameters`, `default_autopilot_parameters`, `waypoints`,
+`diagnostic_message`) are plain `mapped_column(JSON, ...)` — **no
+`MutableDict` / `MutableList` wrapper**. SQLAlchemy tracks changes to these
+columns by identity, so mutating a retrieved dict/list in place and
+reassigning the same object is a no-op as far as the ORM is concerned — the
+change won't persist on `db.session.commit()`.
+
+This bit the `update_existing_parameter` route (it did
+`current = inst.autopilot_parameters; current[key] = val;
+inst.autopilot_parameters = current` — same object, no-op). The fix is to
+**copy the container before mutating**:
+
+```python
+current = dict(telemetry_instance.autopilot_parameters)
+current[key] = new_value
+telemetry_instance.autopilot_parameters = current  # different object -> dirty
+```
+
+If you add a route that mutates a JSON column in place, do the same — or
+switch the column to `MutableDict.as_mutable(JSON)` (requires an import and
+a migration consideration). The wholesale-replacement routes (`set_route` on
+each domain) don't have this problem because they assign a brand-new object.
+
 ---
 
 ## 4. Code style
@@ -383,9 +410,16 @@ roll back — copy the `boat_status.get_new_route` pattern.
   for imports that must come after runtime path setup (see `__init__.py`).
 - **Magic trailing comma:** disabled (`skip-magic-trailing-comma = true`) —
   don't rely on trailing commas to force one-per-line formatting.
-- **Tests:** there is currently no formal test suite. When adding tests,
-  prefer `pytest` and put them in `tests/` at the repo root. `assert` is fine
-  (`S101` is ignored).
+- **Tests:** the test suite lives in `tests/` at the repo root and uses
+  `pytest` (included in the `dev` extras via `pip install -e ".[dev]"`).
+  `pyproject.toml` configures pytest with `testpaths = ["tests"]` and
+  `pythonpath = ["src"]`. `tests/conftest.py` bootstraps the package import
+  on non-Linux dev machines (the package's `__init__.py` scans `/home` at
+  import time, which fails on macOS) and provides `app` / `client` / `db_session`
+  fixtures with per-test temp DBs. `assert` is fine (`S101` is ignored).
+  Test files have relaxed ruff rules via `[lint.per-file-ignores]` in
+  `ruff.toml` (D102, ANN001, ANN201, PLC0415, PT018). Run tests with `pytest`
+  and lint them with `ruff check tests/` / `ruff format tests/`.
 
 Run linting/formatting before committing:
 
@@ -693,14 +727,25 @@ exception.
 ## 9. CI / release workflow
 
 Two-stage build-and-publish, mirroring the pattern from
-`autoboat-vt/autoboat_vt`:
+`autoboat-vt/autoboat_vt`, with a test gate in front:
 
 1. **`.github/workflows/build.yml`** — runs on push to `main`/`testing`, on
-   tags `v*`, on PRs to `main`/`testing`, and on `workflow_dispatch`. Matrix
-   of `amd64` (ubuntu-22.04) and `arm64` (ubuntu-22.04-arm, native runner).
-   Pushes per-arch tags (`:main-amd64`, `:main-arm64`, etc.) **only on push**
-   (not PR — fork PRs can't access org secrets). Also builds the custom
-   tailscale image (with OAuth creds as build-args) on push only.
+   tags `v*`, on PRs to `main`/`testing`, and on `workflow_dispatch`. Two
+   jobs:
+
+   - **`test` job** (non-matrixed, runs first on every trigger including
+     PRs): sets up Python 3.12, `pip install -e ".[dev]"`, then runs
+     `ruff check .`, `ruff format --check .`, and `pytest`. Gates the `build`
+     job via `needs: test` so a failing test fails fast before Docker build
+     minutes are spent. **Do not remove `needs: test` from `build`** — the
+     whole point is to keep broken code out of images. If you need to force
+     a build past a failing test in an emergency, run the `build` job alone
+     via `workflow_dispatch` instead of editing out the gate.
+   - **`build` job** (matrixed, `needs: test`): `amd64` (ubuntu-22.04) and
+     `arm64` (ubuntu-22.04-arm, native runner). Pushes per-arch tags
+     (`:main-amd64`, `:main-arm64`, etc.) **only on push** (not PR — fork
+     PRs can't access org secrets). Also builds the custom tailscale image
+     (with OAuth creds as build-args) on push only.
 
 2. **`.github/workflows/push.yml`** — triggered by `workflow_run` on
    `build.yml` completion. Combines per-arch tags into multi-arch manifests
@@ -824,8 +869,8 @@ Keep messages in the imperative mood ("add route", not "added route").
   `docker compose up -d --build`) before reporting success; do not rely on
   assumptions or partial inspection.
 - After Python edits, run `ruff check --fix` and `ruff format` on the changed
-  files. There is no formal test suite; if you add tests, prefer `pytest` in
-  `tests/` at the repo root.
+  files, then run `pytest` to confirm the test suite still passes. Tests live
+  in `tests/` at the repo root (see §4).
 - For route changes, update the route map docstring at the top of
   `src/autoboat_telemetry_server/routes/__init__.py` so the surface stays
   discoverable.

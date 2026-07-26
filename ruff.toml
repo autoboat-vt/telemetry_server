@@ -92,3 +92,10 @@ ignore = [
     "W293",
     "Q000",
 ]
+
+# Test files get relaxed rules: test methods don't need docstrings (D102),
+# fixtures don't need full annotations (ANN001, ANN201), and conftest
+# intentionally defers imports so it can monkeypatch the package before
+# import (PLC0415).
+[lint.per-file-ignores]
+"tests/**" = ["D102", "ANN001", "ANN201", "PLC0415", "PT018"]

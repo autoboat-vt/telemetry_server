@@ -283,6 +283,15 @@ the wire format, don't renumber them.
    single key in `autopilot_parameters`. The key must exist in
    `default_autopilot_parameters` (400 otherwise). The value must be a
    primitive (`str|int|float|bool|list`) — 400 otherwise.
+
+   **JSON-column mutation tracking gotcha:** `autopilot_parameters` is a plain
+   `JSON` column (no `MutableDict` wrapper), so SQLAlchemy tracks changes by
+   identity. Mutating the retrieved dict in place and reassigning the same
+   object is a no-op as far as the ORM is concerned — the change won't
+   persist. The route works around this by copying the dict
+   (`dict(telemetry_instance.autopilot_parameters)`) before mutating. If you
+   add a route that mutates a JSON column in place, do the same — or use
+   `MutableDict`/`flag_modified`.
 5. **Describe / list:** `get_hash_description`, `set_hash_description`,
    `get_all_hashes`, `get_hash_exists`, `get_config/<hash>`, `get_hash/<id>`
    (current hash for an instance), `get_default/<id>` (default params).
