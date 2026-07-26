@@ -132,7 +132,7 @@ src/
       waypoints.py                        # Waypoint sequence get/set
       instance_manager.py                 # Instance lifecycle: create/delete/clean, user/name/diagnostic, get_ids, etc.
   instance/
-    config.py                             # SQLAlchemy binds (instances.db + hashes.db), DEFAULT_CORS_ORIGINS
+    config.py                             # SQLAlchemy binds (instances.db + hashes.db), CORS_ORIGINS (the key create_app reads)
     instances.db, hashes.db               # SQLite DBs (gitignored, persisted via named volume in compose)
 docker/
   app-entrypoint.sh                       # Restores config.py into the mounted instance volume (no-clobber)
@@ -150,6 +150,7 @@ tailscale/
 scripts/                                  # Misc helper scripts
 tests/                                    # pytest suite (conftest.py + test_*.py; run with `pytest`)
 .github/
+  instructions/                           # Per-path agent instruction files (applyTo-gated; see tests.instructions.md)
   workflows/
     build.yml                             # Per-arch build (amd64 on ubuntu-22.04, arm64 on ubuntu-22.04-arm), pushes -arch tags on push only
     push.yml                              # Triggered by build.yml via workflow_run; assembles multi-arch manifests on GHCR, mirrors to Docker Hub
@@ -388,6 +389,34 @@ switch the column to `MutableDict.as_mutable(JSON)` (requires an import and
 a migration consideration). The wholesale-replacement routes (`set_route` on
 each domain) don't have this problem because they assign a brand-new object.
 
+### 3.14 `config.py` must define `CORS_ORIGINS`, not `DEFAULT_CORS_ORIGINS`
+
+`create_app()` resolves the CORS allowlist from three sources, in fixed
+precedence (highest first):
+
+1. `CORS_ORIGINS` env var (comma-separated) — works on existing deployments
+   without rebuilding, since `src/instance/config.py` is persisted in a named
+   volume and not overwritten on image updates.
+2. `app.config["CORS_ORIGINS"]` (set in `src/instance/config.py`) — applies on
+   fresh installs where `config.py` is seeded from the image.
+3. `DEFAULT_CORS_ORIGINS` (module-level fallback in
+   `src/autoboat_telemetry_server/__init__.py`) — the known website +
+   telemetry origins.
+
+`create_app()` reads level 2 via `app.config.get("CORS_ORIGINS", DEFAULT_CORS_ORIGINS)`.
+Flask's `from_pyfile` loads config module names **by their own name**, so the
+key in `config.py` MUST be `CORS_ORIGINS`. Naming it `DEFAULT_CORS_ORIGINS`
+silently breaks level 2: Flask loads it into
+`app.config["DEFAULT_CORS_ORIGINS"]` (a key nothing reads) and the override
+is dead — the module-level fallback wins instead.
+
+This was a real bug (caught by a CodeQL "unused variable" finding that turned
+out to be a live defect). `tests/test_init.py::TestCorsPrecedence` pins all
+three levels and the `config.py` key name so the drift can't recur. If you
+touch either CORS list, keep them in sync (the `www.autoboat.aoe.vt.edu`
+entry once drifted between the two) and update the `TestDefaultCorsOrigins`
+tests to match.
+
 ---
 
 ## 4. Code style
@@ -415,11 +444,15 @@ each domain) don't have this problem because they assign a brand-new object.
   `pyproject.toml` configures pytest with `testpaths = ["tests"]` and
   `pythonpath = ["src"]`. `tests/conftest.py` bootstraps the package import
   on non-Linux dev machines (the package's `__init__.py` scans `/home` at
-  import time, which fails on macOS) and provides `app` / `client` / `db_session`
-  fixtures with per-test temp DBs. `assert` is fine (`S101` is ignored).
-  Test files have relaxed ruff rules via `[lint.per-file-ignores]` in
-  `ruff.toml` (D102, ANN001, ANN201, PLC0415, PT018). Run tests with `pytest`
-  and lint them with `ruff check tests/` / `ruff format tests/`.
+  import time, which fails on macOS) and provides `tmp_instance_dir` / `app` /
+  `client` / `db_session` fixtures with per-test temp DBs. `assert` is fine
+  (`S101` is ignored). Test files have relaxed ruff rules via
+  `[lint.per-file-ignores]` in `ruff.toml` (D102, ANN001, ANN201, PLC0415,
+  PT018). Run tests with `pytest` and lint them with `ruff check tests/` /
+  `ruff format tests/`. See `.github/instructions/tests.instructions.md`
+  (auto-attached when editing `tests/**`) for the full conventions: the
+  `/home` bootstrap, fixture selection, the deferred-import pattern, route
+  testing via the Flask test client, and where to add new tests.
 
 Run linting/formatting before committing:
 
