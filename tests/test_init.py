@@ -14,6 +14,7 @@ temp instance dir.
 
 from __future__ import annotations
 
+from conftest import FAKE_HOME
 from flask.app import Flask
 from flask.testing import FlaskClient
 
@@ -175,4 +176,6 @@ class TestInstanceDirDiscovery:
         # The conftest patches /home to return the repo's parent dir so that
         # HOME_DIR / "telemetry_server" / "src" / "instance" resolves to the
         # repo's checked-in src/instance. In production this would be /home/ubuntu.
-        assert HOME_DIR.name == "autoboat"
+        # HOME_DIR == FAKE_HOME (the repo's parent) on every machine, regardless
+        # of what that parent happens to be named locally.
+        assert HOME_DIR == FAKE_HOME
