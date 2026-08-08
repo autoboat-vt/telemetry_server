@@ -217,8 +217,7 @@ class TestSharedLockManager:
     def test_is_singleton(self) -> None:
         """Importing the symbol twice returns the same object."""
 
-        from autoboat_telemetry_server import shared_lock_manager as a
-        from autoboat_telemetry_server import shared_lock_manager as b
+        from autoboat_telemetry_server import shared_lock_manager as a, shared_lock_manager as b
 
         assert a is b
 

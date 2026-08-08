@@ -267,9 +267,14 @@ class InstanceManagerEndpoint:
 
             try:
                 telemetry_instance = self._get_instance(instance_id)
-                for instance in TelemetryTable.query.all():
-                    if instance.instance_identifier == instance_name and instance.instance_id != instance_id:
-                        raise ValueError("Instance name already exists.")
+
+                conflicting_id = (
+                    db.session.query(TelemetryTable.instance_id)
+                    .filter(TelemetryTable.instance_identifier == instance_name, TelemetryTable.instance_id != instance_id)
+                    .first()
+                )
+                if conflicting_id is not None:
+                    raise ValueError("Instance name already exists.")
 
                 telemetry_instance.instance_identifier = instance_name
                 db.session.commit()
@@ -473,8 +478,32 @@ class InstanceManagerEndpoint:
             """
 
             try:
-                telemetry_instances: list[TelemetryTable] = TelemetryTable.query.all()
-                instances_info = [instance.to_dict() for instance in telemetry_instances]
+                # Column-limited select: to_dict() only returns scalar fields
+                # (instance_id, instance_identifier, user, current_config_hash,
+                # created_at, updated_at), so we skip the fat JSON columns
+                # (boat_status, autopilot_parameters, waypoints, etc.) that
+                # query.all() would deserialize for every row.
+                rows = db.session.execute(
+                    db.select(
+                        TelemetryTable.instance_id,
+                        TelemetryTable.instance_identifier,
+                        TelemetryTable.user,
+                        TelemetryTable.current_config_hash,
+                        TelemetryTable.created_at,
+                        TelemetryTable.updated_at,
+                    )
+                ).all()
+                instances_info = [
+                    {
+                        "instance_id": row.instance_id,
+                        "instance_identifier": row.instance_identifier,
+                        "user": row.user,
+                        "current_config_hash": row.current_config_hash,
+                        "created_at": row.created_at.isoformat() if row.created_at else None,
+                        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+                    }
+                    for row in rows
+                ]
 
                 return jsonify(instances_info), 200
 

@@ -10,12 +10,13 @@ __all__ = ["HashTable", "TelemetryTable", "db"]
 
 import hashlib
 import json
+import sqlite3
 from datetime import UTC, datetime
 from typing import Any
 
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import JSON, Boolean, Integer, String, event
-from sqlalchemy.engine import Connection
+from sqlalchemy import JSON, Boolean, Index, Integer, String, event
+from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.orm import Mapped, Mapper, mapped_column, validates
 
 from autoboat_telemetry_server.types import (
@@ -27,6 +28,52 @@ from autoboat_telemetry_server.types import (
 )
 
 db = SQLAlchemy()
+
+# SQLite connection pragmas applied to every new connection on every bind.
+#
+# WAL journal mode lets readers run concurrently with the single writer instead
+# of blocking on the rollback journal; this complements the in-process
+# ReaderWriterLock (the lock serializes Python-side access, WAL serializes only
+# at the SQLite layer and allows read concurrency at the storage level).
+# `synchronous=NORMAL` is safe under WAL and cuts the fsync cost on every
+# commit. `busy_timeout` makes SQLite wait briefly on lock contention instead
+# of raising `database is locked` immediately -- belt-and-suspenders defense
+# even though the app-level lock should prevent cross-connection contention.
+#
+# These are connection-scoped: each new connection in the pool re-runs them.
+# `PRAGMA journal_mode=WAL` is persistent (it's a database-level property, not
+# a connection property), but re-issuing it is a cheap no-op once WAL is set.
+_SQLITE_PRAGMAS = (
+    "PRAGMA journal_mode=WAL;",
+    "PRAGMA synchronous=NORMAL;",
+    "PRAGMA busy_timeout=5000;",
+    "PRAGMA cache_size=-65536;",  # 64 MiB page cache (negative = kibibytes).
+    "PRAGMA temp_store=MEMORY;",
+    "PRAGMA mmap_size=268435456;",  # 256 MiB memory-mapped I/O.
+)
+
+
+@event.listens_for(Engine, "connect")
+def _set_sqlite_pragmas(dbapi_connection: object, _connection_record: object) -> None:
+    """Apply SQLite performance pragmas to every new connection on every bind.
+
+    Parameters
+    ----------
+    dbapi_connection
+        The underlying DBAPI (sqlite3) connection.
+    _connection_record
+        SQLAlchemy's connection record (unused).
+    """
+
+    if not isinstance(dbapi_connection, sqlite3.Connection):
+        return
+
+    cursor = dbapi_connection.cursor()
+    try:
+        for pragma in _SQLITE_PRAGMAS:
+            cursor.execute(pragma)
+    finally:
+        cursor.close()
 
 
 class TelemetryTable(db.Model):
@@ -79,6 +126,20 @@ class TelemetryTable(db.Model):
     """
 
     __tablename__ = "telemetry_table"
+
+    # Indexes speed up the two non-PK query paths:
+    #   - updated_at: the cron-driven clean_instances route filters
+    #     `updated_at < cutoff` every 5 minutes; without an index this is a
+    #     full table scan that grows with the instance count.
+    #   - instance_identifier: get_id/<name> looks up by name, and the
+    #     set_name uniqueness check scans by name.
+    # db.create_all() creates these on fresh DBs only. Existing deployments
+    # need a one-time `CREATE INDEX` on the volume (see README / release
+    # notes) -- there is no migration framework (AGENTS.md §6.2).
+    __table_args__ = (
+        Index("ix_telemetry_table_updated_at", "updated_at"),
+        Index("ix_telemetry_table_instance_identifier", "instance_identifier"),
+    )
 
     instance_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     instance_identifier: Mapped[str] = mapped_column(String, default="", nullable=True)

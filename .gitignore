@@ -1,6 +1,7 @@
 .DS_Store
 *.db
 .env
+.ruff_cache
 
 # Python caches and build artifacts
 __pycache__

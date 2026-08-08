@@ -322,3 +322,64 @@ class TestHashTableDb:
         db.session.add(entry)
         db.session.commit()
         assert entry.description == ""
+
+
+# --------------------------------------------------------------------------- #
+# SQLite connection pragmas (WAL, synchronous, etc.)
+# --------------------------------------------------------------------------- #
+
+
+class TestSqlitePragmas:
+    """The engine-connect listener must apply performance pragmas to every bind."""
+
+    def _pragma(self, app: Flask, name: str) -> object:
+        from sqlalchemy import text
+
+        with app.app_context():
+            return db.session.execute(text(f"PRAGMA {name}")).scalar()
+
+    def test_journal_mode_is_wal_on_default_bind(self, app: Flask) -> None:
+        assert str(self._pragma(app, "journal_mode")).lower() == "wal"
+
+    def test_journal_mode_is_wal_on_hashes_bind(self, app: Flask) -> None:
+        from sqlalchemy import text
+
+        with app.app_context():
+            engine = db.engines["hashes"]
+            with engine.connect() as conn:
+                result = conn.execute(text("PRAGMA journal_mode")).scalar()
+        assert str(result).lower() == "wal"
+
+    def test_synchronous_is_normal(self, app: Flask) -> None:
+        # synchronous=NORMAL is reported as the integer 1 under SQLite.
+        assert self._pragma(app, "synchronous") == 1
+
+    def test_busy_timeout_is_set(self, app: Flask) -> None:
+        assert self._pragma(app, "busy_timeout") == 5000
+
+
+# --------------------------------------------------------------------------- #
+# Indexes on TelemetryTable (updated_at, instance_identifier)
+# --------------------------------------------------------------------------- #
+
+
+class TestTelemetryTableIndexes:
+    """``db.create_all()`` must create indexes on fresh databases.
+
+    See AGENTS.md §6.2: there is no migration framework, so existing
+    deployments need a one-time ``CREATE INDEX`` on the volume. These tests
+    only pin the fresh-DB behavior; they do not exercise the migration path.
+    """
+
+    def _index_names(self, app: Flask) -> set[str]:
+        from sqlalchemy import inspect
+
+        with app.app_context():
+            inspector = inspect(db.engine)
+            return {idx["name"] for idx in inspector.get_indexes("telemetry_table")}
+
+    def test_updated_at_index_exists(self, app: Flask) -> None:
+        assert "ix_telemetry_table_updated_at" in self._index_names(app)
+
+    def test_instance_identifier_index_exists(self, app: Flask) -> None:
+        assert "ix_telemetry_table_instance_identifier" in self._index_names(app)

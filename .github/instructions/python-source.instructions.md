@@ -213,6 +213,17 @@ Bound to the default bind (`None` key → `instances.db`). Columns include
 (JSON), `waypoints_new_flag`, `diagnostic_message` (JSON list),
 `created_at`, `updated_at` (timezone-aware UTC).
 
+Indexed columns (declared in `__table_args__` via `Index(...)`):
+- `updated_at` — used by the `clean_instances` cron route's
+  `updated_at < cutoff` filter. Without this index the cron job does a full
+  table scan every 5 minutes.
+- `instance_identifier` — used by `get_id/<name>` (reverse lookup by name)
+  and the `set_name` uniqueness check (which scans for a matching name).
+
+When adding a new index, declare it in `__table_args__` and remember that
+`db.create_all()` only creates it on fresh DBs (see the invariant below).
+Don't add redundant indexes for query paths that are already covered.
+
 Helpers:
 - `get_all_ids()` classmethod → list of all `instance_id`s.
 - `to_dict()` → serializes the row for `get_instance_info` /
@@ -229,10 +240,14 @@ Helpers:
   (`set_instance_identifier`) to `f"Unnamed instance #{instance_id}"` if not
   supplied. Don't duplicate this logic in route code; don't remove the
   listener — the default name depends on it.
-- `db.create_all()` only creates missing tables — it does NOT alter existing
-  ones. There is no migration framework. Prefer additive schema changes
-  (new columns with defaults, new tables). Breaking changes require a manual
-  `ALTER TABLE` script or deleting the named volume (data loss).
+- `db.create_all()` only creates missing tables and indexes — it does NOT
+  alter existing ones. There is no migration framework. Prefer additive
+  schema changes (new columns with defaults, new tables, new indexes). New
+  indexes land on fresh DBs automatically; existing deployments need a
+  one-time `CREATE INDEX` run against the SQLite file in the named volume
+  (see `docker/README.md` → "Schema changes and the named volumes" for the
+  copy-pasteable `docker compose exec` snippet). Breaking changes require a
+  manual `ALTER TABLE` script or deleting the named volume (data loss).
 - `current_config_hash` is **not a real FK**. Deleting a `HashTable` row that
   an instance points at will leave a dangling reference. The
   `delete_config_route` doesn't check — don't call it on an in-use hash.

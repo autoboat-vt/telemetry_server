@@ -137,6 +137,7 @@ class WaypointEndpoint:
                 return jsonify(str(e)), 404
 
             except Exception as e:
+                db.session.rollback()
                 return jsonify(str(e)), 500
 
         @self._blueprint.route("/set/<int:instance_id>", methods=["POST"])

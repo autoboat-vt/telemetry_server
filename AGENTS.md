@@ -611,7 +611,11 @@ Models live in `src/autoboat_telemetry_server/models.py`. Two tables:
   `autopilot_parameters_new_flag`, `current_config_hash` (FK-ish to
   `HashTable.config_hash`, but not enforced at the DB level), `waypoints`
   (JSON), `waypoints_new_flag`, `diagnostic_message` (JSON list),
-  `created_at`, `updated_at` (timezone-aware UTC).
+  `created_at`, `updated_at` (timezone-aware UTC). Indexed columns
+  (declared in `__table_args__`): `updated_at` (for the `clean_instances`
+  cron filter) and `instance_identifier` (for `get_id/<name>` lookup and
+  the `set_name` uniqueness check). See §6.2 for the migration caveat —
+  these indexes only land on fresh DBs.
 - **`HashTable`** — named autopilot config snapshots. Bound to the
   `"hashes"` key → `hashes.db` (via `__bind_key__ = "hashes"`). PK is
   `config_hash` (a 64-char SHA-256 hex string). Columns: `config_hash`,
@@ -643,15 +647,24 @@ Models live in `src/autoboat_telemetry_server/models.py`. Two tables:
 
 There is **no migration framework** (no Alembic, no Flask-Migrate).
 `create_app()` calls `db.create_all()` on startup, which only creates
-missing tables — it does NOT alter existing ones. Schema changes to an
-existing table require either:
+missing tables and indexes — it does NOT alter existing ones. Schema
+changes to an existing table require either:
   1. A manual `ALTER TABLE` / data backfill script run against the SQLite file
      in the named volume, OR
   2. Bumping the volume (delete `prod-instance-data` / `test-instance-data`),
      which **destroys all telemetry history**.
 
-Prefer additive changes (new columns with defaults, new tables). Document
-any breaking schema change in `README.md` and the release notes.
+Prefer additive changes (new columns with defaults, new tables, new
+indexes). `db.create_all()` creates new tables and indexes on fresh DBs
+automatically; existing volumes need a one-time `CREATE INDEX` / `ALTER
+TABLE` run against the SQLite file. The operator-facing procedure (with a
+copy-pasteable `docker compose exec` snippet) is documented in
+`docker/README.md` → "Schema changes and the named volumes". When you add
+an index or column, update that doc section in the same PR.
+
+Current indexed columns on `TelemetryTable` (see §6.1): `updated_at`,
+`instance_identifier`. Don't add redundant indexes for the same query
+paths.
 
 ### 6.3 SQLite + single worker is intentional
 

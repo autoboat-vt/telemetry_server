@@ -79,6 +79,17 @@ class TestInstanceManagerCreate:
         assert response.status_code == 200
         data = response.get_json()
         assert len(data) == 2
+        # Pin the exact key set so a regression that re-introduces the fat
+        # JSON columns (boat_status, autopilot_parameters, waypoints, etc.)
+        # would fail here.
+        assert set(data[0].keys()) == {
+            "instance_id",
+            "instance_identifier",
+            "user",
+            "current_config_hash",
+            "created_at",
+            "updated_at",
+        }
 
 
 class TestInstanceManagerDelete:
@@ -104,7 +115,7 @@ class TestInstanceManagerDelete:
 
 
 class TestInstanceManagerSetUser:
-    """The user field immutability invariant (§3.3), exercised via HTTP."""
+    """The user field immutability invariant (Section 3.3), exercised via HTTP."""
 
     def test_set_user_once_succeeds(self, client: FlaskClient) -> None:
         instance_id = _create_instance(client)
@@ -198,7 +209,7 @@ class TestInstanceManagerDiagnosticMessage:
         assert response.status_code == 400
 
     def test_wrong_types_returns_404(self, client: FlaskClient) -> None:
-        """Type mismatches raise TypeError, which this route maps to 404 (§3.12)."""
+        """Type mismatches raise TypeError, which this route maps to 404 (Section 3.12)."""
 
         instance_id = _create_instance(client)
         response = client.post(f"/instance_manager/set_diagnostic_message/{instance_id}", json=["not-int", "msg"])
@@ -217,7 +228,7 @@ class TestInstanceManagerCleanInstances:
         db.session.add(instance)
         db.session.commit()
 
-        # Capture the id before we mutate/delete — accessing it after the
+        # Capture the id before we mutate/delete - accessing it after the
         # clean route runs would raise DetachedInstanceError.
         instance_id = instance.instance_id
 
@@ -264,7 +275,7 @@ class TestBoatStatus:
         assert response.get_json() == status
 
     def test_set_non_dict_returns_404(self, client: FlaskClient) -> None:
-        """Non-dict body raises TypeError, which this route maps to 404 (§3.12)."""
+        """Non-dict body raises TypeError, which this route maps to 404 (Section 3.12)."""
 
         instance_id = _create_instance(client)
         response = client.post(f"/boat_status/set/{instance_id}", json=[1, 2, 3])
@@ -313,7 +324,7 @@ class TestBoatStatusSetMapping:
         assert response.status_code == 200
 
     def test_set_mapping_invalid_field_type(self, client: FlaskClient) -> None:
-        """Invalid ctypes type raises TypeError -> 404 (§3.12)."""
+        """Invalid ctypes type raises TypeError -> 404 (Section 3.12)."""
 
         instance_id = _create_instance(client)
         mapping = [["heading", "not_a_ctypes_type"]]
@@ -321,14 +332,14 @@ class TestBoatStatusSetMapping:
         assert response.status_code == 404
 
     def test_set_mapping_non_list(self, client: FlaskClient) -> None:
-        """Non-list body raises TypeError -> 404 (§3.12)."""
+        """Non-list body raises TypeError -> 404 (Section 3.12)."""
 
         instance_id = _create_instance(client)
         response = client.post(f"/boat_status/set_mapping/{instance_id}", json={"not": "a list"})
         assert response.status_code == 404
 
     def test_set_mapping_wrong_pair_shape(self, client: FlaskClient) -> None:
-        """Wrong-shape pair raises TypeError -> 404 (§3.12)."""
+        """Wrong-shape pair raises TypeError -> 404 (Section 3.12)."""
 
         instance_id = _create_instance(client)
         response = client.post(f"/boat_status/set_mapping/{instance_id}", json=[["only_one_element"]])
@@ -343,7 +354,7 @@ class TestBoatStatusSetFast:
     """Binary fast-path: ``set_fast`` decodes a ctypes struct from raw bytes."""
 
     def test_set_fast_without_mapping_returns_404(self, client: FlaskClient) -> None:
-        """No mapping set raises TypeError -> 404 (§3.12)."""
+        """No mapping set raises TypeError -> 404 (Section 3.12)."""
 
         instance_id = _create_instance(client)
         response = client.post(
@@ -445,7 +456,7 @@ class TestWaypoints:
 
 
 class TestAutopilotCreateConfig:
-    """``create_config`` accepts a double-JSON-encoded body (§5 gotcha)."""
+    """``create_config`` accepts a double-JSON-encoded body (Section 5 gotcha)."""
 
     def test_create_config_returns_hash(self, client: FlaskClient) -> None:
         config = _make_config()
@@ -493,6 +504,9 @@ class TestAutopilotCreateConfig:
         data = response.get_json()
         assert len(data) == 1
         assert "config_hash" in data[0]
+        # Pin the exact key set so a regression that re-introduces the `data`
+        # JSON column would fail here.
+        assert set(data[0].keys()) == {"config_hash", "description", "created_at"}
 
     def test_get_config_by_hash(self, client: FlaskClient) -> None:
         config = _make_config()
@@ -542,7 +556,7 @@ class TestAutopilotSetDefault:
         assert current_hash == hash_value
 
     def test_set_default_on_nonexistent_returns_400(self, client: FlaskClient) -> None:
-        """Instance-not-found raises TypeError -> 400 on this route (§3.12)."""
+        """Instance-not-found raises TypeError -> 400 on this route (Section 3.12)."""
 
         response = client.post("/autopilot_parameters/set_default/9999", json=json.dumps(_make_config()))
         assert response.status_code == 400
@@ -704,7 +718,7 @@ class TestRouteLocking:
 
 
 # --------------------------------------------------------------------------- #
-# Route error-code ladder (§3.12)
+# Route error-code ladder (Section 3.12)
 # --------------------------------------------------------------------------- #
 
 
@@ -718,7 +732,7 @@ class TestErrorCodeLadder:
 
     def test_input_type_error_returns_404(self, client: FlaskClient) -> None:
         instance_id = _create_instance(client)
-        # boat_status.set maps TypeError -> 404 (§3.12 gotcha: this route lumps
+        # boat_status.set maps TypeError -> 404 (Section 3.12 gotcha: this route lumps
         # instance-not-found and input-validation TypeErrors together).
         response = client.post(f"/boat_status/set/{instance_id}", json=[1, 2])
         assert response.status_code == 404

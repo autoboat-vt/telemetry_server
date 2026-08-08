@@ -165,6 +165,7 @@ class AutopilotParametersEndpoint:
                 return jsonify(str(e)), 404
 
             except Exception as e:
+                db.session.rollback()
                 return jsonify(str(e)), 500
 
         @self._blueprint.route("/get_default/<int:instance_id>", methods=["GET"])
@@ -303,8 +304,15 @@ class AutopilotParametersEndpoint:
             """
 
             try:
-                all_hashes: list[HashTable] = HashTable.query.all()
-                hashes_info = [h.to_dict() for h in all_hashes]
+                rows = db.session.execute(db.select(HashTable.config_hash, HashTable.description, HashTable.created_at)).all()
+                hashes_info = [
+                    {
+                        "config_hash": row.config_hash,
+                        "description": row.description,
+                        "created_at": row.created_at.isoformat() if row.created_at else None,
+                    }
+                    for row in rows
+                ]
 
                 return jsonify(hashes_info), 200
 

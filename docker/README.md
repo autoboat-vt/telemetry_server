@@ -137,6 +137,34 @@ The `app-entrypoint.sh` script restores the default `config.py` (baked into
 the image at `/opt/config.py`) into the instance volume on first start, then
 never overwrites it — so site-specific edits to `config.py` survive restarts.
 
+### Schema changes and the named volumes
+
+There is **no migration framework**. `db.create_all()` only creates missing
+tables and indexes on startup — it does not alter existing ones. So additive
+schema changes (new columns, new indexes) land automatically on fresh
+volumes but **not** on existing `prod-instance-data` / `test-instance-data`
+volumes.
+
+For example, indexes on `telemetry_table.updated_at` (used by the
+`clean_instances` cron route) and `telemetry_table.instance_identifier`
+(used by `get_id/<name>` and the `set_name` uniqueness check) were added in
+a recent release. To apply them to an existing volume without losing data:
+
+```bash
+docker compose exec telemetry-prod python -c "
+from autoboat_telemetry_server import db
+from sqlalchemy import text
+with db.engine.connect() as conn:
+    conn.execute(text('CREATE INDEX IF NOT EXISTS ix_telemetry_table_updated_at ON telemetry_table (updated_at)'))
+    conn.execute(text('CREATE INDEX IF NOT EXISTS ix_telemetry_table_instance_identifier ON telemetry_table (instance_identifier)'))
+    conn.commit()
+"
+```
+
+`docker compose down -v` recreates the volumes from scratch with all current
+indexes, but **deletes the SQLite databases** — only do this when the data
+is expendable.
+
 ## Running the testing branch
 
 By default `telemetry-test` uses the same image as `telemetry-prod`. To run the

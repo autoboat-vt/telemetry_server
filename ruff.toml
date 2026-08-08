@@ -19,6 +19,23 @@ max-positional-args = 8
 max-returns         = 10
 max-locals          = 30
 
+[lint.isort]
+combine-as-imports     = true
+order-by-type          = true
+relative-imports-order = "furthest-to-closest"
+
+# Ruff will place the import sections in this order:
+section-order = [
+    "future",
+    "standard-library",
+    "third-party",
+    "first-party",
+    "local-folder",
+]
+
+# A list of modules to consider standard-library, in addition to those known to Ruff in advance.
+extra-standard-library = []
+
 [lint]
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 future-annotations = true
