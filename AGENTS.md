@@ -136,7 +136,6 @@ src/
     instances.db, hashes.db               # SQLite DBs (gitignored, persisted via named volume in compose)
 docker/
   app-entrypoint.sh                       # Restores config.py into the mounted instance volume (no-clobber)
-  README.md                               # Full Docker deployment docs (services, routing, tailscale, policy file)
   cloudflared/
     config.yml                            # File-managed tunnel config (only used when USE_CONFIG_FILE=1)
     entrypoint.sh                         # (legacy) shell wrapper — upstream image is distroless, override `command:` instead
@@ -659,8 +658,9 @@ indexes). `db.create_all()` creates new tables and indexes on fresh DBs
 automatically; existing volumes need a one-time `CREATE INDEX` / `ALTER
 TABLE` run against the SQLite file. The operator-facing procedure (with a
 copy-pasteable `docker compose exec` snippet) is documented in
-`docker/README.md` → "Schema changes and the named volumes". When you add
-an index or column, update that doc section in the same PR.
+`.github/instructions/deployment-docs.instructions.md` → "Docker deployment
+- schema changes and the named volumes". When you add an index or column,
+update that doc section in the same PR.
 
 Current indexed columns on `TelemetryTable` (see §6.1): `updated_at`,
 `instance_identifier`. Don't add redundant indexes for the same query
@@ -908,9 +908,11 @@ Keep messages in the imperative mood ("add route", not "added route").
   migration, tailscale OAuth, tunnel token, GHCR cleanup). These were paid
   for in debugging hours; don't pay again.
 - For infra changes (compose, Dockerfile, workflows), update `README.md`
-  and `docker/README.md` in the same PR.
+  and the relevant `.github/instructions/*.instructions.md` files in the
+  same PR.
 - For secrets/credential changes, document the rotation procedure in
-  `docker/README.md` and the relevant memory file.
+  `.github/instructions/deployment-docs.instructions.md` and the relevant
+  memory file.
 
 ## 14. Working Style Notes
 

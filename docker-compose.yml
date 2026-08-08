@@ -156,7 +156,8 @@ services:
     #
     # SECURITY: this image is PRIVATE on GHCR (it contains the OAuth client
     # secret). Hosts must `docker login ghcr.io` before `docker compose pull`.
-    # See docker/README.md and docker/tailscale/Dockerfile for details.
+    # See .github/instructions/tailscale.instructions.md and
+    # docker/tailscale/Dockerfile for details.
     image: ghcr.io/autoboat-vt/telemetry_server-tailscale:latest
     container_name: telemetry-tailscale
     restart: unless-stopped

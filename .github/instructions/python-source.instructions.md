@@ -245,7 +245,8 @@ Helpers:
   schema changes (new columns with defaults, new tables, new indexes). New
   indexes land on fresh DBs automatically; existing deployments need a
   one-time `CREATE INDEX` run against the SQLite file in the named volume
-  (see `docker/README.md` → "Schema changes and the named volumes" for the
+  (see `.github/instructions/deployment-docs.instructions.md` → "Docker
+  deployment - schema changes and the named volumes" for the
   copy-pasteable `docker compose exec` snippet). Breaking changes require a
   manual `ALTER TABLE` script or deleting the named volume (data loss).
 - `current_config_hash` is **not a real FK**. Deleting a `HashTable` row that

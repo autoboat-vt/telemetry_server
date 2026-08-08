@@ -153,5 +153,5 @@ Excludes `.git`, `.github`, `.vscode`, caches, build artifacts, `venv/`,
 If you add a new file under `docker/` that the app image needs, update
 `.dockerignore`'s `!docker/...` line.
 
-The `cron/`, `cloudflared/`, and `docker/README.md` subpaths are excluded
+The `cron/`, `cloudflared/`, and `tailscale/` subpaths are excluded
 from the app image (they have their own contexts or aren't needed).
