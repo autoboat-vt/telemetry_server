@@ -40,6 +40,19 @@ to gate image builds on test success. If you need to force a build past a
 failing test in an emergency, use `workflow_dispatch` on the `build` job
 directly instead of editing out the gate.
 
+**First bug it caught (2026-07-26):**
+`tests/test_init.py::TestInstanceDirDiscovery::test_home_dir_is_fake_home`
+originally hardcoded `assert HOME_DIR.name == "autoboat"` (the dev's local
+repo parent dir). On CI the repo is checked out at
+`/home/runner/work/telemetry_server/telemetry_server`, so `HOME_DIR.name`
+was `"telemetry_server"` and the test failed. Fix: import `FAKE_HOME` from
+`tests/conftest.py` and assert `HOME_DIR == FAKE_HOME` (the conftest sets
+`FAKE_HOME = REPO_ROOT.parent` and patches `/home` to return it, so the
+invariant holds on every machine). Lesson: tests that depend on the repo's
+parent dir name are non-portable. Assert the invariant the conftest
+establishes (`HOME_DIR == FAKE_HOME`), not a hardcoded local path
+component.
+
 #### `build` job — per-arch Docker image
 
 Matrix: `amd64` on `ubuntu-22.04`, `arm64` on `ubuntu-22.04-arm` (native ARM
@@ -150,6 +163,13 @@ API endpoints (org-scoped):
 Docker Hub has no public API for deleting tags on public repos, so DH
 intermediate tags would accumulate — except we never push per-arch tags to
 DH in the first place (only finished manifests). DH stays clean automatically.
+
+**Commits that established this:** `bd2e3ec` (testing) / `227ea08` (main)
+re-added the cleanup step after the repo role was elevated to Admin;
+`9eaa723` (testing) had removed it earlier when it was 403'ing with the
+Write role. A local one-off cleanup helper (`/tmp/ghcr_cleanup.sh`, using
+the `gh` CLI with a `delete:packages`-scoped PAT) can be recreated if a
+manual sweep is ever needed outside CI.
 
 ### `.github/workflows/citation.yml` — CITATION.cff date-released sync
 

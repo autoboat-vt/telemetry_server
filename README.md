@@ -5,37 +5,18 @@ A lightweight Flask-based web server to collect, display, and manage telemetry d
 ## Project Structure
 
 ```txt
-autoboat_telemetry_server/
-├── __init__.py                   # App factory
-├── models.py                     # Database models
-├── types.py                      # Custom types and enums
-├── lock_manager.py               # Read-write lock manager
-├── routes
-    ├── __init__.py               # Routes initialization
-    ├── autopilot_parameters.py   # Autopilot parameters routes
-    ├── boat_status.py            # Boat status routes
-    ├── waypoints.py              # Waypoints management routes
-    ├── instance_manager.py       # Instance management routes
-
-instance/
-    ├── config.py                 # Configuration file
-    ├── app.db                    # Database file
-
-install.sh                        # Cloud installer
-
-docker/
-├── app-entrypoint.sh             # Restores config.py into the mounted instance volume
-├── cloudflared/                  # Optional file-managed tunnel config
-└── cron/                         # Cron image (calls /instance_manager/clean_instances)
-
-.github/workflows/
-├── build.yml                     # PR build check, no push
-└── push.yml                      # Build + push releases to GHCR + Docker Hub
+src/autoboat_telemetry_server/    # Flask app (factory, models, types, lock manager, routes/)
+src/instance/                     # config.py + SQLite DBs (instances.db, hashes.db)
+install.sh                        # One-shot cloud VM installer
+docker/                           # app-entrypoint.sh, cloudflared/, cron/, tailscale/
+docker-compose.yml                # telemetry-prod, telemetry-test, cloudflared, cron, tailscale
+.github/workflows/                # build.yml (test + per-arch build), push.yml (publish), tailscale.yml, citation.yml
 ```
 
 ## Deployment (Docker + Cloudflare Tunnel)
 
-The production stack runs as four Docker Compose services:
+The production stack runs as four Docker Compose services (plus an optional
+`tailscale` sidecar):
 
 | Service          | Purpose                                                      |
 | ---------------- | ------------------------------------------------------------ |
@@ -62,8 +43,7 @@ Both are public, so `docker compose pull` works without authentication.
 ### Quick install (cloud VM)
 
 One-liner that installs Docker, clones the repo, configures `.env`, pulls the
-prebuilt image, and starts the stack. Works on any Ubuntu/Debian VM (GCP, AWS,
-DigitalOcean, etc.):
+prebuilt image, and starts the stack. Works on any Ubuntu/Debian VM:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/autoboat-vt/telemetry_server/main/install.sh \
@@ -74,25 +54,9 @@ Get the tunnel token from
 [Cloudflare Zero Trust](https://one.dash.cloudflare.com/) → Networks → Tunnels →
 (your tunnel) → Install.
 
-If the repository is already cloned, run the root installer directly:
+From an existing checkout:
 
 ```bash
-bash install.sh
-```
-
-If you want a one-line bootstrap from a raw download, the same script can be
-piped directly from GitHub:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/autoboat-vt/telemetry_server/main/install.sh \
-   | TUNNEL_TOKEN=eyJ... bash
-```
-
-### Manual install
-
-```bash
-git clone https://github.com/autoboat-vt/telemetry_server.git
-cd telemetry_server
 bash install.sh             # or: TUNNEL_TOKEN=eyJ... bash install.sh
 ```
 
@@ -118,39 +82,29 @@ Dashboard-managed tunnel (recommended):
 
 4. DNS CNAMEs are added automatically by Cloudflare.
 
-> **Secret management:** also store the tunnel token as a GitHub **organization
-> variable** named `TUNNEL_TOKEN` (org Settings → Actions → Variables → New
-> organization variable; set Access to "Selected repositories" and pick this
-> repo). Org variables are plaintext, so any team member with repo access can
-> read it from the Actions UI when provisioning a new host — no need to ping an
-> admin. The trade-off: it is **not** masked, so anyone with repo read access
-> can read it; if the repo is ever compromised, rotate the token in Cloudflare
-> immediately. In workflows it's referenced as `${{ vars.TUNNEL_TOKEN }}` (note:
-> `vars.`, not `secrets.`). When you rotate the token in Cloudflare, update
-> **both** the org variable and `.env` on the host.
+Also store the token as a GitHub **organization variable** named `TUNNEL_TOKEN`
+(scoped to this repo) so team members can grab it from the Actions UI when
+provisioning a new host. It's plaintext (not masked) — referenced in workflows
+as `${{ vars.TUNNEL_TOKEN }}`. When rotating, update **both** the org variable
+and `.env` on the host. Full rotation procedure and trade-offs:
+`.github/instructions/deployment-docs.instructions.md`.
 
-For file-managed mode (manage routing locally instead of in the dashboard), see
-`.env.example`.
+For file-managed tunnel mode (routing in `docker/cloudflared/config.yml` instead
+of the dashboard), see `.env.example`.
 
 ### Deploying updates
 
 ```bash
-cd ~/telemetry_server
 git pull
 docker compose pull telemetry-prod telemetry-test cloudflared
 docker compose up -d
 ```
 
-(The `cron` image is built locally from `docker/cron/Dockerfile`,
-so it isn't pulled from a registry — `docker compose up -d` builds it.)
-
 ### Workflow split
 
-Use the workflows separately:
-
-1. [build.yml](.github/workflows/build.yml) runs on pull requests and pushes to `main`/`testing`, and it only validates Docker builds.
-2. [push.yml](.github/workflows/push.yml) runs on pushes to `main` and `testing`, version tags, and manual dispatch, then publishes images.
-3. `testing` is the staging branch and `main` is the production branch.
+- [build.yml](.github/workflows/build.yml) — lint + pytest gate, then per-arch Docker build (push only).
+- [push.yml](.github/workflows/push.yml) — assembles multi-arch manifests and publishes to GHCR + Docker Hub.
+- `testing` is the staging branch; `main` is production.
 
 ### Useful commands
 
@@ -162,22 +116,16 @@ docker compose logs -f telemetry-prod   # app logs
 
 ## Local Development (no Docker)
 
-### Installation
-
 ```bash
-pip install -e .
+pip install -e ".[dev]"          # install with dev extras (ruff, pytest)
+gunicorn "autoboat_telemetry_server:create_app()"   # production-like
+flask run                       # development (auto-reload)
 ```
 
-### Running the server
+Lint and test:
 
-1. Production ([Gunicorn](https://gunicorn.org/)):
-
-   ```bash
-   gunicorn "autoboat_telemetry_server:create_app()"
-   ```
-
-2. Development (Flask):
-
-   ```bash
-   flask run
-   ```
+```bash
+ruff check .
+ruff format --check .
+pytest
+```

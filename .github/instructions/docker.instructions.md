@@ -101,7 +101,7 @@ shorten the interval without checking the route's age cutoff.
 
 ## tailscale (opt-in profile)
 
-**Read `/memories/repo/tailscale_oauth.md` before touching this.** Key points:
+Key points (full deep-dive in `.github/instructions/tailscale.instructions.md`):
 
 - `profiles: [tailscale]` — does NOT start with `docker compose up -d`.
   Enable with `docker compose --profile tailscale up -d`.

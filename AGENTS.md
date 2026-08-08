@@ -55,8 +55,8 @@ When adding to this file:
    additions/edits.
 
 For deep context on past decisions (docker migration, tailscale OAuth, tunnel
-token, GHCR cleanup), see `/memories/repo/*.md` - those were paid for in
-debugging hours; don't pay again.
+token, GHCR cleanup), see the relevant `.github/instructions/*.instructions.md`
+files - those were paid for in debugging hours; don't pay again.
 
 ## Writing Style
 
@@ -241,8 +241,12 @@ Three hard rules:
    rejected with a 400. Don't invent type names that aren't in the `ctypes`
    module.
 
-See `/memories/repo/telemetry_server_notes.md` for the firmware coordination
-history.
+The two invariants above (payload field order must match the mapping
+exactly; the length-based packed-vs-aligned branching exists because
+different boat builds emit differently-aligned structs) are the entire
+firmware-coordination contract. Coordinate field-order or type changes with
+the boat firmware (`autoboat-vt/autoboat_vt`) — silent garbage decode is
+the only failure mode.
 
 ### 3.5 `instance_identifier` is auto-set by an `after_insert` event
 
@@ -285,9 +289,10 @@ decorator to `require_read_lock`.
 The host (originally macOS behind NAT, now typically a cloud VM) does NOT
 accept inbound 80/443. `cloudflared` dials out to Cloudflare's edge; the edge
 terminates TLS and proxies back over the tunnel. **Never** reintroduce nginx,
-certbot, or any inbound-port-based ingress. History lesson in
-`/memories/repo/docker_migration.md`: DNS-01 fixed cert issuance but not
-serving, because inbound 443 was still blocked. Only a tunnel solves both.
+certbot, or any inbound-port-based ingress. History lesson (DNS-01 fixed
+cert issuance but not serving, because inbound 443 was still blocked; only a
+tunnel solves both) is in `.github/instructions/deployment-docs.instructions.md`
+under "Why a tunnel (history)".
 
 ### 3.8 Tunnels route by hostname, not port
 
@@ -314,7 +319,9 @@ Tailscale docs, an OAuth client secret is accepted there) and MUST NOT also set
 `TS_CLIENT_ID` (containerboot explicitly rejects that combination).
 `TS_EXTRA_ARGS=--advertise-tags=tag:server --ssh` is still required in
 `docker-compose.yml` because OAuth-registered nodes must be tagged. See
-`/memories/repo/tailscale_oauth.md` before touching the tailscale image.
+`.github/instructions/tailscale.instructions.md` (and the tailscale section of
+`.github/instructions/docker.instructions.md`) before touching the tailscale
+image.
 
 ### 3.10 The tailscale image is PRIVATE on GHCR (contains a secret)
 
@@ -834,8 +841,9 @@ versions and versions whose only tags end in `-amd64`/`-arm64` (intermediate
 per-arch images) via the Packages API, with `continue-on-error: true` so a
 transient API failure doesn't block publishing. The repo's role on the package
 must be **Admin** (not Write) for the `GITHUB_TOKEN` to delete versions — set
-this in the package settings UI under "Manage Actions access". See
-`/memories/repo/ghcr_cleanup.md`.
+this in the package settings UI under "Manage Actions access". Full details
+(API endpoints, role requirement, commits that established this) are in
+`.github/instructions/github-actions.instructions.md` under "GHCR cleanup".
 
 ---
 
@@ -904,15 +912,15 @@ Keep messages in the imperative mood ("add route", not "added route").
 
 - Read the corresponding route file before changing behavior — the docstring
   at the top of `routes/__init__.py` is the canonical route map.
-- Check `/memories/repo/*.md` for the deep context on past decisions (docker
-  migration, tailscale OAuth, tunnel token, GHCR cleanup). These were paid
-  for in debugging hours; don't pay again.
+- Check the relevant `.github/instructions/*.instructions.md` file for the
+  deep context on past decisions (docker migration, tailscale OAuth, tunnel
+  token, GHCR cleanup). These were paid for in debugging hours; don't pay
+  again.
 - For infra changes (compose, Dockerfile, workflows), update `README.md`
   and the relevant `.github/instructions/*.instructions.md` files in the
   same PR.
 - For secrets/credential changes, document the rotation procedure in
-  `.github/instructions/deployment-docs.instructions.md` and the relevant
-  memory file.
+  `.github/instructions/deployment-docs.instructions.md`.
 
 ## 14. Working Style Notes
 

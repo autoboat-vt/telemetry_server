@@ -5,8 +5,12 @@ applyTo: "tailscale/**, docker/tailscale/**, .github/workflows/tailscale.yml"
 
 # Tailscale — `tailscale/policy.hujson` and sidecar
 
-**Read `/memories/repo/tailscale_oauth.md` for the full deep context.** This
-file is a quick reference.
+This file is the deep-dive reference for the tailscale sidecar, the OAuth
+client, the GitOps ACL workflow, and the tailnet policy file. The
+companion Docker-side notes (compose service config, the custom image
+build, the `.dockerignore` exceptions) live in
+`.github/instructions/docker.instructions.md` under "tailscale (opt-in
+profile)" and "The custom tailscale image".
 
 ## Policy file source of truth
 

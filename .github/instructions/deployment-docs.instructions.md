@@ -108,8 +108,51 @@ inbound ports are blocked, you need a tunnel or other outbound-only
 transport regardless of how the cert was obtained.
 
 Cloudflare Tunnel: outbound-only, edge terminates TLS. Solves both cert and
-serving in one move. Removed nginx + certbot entirely. See
-`/memories/repo/docker_migration.md` for the full history.
+serving in one move. Removed nginx + certbot entirely.
+
+### Historical nginx/certbot-era gotchas (reference only)
+
+These are from the pre-tunnel `install.sh` era and are kept for context in
+case anyone considers reintroducing nginx + certbot. **Don't** — the tunnel
+is strictly better here.
+
+- nginx loads ALL `*.conf` in `/etc/nginx/conf.d` — don't mount both an
+  http and an ssl template there. Mount templates to `/opt/nginx` and have
+  the entrypoint copy the right one to `default.conf`.
+- The `certbot/certbot` base image has `ENTRYPOINT=["certbot"]`. Use
+  `--entrypoint sh -c '...'` or the first arg gets duplicated.
+- Let's Encrypt rate limit: 5 failed authorizations per identifier per
+  hour. Use `--staging` to validate the flow without hitting prod rate
+  limits.
+- The certbot entrypoint MUST NOT use `set -e` — a failed issuance should
+  retry with backoff, not crash-loop (which hammers the rate-limited
+  endpoint).
+
+### End-to-end validation (tunnel)
+
+When the tunnel is up, you should see `Registered tunnel connection` lines
+in `docker compose logs cloudflared` (usually 4 of them, one per Cloudflare
+edge region). All three public hostnames should return HTTP 200:
+
+- `https://vt-autoboat-telemetry.uk` → `telemetry-prod:8000`
+- `https://www.vt-autoboat-telemetry.uk` → `telemetry-prod:8000`
+- `https://test.vt-autoboat-telemetry.uk` → `telemetry-test:6001`
+
+Debugging routing issues:
+- `docker compose logs telemetry-cloudflared | grep "Updated to new
+  configuration"` shows the live ingress config the dashboard pushed — use
+  it to verify the service URLs (port AND container name) are correct.
+  Historical typos: `www -> telemetry-prod:8001` (should be `:8000`),
+  `test -> telemetry-prod:6001` (should be `telemetry-test:6001`).
+- New DNS records for tunnel subdomains may take a few min to propagate to
+  local resolvers. If `curl` fails with "Could not resolve host" but
+  `dig @julio.ns.cloudflare.com <host>` returns the Cloudflare proxy IPs,
+  it's just propagation — pin with `curl --resolve host:443:<ip>` to verify
+  the tunnel itself works.
+- The apex domain shows A records (not CNAME) even after tunnel routing is
+  configured — Cloudflare uses CNAME flattening for the apex, so it
+  appears as A records pointing at Cloudflare's proxy IPs. This is
+  expected and correct.
 
 ## Documentation structure
 
@@ -325,6 +368,50 @@ In workflows referenced as `${{ vars.TUNNEL_TOKEN }}` (note: `vars.`, NOT
 
 The host still reads the token from `.env` at runtime — the GitHub var does
 NOT reach the host automatically (host behind NAT, no SSH from runners).
+When rotating the Cloudflare tunnel token, update BOTH the org variable AND
+`.env` on the host. (The `.env.example` `TUNNEL_TOKEN` comment and the
+README "First-time Cloudflare setup" section document this.)
 
-See `/memories/repo/tunnel_token_secret.md` for the considered-and-rejected
-alternatives (repo secret, moving cloudflared off the boat).
+### Considered and rejected
+
+- **Repo secret (`secrets.TUNNEL_TOKEN`):** masked, but admin-only
+  visibility — bad for team self-service provisioning (any team member
+  provisioning a new host needs to grab the token).
+- **Moving cloudflared off the boat** (Tailscale + cloud VM + SSH deploy
+  workflow): fully decouples the token from the host but adds 2 hosts + a
+  VPN mesh + new failure modes. Not worth it for current needs.
+
+### CI: native multi-arch builds (`build.yml`)
+
+The pattern (adapted from `autoboat-vt/autoboat_vt`'s
+`build-and-release.yml`) is a 2-job structure:
+
+- `build` job: matrix of `amd64` on `ubuntu-22.04` + `arm64` on
+  `ubuntu-22.04-arm` (native ARM runner). Each pushes per-arch suffixed
+  tags (`:main-amd64`, `:main-arm64`, `:latest-amd64`, etc.).
+- `publish` job: combines per-arch tags into multi-arch manifests via
+  `docker buildx imagetools create`. Runs only when not a PR.
+
+Tag logic is computed in bash (NOT `docker/metadata-action`), mirroring
+`autoboat_vt`:
+
+- branch push → `:<branch>` (`main` also gets `:latest`)
+- `v1.2.3` tag → `:1.2.3`, `:1.2`, `:1`, `:latest`
+
+Per-arch GHA cache uses `scope=amd64` / `scope=arm64`. Push is gated on
+`${{ github.event_name != 'pull_request' }}` so PR builds are cache-only.
+If `ubuntu-22.04-arm` is unavailable, swap the arm64 runner to
+`ubuntu-22.04` and add a `setup-qemu` step (slower but functional).
+
+**BUG FIX — `build-push-action` `tags:` must be FULL image references:**
+The `tags:` input to `docker/build-push-action` expects `repo:tag`, not
+bare tag names. The bash step that computes tags must emit e.g.
+`ghcr.io/owner/repo:main-amd64` and `vtautoboat/repo:main-amd64` on
+separate lines — NOT just `main-amd64`. Bare names get interpreted as
+`docker.io/library/<name>` → push fails with `insufficient_scope:
+authorization failed` / `repository does not exist`.
+`docker/metadata-action` does this implicitly via its `images:` list; if
+you drop `metadata-action`, you must prepend the repo yourself.
+
+See `.github/instructions/github-actions.instructions.md` for the full
+workflow reference (test gate, GHCR cleanup, citation bump).
