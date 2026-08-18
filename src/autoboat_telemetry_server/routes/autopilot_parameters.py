@@ -1,5 +1,7 @@
 import json
-from typing import Literal
+from collections.abc import Sequence
+from datetime import datetime
+from typing import Literal, cast
 
 from flask import Blueprint, jsonify, request
 
@@ -41,7 +43,7 @@ class AutopilotParametersEndpoint:
             If the instance with the given ID does not exist.
         """
 
-        instance = TelemetryTable.query.get(instance_id)
+        instance = db.session.get(TelemetryTable, instance_id)
 
         if not isinstance(instance, TelemetryTable):
             raise TypeError("Instance not found.")
@@ -68,7 +70,7 @@ class AutopilotParametersEndpoint:
             If the hash entry with the given configuration hash does not exist.
         """
 
-        hash_entry = HashTable.query.get(config_hash)
+        hash_entry = db.session.get(HashTable, config_hash)
 
         if not isinstance(hash_entry, HashTable):
             raise TypeError("Hash entry not found.")
@@ -304,14 +306,14 @@ class AutopilotParametersEndpoint:
             """
 
             try:
-                rows = db.session.execute(db.select(HashTable.config_hash, HashTable.description, HashTable.created_at)).all()
+                rows = cast(
+                    "Sequence[tuple[str, str | None, datetime]]",
+                    db.session.execute(db.select(HashTable.config_hash, HashTable.description, HashTable.created_at)).all(),
+                )
+
                 hashes_info = [
-                    {
-                        "config_hash": row.config_hash,
-                        "description": row.description,
-                        "created_at": row.created_at.isoformat() if row.created_at else None,
-                    }
-                    for row in rows
+                    {"config_hash": config_hash, "description": description, "created_at": created_at.isoformat()}
+                    for config_hash, description, created_at in rows
                 ]
 
                 return jsonify(hashes_info), 200
@@ -432,7 +434,7 @@ class AutopilotParametersEndpoint:
                 if parameter_key not in telemetry_instance.default_autopilot_parameters:
                     raise ValueError("Parameter key does not exist in the default autopilot parameters.")
 
-                # copy for a stable diff snapshot — see python-source.instructions.md #"update_existing_parameter"
+                # copy for a stable diff snapshot — see python-source.instructions.md#update_existing_parameter
                 current_parameters = (
                     dict(telemetry_instance.autopilot_parameters) if telemetry_instance.autopilot_parameters else {}
                 )
@@ -482,6 +484,7 @@ class AutopilotParametersEndpoint:
                 if not config_valid:
                     raise TypeError(validation_message)
 
+                new_parameters = cast("dict", new_parameters)
                 tmp_hash = HashTable.compute_hash(new_parameters)
                 if HashTable.check_hash_exists(tmp_hash):
                     raise ValueError("Configuration hash already exists.")
@@ -616,6 +619,7 @@ class AutopilotParametersEndpoint:
                 if not config_valid:
                     raise TypeError(validation_message)
 
+                new_parameters = cast("dict", new_parameters)
                 config_hash = HashTable.compute_hash(new_parameters)
                 if HashTable.check_hash_exists(config_hash):
                     raise ValueError("Configuration hash already exists.")
@@ -658,12 +662,16 @@ class AutopilotParametersEndpoint:
             try:
                 hash_entry = self._get_hash(config_hash)
 
-                # 409 guard — see python-source.instructions.md #"current_config_hash"
-                in_use = (
-                    db.session.query(TelemetryTable.instance_id).filter(TelemetryTable.current_config_hash == config_hash).all()
+                # 409 guard — see .github/instructions/python-source.instructions.md#current_config_hash
+                offending_ids: list[int] = (
+                    db.session.execute(
+                        db.select(TelemetryTable.instance_id).where(TelemetryTable.current_config_hash == config_hash)
+                    )
+                    .scalars()
+                    .all()
                 )
-                if in_use:
-                    offending_ids = [row[0] for row in in_use]
+
+                if offending_ids:
                     return (
                         jsonify(
                             {"error": "Configuration is currently in use by one or more instances.", "in_use_by": offending_ids}

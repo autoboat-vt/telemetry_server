@@ -10,6 +10,8 @@ Types:
 - BoatStatusMappingType: A list of pairs of field names and their corresponding data types for the boat status.
 - AutopilotParametersType: A dictionary representing the autopilot parameters configuration.
 - DiagnosticMessageIntensity: An enumeration representing the intensity levels of diagnostic messages.
+- DiagnosticMessageType: A two-element list [intensity, message] for the diagnostic_message column.
+    Stored as a JSON array (MutableList), so the outer container is a list, not a tuple.
 """
 
 __all__ = [
@@ -17,6 +19,7 @@ __all__ = [
     "BoatStatusMappingType",
     "BoatStatusType",
     "DiagnosticMessageIntensity",
+    "DiagnosticMessageType",
     "ResponseType",
     "WaypointSequenceType",
     "WaypointType",
@@ -40,6 +43,9 @@ type BoatStatusMappingType = list[list[str]]
 
 # example: {..., "tack_distance": {"default": 100.0, "description": ...}, ...}
 type AutopilotParametersType = dict[str, dict[str, Any]]
+
+# [intensity, message] pair — list not tuple, see python-source.instructions.md#MutableList rejects tuples
+type DiagnosticMessageType = list[DiagnosticMessageIntensity | str]
 
 
 class DiagnosticMessageIntensity(IntEnum):

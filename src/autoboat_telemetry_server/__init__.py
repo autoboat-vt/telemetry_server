@@ -35,7 +35,7 @@ from autoboat_telemetry_server.routes import (  # noqa: E402
 )
 
 # cors origins — lowest-precedence fallback; see
-# python-source.instructions.md #"CORS precedence" and #"App factory"
+# .github/instructions/python-source.instructions.md#CORS precedence and #App factory
 DEFAULT_CORS_ORIGINS: list[str] = [
     "https://autoboat.aoe.vt.edu",
     "https://www.autoboat.aoe.vt.edu",
@@ -67,7 +67,7 @@ def create_app() -> _flask:
     config_path = INSTANCE_DIR / "config.py"
     app.config.from_pyfile(config_path)
 
-    # cors origins — see python-source.instructions.md #"CORS precedence"
+    # cors origins — see .github/instructions/python-source.instructions.md#CORS precedence
     env_origins = os.environ.get("CORS_ORIGINS")
     if env_origins:
         origins: str | list[str] = _parse_cors_origins(env_origins)
@@ -79,7 +79,7 @@ def create_app() -> _flask:
     db.init_app(app)
 
     # migrations are the only path that creates tables in prod; see
-    # python-source.instructions.md #"App factory" and AGENTS.md #6.2
+    # .github/instructions/python-source.instructions.md#App factory and AGENTS.md #6.2
     #
     # the migrations tree is bundled INSIDE the package (see
     # pyproject.toml [tool.setuptools.package-data]) so this resolution works
@@ -97,7 +97,7 @@ def create_app() -> _flask:
     app.register_blueprint(WaypointEndpoint().blueprint)
 
     # structured logging + /metrics endpoint; see observability.py and
-    # python-source.instructions.md #"Observability"
+    # .github/instructions/python-source.instructions.md#Observability
     init_observability(app)
 
     @app.route("/")

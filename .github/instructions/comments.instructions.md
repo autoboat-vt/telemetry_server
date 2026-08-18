@@ -47,14 +47,14 @@ the next editor without cluttering the code.
 A single line, pointing at the instruction file and (optionally) the section:
 
 ```python
-# see .github/instructions/python-source.instructions.md #"Lock decorators"
+# see .github/instructions/python-source.instructions.md#Lock decorators
 # for why reads block and writes return 429
 ```
 
 or even shorter when the section name is obvious from the file:
 
 ```python
-# lock asymmetry: see python-source.instructions.md
+# lock asymmetry: see .github/instructions/python-source.instructions.md
 ```
 
 Do **not** restate the explanation in the comment — the whole point is that
@@ -67,13 +67,13 @@ Write all `#` comments in **lowercase** and **do not end them with a period**.
 This matches common Python style (PEP 8 is silent on comment casing, but the
 dominant convention in mature codebases is lowercase, no terminating period).
 
-- `# see foo.instructions.md #"Bar"` — good
-- `# See foo.instructions.md #"Bar".` — bad (capital + period)
+- `# see foo.instructions.md#Bar` — good
+- `# See foo.instructions.md#Bar.` — bad (capital + period)
 - `# increment the 429 counter` — good
 - `# Increment the 429 counter.` — bad
 
-Exception: identifiers, file paths, URLs, and quoted section names keep their
-original casing (e.g. `#"CORS precedence"`, `src/instance/config.py`). The
+Exception: identifiers, file paths, URLs, and section names keep their
+original casing (e.g. `#CORS precedence`, `src/instance/config.py`). The
 rule applies to the prose around them, not to proper nouns.
 
 This applies to inline `# ...` comments only. Docstrings follow the numpy
@@ -111,7 +111,7 @@ convention (sentence case with periods) as configured in `ruff.toml`.
 In code:
 
 ```python
-# Tunnel is outbound-only — see deployment-docs.instructions.md #"Tunnel".
+# Tunnel is outbound-only — see .github/instructions/deployment-docs.instructions.md#Tunnel.
 ```
 
 In `.github/instructions/deployment-docs.instructions.md`:

@@ -1,5 +1,6 @@
+from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
-from typing import Literal
+from typing import Literal, cast
 
 from flask import Blueprint, jsonify, request
 
@@ -42,7 +43,7 @@ class InstanceManagerEndpoint:
             If the instance with the given ID does not exist.
         """
 
-        instance = TelemetryTable.query.get(instance_id)
+        instance = db.session.get(TelemetryTable, instance_id)
 
         if not isinstance(instance, TelemetryTable):
             raise TypeError("Instance not found.")
@@ -143,7 +144,7 @@ class InstanceManagerEndpoint:
             """
 
             try:
-                num_deleted = db.session.query(TelemetryTable).delete()
+                num_deleted = int(db.session.execute(db.delete(TelemetryTable)).rowcount)
                 db.session.commit()
                 return jsonify(f"Successfully deleted {num_deleted} instances."), 200
 
@@ -166,16 +167,14 @@ class InstanceManagerEndpoint:
             """
 
             try:
-                timeout = 5.0  # minutes
+                timeout = 5.0
                 cutoff = datetime.now(UTC) - timedelta(minutes=timeout)
-                num_deleted = (
-                    db.session.query(TelemetryTable).filter(TelemetryTable.updated_at < cutoff).delete(synchronize_session="auto")
+                num_deleted = int(
+                    db.session.execute(db.delete(TelemetryTable).where(TelemetryTable.updated_at < cutoff)).rowcount
                 )
+
                 db.session.commit()
-
-                # record how many instances the cron cleanup purged this run
                 count_clean_instances_deletions(num_deleted)
-
                 return jsonify(f"Successfully deleted {num_deleted} inactive instances."), 200
 
             except Exception as e:
@@ -274,8 +273,12 @@ class InstanceManagerEndpoint:
                 telemetry_instance = self._get_instance(instance_id)
 
                 conflicting_id = (
-                    db.session.query(TelemetryTable.instance_id)
-                    .filter(TelemetryTable.instance_identifier == instance_name, TelemetryTable.instance_id != instance_id)
+                    db.session.execute(
+                        db.select(TelemetryTable.instance_id).where(
+                            TelemetryTable.instance_identifier == instance_name, TelemetryTable.instance_id != instance_id
+                        )
+                    )
+                    .scalars()
                     .first()
                 )
                 if conflicting_id is not None:
@@ -357,10 +360,14 @@ class InstanceManagerEndpoint:
                 if not isinstance(message_data[0], int) or not isinstance(message_data[1], str):
                     raise TypeError("Diagnostic message must be a list of [intensity, message] with correct types.")
 
-                if message_data[0] not in DiagnosticMessageIntensity:
-                    raise ValueError("Diagnostic message intensity must be a valid DiagnosticMessageIntensity value.")
+                # coerce + validate in one step — see python-source.instructions.md#MutableList rejects tuples
+                try:
+                    intensity = DiagnosticMessageIntensity(message_data[0])
+                except ValueError as e:
+                    raise ValueError("Diagnostic message intensity must be a valid DiagnosticMessageIntensity value.") from e
 
-                telemetry_instance.diagnostic_message = message_data
+                # MutableList rejects tuples — see python-source.instructions.md#MutableList rejects tuples
+                telemetry_instance.diagnostic_message = [intensity, message_data[1]]
                 db.session.commit()
 
                 return jsonify(f"Instance {instance_id} diagnostic message set."), 200
@@ -425,7 +432,9 @@ class InstanceManagerEndpoint:
             """
 
             try:
-                telemetry_instance = TelemetryTable.query.filter_by(instance_identifier=instance_name).first()
+                telemetry_instance = db.session.execute(
+                    db.select(TelemetryTable).where(TelemetryTable.instance_identifier == instance_name)
+                ).scalar_one_or_none()
                 if not isinstance(telemetry_instance, TelemetryTable):
                     raise TypeError("Instance not found.")
 
@@ -483,31 +492,31 @@ class InstanceManagerEndpoint:
             """
 
             try:
-                # column-limited select: to_dict() only returns scalar fields
-                # (instance_id, instance_identifier, user, current_config_hash,
-                # created_at, updated_at), so we skip the fat JSON columns
-                # (boat_status, autopilot_parameters, waypoints, etc.) that
-                # query.all() would deserialize for every row
-                rows = db.session.execute(
-                    db.select(
-                        TelemetryTable.instance_id,
-                        TelemetryTable.instance_identifier,
-                        TelemetryTable.user,
-                        TelemetryTable.current_config_hash,
-                        TelemetryTable.created_at,
-                        TelemetryTable.updated_at,
-                    )
-                ).all()
+                # column-limited select skips the fat JSON columns — see
+                # python-source.instructions.md#get_all_instance_info
+                rows = cast(
+                    "Sequence[tuple[int, str | None, str, str, datetime, datetime]]",
+                    db.session.execute(
+                        db.select(
+                            TelemetryTable.instance_id,
+                            TelemetryTable.instance_identifier,
+                            TelemetryTable.user,
+                            TelemetryTable.current_config_hash,
+                            TelemetryTable.created_at,
+                            TelemetryTable.updated_at,
+                        )
+                    ).all(),
+                )
                 instances_info = [
                     {
-                        "instance_id": row.instance_id,
-                        "instance_identifier": row.instance_identifier,
-                        "user": row.user,
-                        "current_config_hash": row.current_config_hash,
-                        "created_at": row.created_at.isoformat() if row.created_at else None,
-                        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+                        "instance_id": instance_id,
+                        "instance_identifier": instance_identifier,
+                        "user": user,
+                        "current_config_hash": current_config_hash,
+                        "created_at": created_at.isoformat(),
+                        "updated_at": updated_at.isoformat(),
                     }
-                    for row in rows
+                    for instance_id, instance_identifier, user, current_config_hash, created_at, updated_at in rows
                 ]
 
                 return jsonify(instances_info), 200

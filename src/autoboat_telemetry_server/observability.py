@@ -24,7 +24,7 @@ REQUEST_LOG_FORMAT = (
 )
 
 
-# metric singletons — see python-source.instructions.md #"Metric singletons"
+# metric singletons — see .github/instructions/python-source.instructions.md#Metric singletons
 _http_requests_total: Counter | None = None
 _http_request_duration_seconds: Histogram | None = None
 _http_429_total: Counter | None = None

@@ -338,6 +338,28 @@ The routes avoid nested in-place mutation: they either reassign the top-level
 key with a fresh inner dict (`update_existing_parameter`), or replace the
 whole column (`set_route` on each domain assigns a brand-new object).
 
+### `MutableList` rejects tuples — use a list literal
+
+`MutableList.as_mutable(JSON)` (the `MutableJSONList` alias used by
+`boat_status_mapping`, `waypoints`, and `diagnostic_message`) enforces that
+the assigned value is a `list` at assignment time. Assigning a `tuple`
+raises `AttributeError: Attribute '<name>' does not accept objects of type
+<class 'tuple'>`, which the route's catch-all `except Exception` turns into
+a 500 (or 400, depending on the route's error ladder).
+
+This trips the `diagnostic_message` column in particular: the wire format
+is a two-element JSON array `[intensity, message]`, the column's static
+type is `DiagnosticMessageType = list[DiagnosticMessageIntensity | str]`,
+and it's easy to write `inst.diagnostic_message = (intensity, msg)` by
+habit. Use a list literal: `inst.diagnostic_message = [intensity, msg]`.
+
+The `set_diagnostic_message` route also validates the intensity by calling
+`DiagnosticMessageIntensity(int_value)` inside a `try`/`except ValueError`
+rather than using `value in DiagnosticMessageIntensity`. The `in` check
+works on Python 3.12 for `IntEnum` (it matches by value), but the
+`try`/`except` form does both validation and coercion in one step and
+avoids a redundant second lookup.
+
 ### SQLite connection pragmas
 
 `_SQLITE_PRAGMAS` is a tuple of SQLite PRAGMA statements applied to every new
@@ -409,6 +431,33 @@ Helpers:
 - `to_dict()` → serializes the row for `get_instance_info` /
   `get_all_instance_info`.
 - `validate_user` validator — enforces the `user` immutability (see below).
+
+### `get_all_instance_info` — column-limited select
+
+The `get_all_instance_info` route (in
+`src/autoboat_telemetry_server/routes/instance_manager.py`) lists every
+instance's scalar fields. It uses a column-limited
+`db.select(col1, col2, ...)` instead of `db.select(TelemetryTable)` for two
+reasons:
+
+1. **Payload.** `TelemetryTable` carries fat JSON columns (`boat_status`,
+   `autopilot_parameters`, `default_autopilot_parameters`, `waypoints`,
+   `boat_status_mapping`, `diagnostic_message`). A full-entity select would
+   deserialize all of them for every row, just to throw them away — the
+   response only needs the scalar fields `to_dict()` returns
+   (`instance_id`, `instance_identifier`, `user`, `current_config_hash`,
+   `created_at`, `updated_at`).
+2. **Type safety.** The result is `cast(Sequence[tuple[int, str | None, str,
+   str, datetime, datetime]], ...)` so tuple unpacking in the comprehension
+   yields typed bindings. `Row.__getattr__` is dynamically `Any` (see
+   AGENTS.md #3.13 / the `Row` type-escape note in
+   `autopilot_parameters.py#get_all_hashes_route`), so `row.instance_id`
+   etc. would be untyped. The cast + unpack pattern is the documented fix.
+
+The column order in the `db.select(...)` MUST match the tuple type in the
+`cast(...)` and the unpack targets in the comprehension — all three are
+positional. Reorder one without the others and the dict keys silently get
+wrong values.
 
 ### Invariants
 

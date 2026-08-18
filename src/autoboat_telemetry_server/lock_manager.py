@@ -30,6 +30,7 @@ class ReaderWriterLock:
         with self._cond:
             while self._writer:
                 self._cond.wait()
+
             self._readers += 1
 
     def release_read(self) -> None:
@@ -63,6 +64,7 @@ class ReaderWriterLock:
             if not blocking:
                 self._cond.release()
                 return False
+
             self._cond.wait()
 
         self._writer = True

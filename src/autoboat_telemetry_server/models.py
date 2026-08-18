@@ -25,7 +25,7 @@ from autoboat_telemetry_server.types import (
     AutopilotParametersType,
     BoatStatusMappingType,
     BoatStatusType,
-    DiagnosticMessageIntensity,
+    DiagnosticMessageType,
     WaypointSequenceType,
 )
 
@@ -67,6 +67,7 @@ def _set_sqlite_pragmas(dbapi_connection: object, _connection_record: object) ->
     try:
         for pragma in _SQLITE_PRAGMAS:
             cursor.execute(pragma)
+
     finally:
         cursor.close()
 
@@ -90,8 +91,8 @@ class TelemetryTable(db.Model):
         User associated with the telemetry instance.
         Should be set by the telemetry node in the simulation.
         Can only be changed once when the instance is created.
-    diagnostic_message : tuple[DiagnosticMessageIntensity, str]
-        Optional diagnostic message consisting of an intensity level and a message string.
+    diagnostic_message : DiagnosticMessageType
+        Optional diagnostic message as a [intensity, message] pair (stored as a JSON array).
 
     current_config_hash : str
         SHA-256 hash of the current autopilot parameters configuration.
@@ -122,7 +123,7 @@ class TelemetryTable(db.Model):
 
     __tablename__ = "telemetry_table"
 
-    # indexed columns — see python-source.instructions.md #"TelemetryTable"
+    # indexed columns — see .github/instructions/python-source.instructions.md#TelemetryTable
     __table_args__ = (
         Index("ix_telemetry_table_updated_at", "updated_at"),
         Index("ix_telemetry_table_instance_identifier", "instance_identifier"),
@@ -131,7 +132,7 @@ class TelemetryTable(db.Model):
     instance_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     instance_identifier: Mapped[str] = mapped_column(String, default="", nullable=True)
     user: Mapped[str] = mapped_column(String, default="unknown", nullable=False)
-    diagnostic_message: Mapped[tuple[DiagnosticMessageIntensity, str]] = mapped_column(MutableJSONList, nullable=True)
+    diagnostic_message: Mapped[DiagnosticMessageType] = mapped_column(MutableJSONList, nullable=True)
 
     current_config_hash: Mapped[str] = mapped_column(String, default="", nullable=False)
     default_autopilot_parameters: Mapped[AutopilotParametersType] = mapped_column(MutableJSON, nullable=False)

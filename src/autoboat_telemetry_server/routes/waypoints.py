@@ -40,7 +40,7 @@ class WaypointEndpoint:
             If the instance with the given ID does not exist.
         """
 
-        instance = TelemetryTable.query.get(instance_id)
+        instance = db.session.get(TelemetryTable, instance_id)
 
         if not isinstance(instance, TelemetryTable):
             raise TypeError("Instance not found.")
