@@ -17,8 +17,14 @@ Key steps:
 2. `WORKDIR /home/ubuntu/telemetry_server` — created as root, so `chown -R
    ubuntu:ubuntu` BEFORE `USER ubuntu` or venv creation fails with EACCES.
 3. `COPY pyproject.toml README.md ./` and `COPY src/ ./src/`.
-4. `COPY migrations/ ./migrations/` — the Alembic env + versions, so the
-   entrypoint can run `flask db upgrade`.
+4. No `COPY migrations/` step — the Alembic env + versions live inside the
+   package at `src/autoboat_telemetry_server/migrations/` and ship via
+   `package-data` (see `pyproject.toml`'s
+   `[tool.setuptools.package-data]`). `pip install .` installs them into
+   site-packages alongside the Python source, and `create_app()` resolves the
+   directory via `Path(__file__).resolve().parent / "migrations"`. A stale
+   repo-root `COPY migrations/ ./migrations/` line will break the build
+   with `"/migrations": not found` — don't reintroduce it.
 5. Back up `src/instance/config.py` to `/opt/config.py` — the entrypoint
    restores it into the named volume on first start.
 6. `USER ubuntu`, build venv at `/home/ubuntu/telemetry_server/venv`, `pip

@@ -20,9 +20,11 @@ WORKDIR /home/ubuntu/telemetry_server
 RUN chown -R ubuntu:ubuntu /home/ubuntu/telemetry_server
 
 # copy project metadata and source
+# the migrations tree is bundled inside the package as package-data (see
+# pyproject.toml [tool.setuptools.package-data]) and ships with `pip install .`,
+# so there is no separate migrations/ copy step here
 COPY --chown=ubuntu:ubuntu pyproject.toml README.md ./
 COPY --chown=ubuntu:ubuntu src/ ./src/
-COPY --chown=ubuntu:ubuntu migrations/ ./migrations/
 
 # back up the default config.py; when a named volume is mounted over the
 # instance directory at runtime, config.py will be hidden, so the entrypoint
