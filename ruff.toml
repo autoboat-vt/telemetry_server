@@ -121,4 +121,4 @@ ignore = [
 # helpers because Alembic loads them via load_python_file (PLC0415), and the
 # revision functions use intentionally-loose signatures matching Alembic's
 # contract (ANN001/ANN201).
-"migrations/**" = ["ANN001", "ANN201", "PLC0415", "D100", "D101", "D103", "D107"]
+"src/autoboat_telemetry_server/migrations/**" = ["ANN001", "ANN201", "PLC0415", "D100", "D101", "D103", "D107"]
