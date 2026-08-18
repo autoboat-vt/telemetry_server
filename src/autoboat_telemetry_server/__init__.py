@@ -80,8 +80,16 @@ def create_app() -> _flask:
 
     # migrations are the only path that creates tables in prod; see
     # python-source.instructions.md #"App factory" and AGENTS.md #6.2
+    #
+    # the migrations tree is bundled INSIDE the package (see
+    # pyproject.toml [tool.setuptools.package-data]) so this resolution works
+    # whether the package is installed editable, from a wheel, or baked into
+    # a Docker image. previously this walked up three parents from __file__,
+    # which resolved correctly in a source checkout but pointed into
+    # site-packages at runtime (e.g. venv/lib/python3.12/migrations) and made
+    # the entrypoint's `flask db upgrade` fail with "Path doesn't exist".
     migrate = Migrate()
-    migrate.init_app(app, db, directory=str(Path(__file__).resolve().parent.parent.parent / "migrations"))
+    migrate.init_app(app, db, directory=str(Path(__file__).resolve().parent / "migrations"))
 
     app.register_blueprint(InstanceManagerEndpoint().blueprint)
     app.register_blueprint(AutopilotParametersEndpoint().blueprint)

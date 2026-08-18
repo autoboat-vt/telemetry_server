@@ -65,7 +65,20 @@ where   = ["src"]
 include = ["autoboat_telemetry_server*"]
 
 [tool.setuptools.package-data]
-autoboat_telemetry_server = ["py.typed"]
+# Bundle the Alembic migrations tree inside the installed package so that
+# `Migrate(directory=...)` in create_app() can resolve it relative to
+# __file__ regardless of whether the package is installed editable, as a
+# wheel, or copied into a Docker image. Without this, the entrypoint's
+# `flask db upgrade` fails with "Path doesn't exist: .../migrations" because
+# __file__ points into site-packages and the migrations/ dir was only COPY'd
+# to WORKDIR in the Dockerfile (not into the package). See AGENTS.md #6.2.
+autoboat_telemetry_server = [
+    "py.typed",
+    "migrations/*.ini",
+    "migrations/*.py",
+    "migrations/*.mako",
+    "migrations/versions/*.py",
+]
 
 # Ruff is configured in ruff.toml (select = ["ALL"] with a curated ignore
 # list). This stub just makes `ruff` aware of the project root when invoked
