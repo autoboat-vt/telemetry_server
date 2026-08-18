@@ -84,6 +84,14 @@ class TestMetricsEndpoint:
         body = response.get_data(as_text=True)
         assert "http_requests_total" in body
 
+    def test_metrics_body_contains_http_response_bytes_total(self, client: FlaskClient) -> None:
+        """The http_response_bytes_total counter is exposed in /metrics."""
+
+        client.get("/")
+        response = client.get("/metrics")
+        body = response.get_data(as_text=True)
+        assert "http_response_bytes_total" in body
+
 
 class TestHttpRequestsTotal:
     """``http_requests_total`` counts requests by method, path rule, status."""
@@ -132,6 +140,26 @@ class TestHttpRequestsTotal:
             assert label_value >= 1.0
         finally:
             client.delete(f"/instance_manager/delete/{instance_id}")
+
+
+class TestHttpResponseBytesTotal:
+    """``http_response_bytes_total`` counts response body bytes transferred."""
+
+    def test_increments_by_response_body_size(self, client: FlaskClient) -> None:
+        """A GET to / increments the counter by the size of the / response body."""
+
+        before = _counter_value(observability._http_response_bytes_total, {"method": "GET", "path": "/"})
+        response = client.get("/")
+        after = _counter_value(observability._http_response_bytes_total, {"method": "GET", "path": "/"})
+        assert after == before + len(response.get_data())
+
+    def test_increments_on_404(self, client: FlaskClient) -> None:
+        """A 404 response still contributes its body size to the counter."""
+
+        before = _counter_value(observability._http_response_bytes_total, {"method": "GET", "path": "/nonexistent-path"})
+        response = client.get("/nonexistent-path")
+        after = _counter_value(observability._http_response_bytes_total, {"method": "GET", "path": "/nonexistent-path"})
+        assert after == before + len(response.get_data())
 
 
 class TestHttp429Counter:
@@ -258,7 +286,7 @@ class TestStructuredLogging:
         return records, handler
 
     def test_log_record_contains_required_fields(self, client: FlaskClient) -> None:
-        """A GET to / produces a JSON log record with method, path, status, duration, request_id."""
+        """A GET to / produces a JSON log record with method, path, status, duration, response_bytes, request_id."""
 
         records, handler = self._capture_request_records()
         try:
@@ -273,6 +301,9 @@ class TestStructuredLogging:
         assert record.path == "/"
         assert record.status == 200
         assert hasattr(record, "duration_ms")
+        assert hasattr(record, "response_bytes")
+        assert isinstance(record.response_bytes, int)
+        assert record.response_bytes > 0
         assert hasattr(record, "request_id")
         # request_id is a 32-char hex string (uuid4().hex) when no header is sent
         assert isinstance(record.request_id, str)
@@ -308,6 +339,7 @@ class TestStructuredLogging:
         record.path = "/"
         record.status = 200
         record.duration_ms = "1.234"
+        record.response_bytes = 42
         record.request_id = "abc123"
 
         output = formatter.format(record)
@@ -316,6 +348,7 @@ class TestStructuredLogging:
         assert parsed["path"] == "/"
         assert parsed["status"] == 200
         assert parsed["duration_ms"] == "1.234"
+        assert parsed["response_bytes"] == 42
         assert parsed["request_id"] == "abc123"
         assert "ts" in parsed
         assert parsed["level"] == "INFO"

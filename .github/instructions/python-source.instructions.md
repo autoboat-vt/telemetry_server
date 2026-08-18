@@ -105,6 +105,11 @@ Metrics tracked:
 - `clean_instances_deleted_total` — counter, no labels. Incremented by
   `count_clean_instances_deletions(n)`, which the
   `instance_manager.clean_instances` route calls after a successful DELETE.
+- `http_response_bytes_total` — counter, labels `(method, path)`. Incremented
+  in `_log_request` by `len(response.get_data())` (the response body size in
+  bytes). The same `path` label convention applies (Flask rule, not raw URL,
+  so cardinality stays bounded). Tracks total data transferred out of the
+  server per route.
 - Process / Python GC metrics — provided free by `prometheus_client`'s
   default REGISTRY.
 

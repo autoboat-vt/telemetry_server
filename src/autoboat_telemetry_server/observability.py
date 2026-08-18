@@ -18,7 +18,10 @@ from flask import Blueprint, Flask, Response, g, request
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 
 # re-exported for tests / callers that want the raw formatter string
-REQUEST_LOG_FORMAT = "method=%(method)s path=%(path)s status=%(status)s duration_ms=%(duration_ms)s request_id=%(request_id)s"
+REQUEST_LOG_FORMAT = (
+    "method=%(method)s path=%(path)s status=%(status)s "
+    "duration_ms=%(duration_ms)s response_bytes=%(response_bytes)s request_id=%(request_id)s"
+)
 
 
 # metric singletons — see python-source.instructions.md #"Metric singletons"
@@ -26,12 +29,13 @@ _http_requests_total: Counter | None = None
 _http_request_duration_seconds: Histogram | None = None
 _http_429_total: Counter | None = None
 _clean_instances_deleted_total: Counter | None = None
+_http_response_bytes_total: Counter | None = None
 
 
 class _JsonFormatter(logging.Formatter):
     """Minimal JSON formatter for structured request logs."""
 
-    _REQUEST_FIELDS = ("method", "path", "status", "duration_ms", "request_id")
+    _REQUEST_FIELDS = ("method", "path", "status", "duration_ms", "response_bytes", "request_id")
 
     def format(self, record: logging.LogRecord) -> str:
 
@@ -80,7 +84,8 @@ def setup_logging(*, level: int = logging.INFO) -> None:
 def _ensure_metrics() -> None:
     """Create the Prometheus metric singletons if they don't exist yet."""
 
-    global _http_requests_total, _http_request_duration_seconds, _http_429_total, _clean_instances_deleted_total  # noqa: PLW0603
+    global _http_requests_total, _http_request_duration_seconds, _http_429_total  # noqa: PLW0603
+    global _clean_instances_deleted_total, _http_response_bytes_total  # noqa: PLW0603
 
     if _http_requests_total is None:
         _http_requests_total = Counter(
@@ -96,6 +101,11 @@ def _ensure_metrics() -> None:
         _http_429_total = Counter("http_429_total", "HTTP 429 responses from write-lock contention.")
         _clean_instances_deleted_total = Counter(
             "clean_instances_deleted_total", "Telemetry instances deleted by the clean_instances cron route."
+        )
+        _http_response_bytes_total = Counter(
+            "http_response_bytes_total",
+            "Total HTTP response body bytes transferred, by method and path rule.",
+            labelnames=("method", "path"),
         )
 
 
@@ -116,6 +126,7 @@ def _log_request(response: Response) -> Response:
     """Emit the structured request log record and record metrics."""
 
     duration_ms = (time.perf_counter() - g.request_start) * 1000.0
+    response_bytes = len(response.get_data())
 
     logging.getLogger("autoboat_telemetry_server.request").info(
         REQUEST_LOG_FORMAT,
@@ -124,6 +135,7 @@ def _log_request(response: Response) -> Response:
             "path": request.path,
             "status": response.status_code,
             "duration_ms": f"{duration_ms:.3f}",
+            "response_bytes": response_bytes,
             "request_id": getattr(g, "request_id", "-"),
         },
     )
@@ -132,6 +144,9 @@ def _log_request(response: Response) -> Response:
         path_label = _path_label()
         _http_requests_total.labels(method=request.method, path=path_label, status=str(response.status_code)).inc()
         _http_request_duration_seconds.labels(method=request.method, path=path_label).observe(duration_ms / 1000.0)
+
+    if _http_response_bytes_total is not None:
+        _http_response_bytes_total.labels(method=request.method, path=_path_label()).inc(response_bytes)
 
     return response
 
