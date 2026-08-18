@@ -11,7 +11,7 @@ authors:
     website: "https://autoboat.aoe.vt.edu"
 type: software
 license: GPL-3.0-or-later
-date-released: "2026-08-08"
+date-released: "2026-08-18"
 repository-code: "https://github.com/autoboat-vt/telemetry_server"
 homepage: "https://autoboat.aoe.vt.edu"
 documentation: "https://autoboat-vt.github.io/documentation"
