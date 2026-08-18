@@ -1,11 +1,11 @@
 #!/bin/sh
-# cron sidecar that replicates the old auto_clean.txt crontab.
+# cron sidecar that replicates the old auto_clean.txt crontab
 #
-# Original crontab:
+# original crontab:
 #   */5 * * * * curl -X DELETE "https://vt-autoboat-telemetry.uk/instance_manager/clean_instances"
 #
-# Here we call the production app container directly over the internal network
-# instead of routing through the public HTTPS endpoint.
+# here we call the production app container directly over the internal network
+# instead of routing through the public HTTPS endpoint
 set -e
 
 mkdir -p /etc/crontabs /var/log

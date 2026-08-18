@@ -129,3 +129,38 @@ ruff check .
 ruff format --check .
 pytest
 ```
+
+## Schema changes (migrations)
+
+Schema migrations are managed with **Flask-Migrate** (Alembic). In
+production, `docker/app-entrypoint.sh` runs `flask db upgrade` before
+starting gunicorn, so pending migrations apply automatically on every
+container start.
+
+To add a new migration locally:
+
+```bash
+flask db migrate -m "describe the change"   # autogenerate (default bind only)
+# inspect + edit migrations/versions/<new>.py, then:
+flask db upgrade                             # apply
+```
+
+> **Note:** autogenerate only diffs the default bind (`instances.db`).
+> If the change affects `HashTable` (the `hashes` bind), add the `hashes`-bind
+> `op.*` calls by hand. See `migrations/versions/0001_initial_schema.py`
+> for the bind-routing pattern.
+
+### Existing volumes that predate Alembic
+
+If a `prod-instance-data` / `test-instance-data` volume was created before
+Flask-Migrate shipped, it has the tables but no `alembic_version` row. The
+first deploy with the new image will fail with `table already exists`. Fix
+it by stamping the DB at head once:
+
+```bash
+docker compose exec telemetry-prod flask db stamp head
+docker compose exec telemetry-test  flask db stamp head
+```
+
+See [`.github/instructions/deployment-docs.instructions.md`](.github/instructions/deployment-docs.instructions.md)
+for the full operator procedure.

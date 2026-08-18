@@ -9,7 +9,7 @@ Covers:
   returns HTTP 429 on contention).
 
 The reader-writer lock is the correctness backbone for SQLite + a single
-Gunicorn worker (§3.6). Breaking its semantics would silently corrupt data
+Gunicorn worker (#3.6). Breaking its semantics would silently corrupt data
 in production, so the exclusion properties are tested explicitly.
 """
 
@@ -37,7 +37,7 @@ class TestReaderWriterLock:
         lock.acquire_read()
         lock.acquire_read()
         lock.acquire_read()
-        # If we got here, three readers coexisted.
+        # if we got here, three readers coexisted
         lock.release_read()
         lock.release_read()
         lock.release_read()
@@ -58,7 +58,7 @@ class TestReaderWriterLock:
         t = threading.Thread(target=try_read)
         t.start()
         t.join(timeout=0.2)
-        # The reader should still be waiting.
+        # the reader should still be waiting
         assert not acquired
         lock.release_write()
         t.join(timeout=1.0)
@@ -182,7 +182,7 @@ class TestRequireReadLock:
             pass
 
         reader()
-        # If the read lock wasn't released, this non-blocking write fails.
+        # if the read lock wasn't released, this non-blocking write fails
         assert lm._rw_lock.acquire_write(blocking=False) is True
         lm._rw_lock.release_write()
 
@@ -196,7 +196,7 @@ class TestRequireReadLock:
         with pytest.raises(ValueError, match="boom"):
             raising_reader()
 
-        # Lock must be released even though the function raised.
+        # lock must be released even though the function raised
         assert lm._rw_lock.acquire_write(blocking=False) is True
         lm._rw_lock.release_write()
 
@@ -262,7 +262,7 @@ class TestRequireWriteLock:
         """When the lock is held, the decorator returns the 429 response."""
 
         lm = LockManager()
-        # Hold the write lock manually so the decorator can't acquire it.
+        # hold the write lock manually so the decorator can't acquire it
         assert lm._rw_lock.acquire_write(blocking=False) is True
 
         @lm.require_write_lock
@@ -271,7 +271,7 @@ class TestRequireWriteLock:
 
         response, status = writer()
         assert status == 429
-        # The response is a Flask Response wrapping the retry-later message.
+        # the response is a Flask Response wrapping the retry-later message
         assert b"Write operation in progress" in response.data
         assert b"try again later" in response.data
 
@@ -313,7 +313,7 @@ class TestLockFairness:
     def test_writer_progresses_after_readers_release(self, app: Flask) -> None:
         lock = ReaderWriterLock()
 
-        # Two readers acquire the lock.
+        # two readers acquire the lock
         lock.acquire_read()
         lock.acquire_read()
 
@@ -332,7 +332,7 @@ class TestLockFairness:
 
         lock.release_read()
         t.join(timeout=0.2)
-        # Still one reader holding.
+        # still one reader holding
         assert not writer_acquired
 
         lock.release_read()

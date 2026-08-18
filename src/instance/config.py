@@ -7,12 +7,12 @@ SQLALCHEMY_BINDS = {
 }
 SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-# CORS origins allowlist. Read by create_app() as app.config["CORS_ORIGINS"]
+# cors origins allowlist; read by create_app() as app.config["CORS_ORIGINS"]
 # (precedence: CORS_ORIGINS env var > this list > DEFAULT_CORS_ORIGINS in
-# autoboat_telemetry_server/__init__.py). This file is persisted in the
+# autoboat_telemetry_server/__init__.py). this file is persisted in the
 # named instance volume, so editing it on a deployed host overrides the
-# baked-in default without rebuilding the image. Keep this list in sync with
-# DEFAULT_CORS_ORIGINS in __init__.py unless you deliberately want to diverge.
+# baked-in default without rebuilding the image. keep this list in sync with
+# DEFAULT_CORS_ORIGINS in __init__.py unless you deliberately want to diverge
 CORS_ORIGINS: list[str] = [
     "https://autoboat.aoe.vt.edu",
     "https://www.autoboat.aoe.vt.edu",

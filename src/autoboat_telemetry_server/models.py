@@ -15,9 +15,11 @@ from datetime import UTC, datetime
 from typing import Any
 
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import JSON, Boolean, Index, Integer, String, event
+from sqlalchemy import Boolean, Index, Integer, String, event
 from sqlalchemy.engine import Connection, Engine
+from sqlalchemy.ext.mutable import MutableDict, MutableList
 from sqlalchemy.orm import Mapped, Mapper, mapped_column, validates
+from sqlalchemy.types import JSON as _JSON
 
 from autoboat_telemetry_server.types import (
     AutopilotParametersType,
@@ -27,29 +29,22 @@ from autoboat_telemetry_server.types import (
     WaypointSequenceType,
 )
 
+# json column mutation tracking — see python-source.instructions.md
+# #"JSON column mutation tracking" and AGENTS.md #3.13
+MutableJSON = MutableDict.as_mutable(_JSON)
+MutableJSONList = MutableList.as_mutable(_JSON)
+
 db = SQLAlchemy()
 
-# SQLite connection pragmas applied to every new connection on every bind.
-#
-# WAL journal mode lets readers run concurrently with the single writer instead
-# of blocking on the rollback journal; this complements the in-process
-# ReaderWriterLock (the lock serializes Python-side access, WAL serializes only
-# at the SQLite layer and allows read concurrency at the storage level).
-# `synchronous=NORMAL` is safe under WAL and cuts the fsync cost on every
-# commit. `busy_timeout` makes SQLite wait briefly on lock contention instead
-# of raising `database is locked` immediately -- belt-and-suspenders defense
-# even though the app-level lock should prevent cross-connection contention.
-#
-# These are connection-scoped: each new connection in the pool re-runs them.
-# `PRAGMA journal_mode=WAL` is persistent (it's a database-level property, not
-# a connection property), but re-issuing it is a cheap no-op once WAL is set.
+# connection-scoped sqlite pragmas — see python-source.instructions.md
+# #"SQLite connection pragmas"
 _SQLITE_PRAGMAS = (
     "PRAGMA journal_mode=WAL;",
     "PRAGMA synchronous=NORMAL;",
     "PRAGMA busy_timeout=5000;",
-    "PRAGMA cache_size=-65536;",  # 64 MiB page cache (negative = kibibytes).
+    "PRAGMA cache_size=-65536;",  # 64 MiB page cache (negative = kibibytes)
     "PRAGMA temp_store=MEMORY;",
-    "PRAGMA mmap_size=268435456;",  # 256 MiB memory-mapped I/O.
+    "PRAGMA mmap_size=268435456;",  # 256 MiB memory-mapped I/O
 )
 
 
@@ -127,15 +122,7 @@ class TelemetryTable(db.Model):
 
     __tablename__ = "telemetry_table"
 
-    # Indexes speed up the two non-PK query paths:
-    #   - updated_at: the cron-driven clean_instances route filters
-    #     `updated_at < cutoff` every 5 minutes; without an index this is a
-    #     full table scan that grows with the instance count.
-    #   - instance_identifier: get_id/<name> looks up by name, and the
-    #     set_name uniqueness check scans by name.
-    # db.create_all() creates these on fresh DBs only. Existing deployments
-    # need a one-time `CREATE INDEX` on the volume (see README / release
-    # notes) -- there is no migration framework (AGENTS.md §6.2).
+    # indexed columns — see python-source.instructions.md #"TelemetryTable"
     __table_args__ = (
         Index("ix_telemetry_table_updated_at", "updated_at"),
         Index("ix_telemetry_table_instance_identifier", "instance_identifier"),
@@ -144,18 +131,18 @@ class TelemetryTable(db.Model):
     instance_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     instance_identifier: Mapped[str] = mapped_column(String, default="", nullable=True)
     user: Mapped[str] = mapped_column(String, default="unknown", nullable=False)
-    diagnostic_message: Mapped[tuple[DiagnosticMessageIntensity, str]] = mapped_column(JSON, nullable=True)
+    diagnostic_message: Mapped[tuple[DiagnosticMessageIntensity, str]] = mapped_column(MutableJSONList, nullable=True)
 
     current_config_hash: Mapped[str] = mapped_column(String, default="", nullable=False)
-    default_autopilot_parameters: Mapped[AutopilotParametersType] = mapped_column(JSON, nullable=False)
-    autopilot_parameters: Mapped[AutopilotParametersType] = mapped_column(JSON, nullable=False)
+    default_autopilot_parameters: Mapped[AutopilotParametersType] = mapped_column(MutableJSON, nullable=False)
+    autopilot_parameters: Mapped[AutopilotParametersType] = mapped_column(MutableJSON, nullable=False)
     autopilot_parameters_new_flag: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
-    boat_status: Mapped[BoatStatusType] = mapped_column(JSON, nullable=False)
-    boat_status_mapping: Mapped[BoatStatusMappingType] = mapped_column(JSON, nullable=True)
+    boat_status: Mapped[BoatStatusType] = mapped_column(MutableJSON, nullable=False)
+    boat_status_mapping: Mapped[BoatStatusMappingType] = mapped_column(MutableJSONList, nullable=True)
     boat_status_new_flag: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
-    waypoints: Mapped[WaypointSequenceType] = mapped_column(JSON, nullable=False)
+    waypoints: Mapped[WaypointSequenceType] = mapped_column(MutableJSONList, nullable=False)
     waypoints_new_flag: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(db.DateTime, default=lambda: datetime.now(UTC), nullable=False)
@@ -279,7 +266,7 @@ class HashTable(db.Model):
     __bind_key__ = "hashes"
 
     config_hash: Mapped[str] = mapped_column(String, primary_key=True, nullable=False)
-    data: Mapped[AutopilotParametersType] = mapped_column(JSON, nullable=False)
+    data: Mapped[AutopilotParametersType] = mapped_column(MutableJSON, nullable=False)
     description: Mapped[str] = mapped_column(String, default="", nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(db.DateTime, default=lambda: datetime.now(UTC), nullable=False)

@@ -21,14 +21,124 @@ the same code runs in the container (one user, `ubuntu`) and on a developer
 machine. If you need the instance dir, import `INSTANCE_DIR` from the package
 root.
 
+### CORS precedence
+
+`create_app()` resolves the CORS allowlist from three sources, in fixed
+precedence (highest first):
+
+1. `CORS_ORIGINS` env var (comma-separated) — works on existing deployments
+   without rebuilding, since `src/instance/config.py` is persisted in a named
+   volume and not overwritten on image updates.
+2. `app.config["CORS_ORIGINS"]` (set in `src/instance/config.py`) — applies on
+   fresh installs where `config.py` is seeded from the image.
+3. `DEFAULT_CORS_ORIGINS` (module-level fallback in
+   `src/autoboat_telemetry_server/__init__.py`) — the known website +
+   telemetry origins.
+
+`create_app()` reads level 2 via `app.config.get("CORS_ORIGINS", DEFAULT_CORS_ORIGINS)`.
+Flask's `from_pyfile` loads config module names **by their own name**, so the
+key in `config.py` MUST be `CORS_ORIGINS`. Naming it `DEFAULT_CORS_ORIGINS`
+silently breaks level 2: Flask loads it into
+`app.config["DEFAULT_CORS_ORIGINS"]` (a key nothing reads) and the override
+is dead — the module-level fallback wins instead.
+
+Keep `DEFAULT_CORS_ORIGINS` (in `__init__.py`) in sync with `CORS_ORIGINS`
+(in `src/instance/config.py`) unless you deliberately want the deployed
+config to diverge from the baked-in default.
+
 `create_app()`:
 1. Loads `config.py` from `INSTANCE_DIR`.
 2. Resolves CORS origins (env `CORS_ORIGINS` > `app.config["CORS_ORIGINS"]` > `DEFAULT_CORS_ORIGINS`).
-3. Initializes SQLAlchemy and runs `db.create_all()` (creates missing tables
-   only — no migrations).
+3. Initializes SQLAlchemy and Flask-Migrate (`Migrate(app, db, directory=...)`).
+   Does NOT call `db.create_all()` — migrations are the only path that creates
+   tables in production. `docker/app-entrypoint.sh` runs `flask db upgrade`
+   before gunicorn. The pytest `app` fixture calls `db.create_all()` explicitly
+   for throwaway test DBs.
 4. Registers the four blueprints: `InstanceManagerEndpoint`,
    `AutopilotParametersEndpoint`, `BoatStatusEndpoint`, `WaypointEndpoint`.
-5. Adds a trivial `/` index route.
+5. Calls `init_observability(app)` (see "Observability" below).
+6. Adds a trivial `/` index route.
+
+## Observability
+
+`observability.py` wires two surfaces into the Flask app; `create_app()`
+calls `init_observability(app)` after the domain blueprints. The detail
+lives here, not in the code — see `.github/instructions/comments.instructions.md`
+for the comment-block policy.
+
+### Structured (JSON) request logging
+
+A `before_request` / `after_request` pair records every HTTP request as a
+single JSON log record (one object per line, no embedded newlines) with
+`method`, `path`, `status`, `duration_ms`, `request_id`, plus `ts`, `level`,
+`logger`. JSON (not the default apra-line format) is deliberate: the logs
+are consumed by `docker compose logs` and by whatever log shipper the
+operator chooses, and structured records are trivially greppable / parseable.
+
+- The stdlib `logging` module is used (no `structlog` / `python-json-logger`
+  dependency) to keep the image small. `_JsonFormatter` is ~30 lines.
+- `request_id` comes from the inbound `X-Request-Id` header if present (so a
+  caller can propagate a trace id), else `uuid.uuid4().hex`.
+- `setup_logging(*, level=logging.INFO)` is idempotent: it tags its
+  `StreamHandler` with `handler._ats_json_handler = True` and skips
+  re-installation if a handler with that marker already exists. Safe to call
+  from tests and from multiple `create_app()` invocations.
+- `_JsonFormatter` handles two record shapes: request records (built via
+  `extra={...}` in `_log_request`) get the structured fields; plain log
+  records fall back to `record.getMessage()` under a `message` key. This is
+  why application errors logged via `logging.error(...)` still render as
+  valid JSON rather than crashing the formatter.
+
+### Prometheus `/metrics` endpoint
+
+`prometheus_client` (a dependency as of this module) exposes a `/metrics`
+endpoint in the Prometheus text exposition format, mounted as its own
+blueprint (`metrics_page`). It is **not** CORS-enabled (Prometheus scrapes
+server-side) and **not** lock-decorated (it doesn't touch the DB).
+
+Metrics tracked:
+
+- `http_requests_total` — counter, labels `(method, path, status)`.
+- `http_request_duration_seconds` — histogram, labels `(method, path)`.
+- `http_429_total` — counter, no labels. Incremented by `count_429()`,
+  which `lock_manager.require_write_lock` calls when a write is rejected.
+- `clean_instances_deleted_total` — counter, no labels. Incremented by
+  `count_clean_instances_deletions(n)`, which the
+  `instance_manager.clean_instances` route calls after a successful DELETE.
+- Process / Python GC metrics — provided free by `prometheus_client`'s
+  default REGISTRY.
+
+### Metric cardinality is bounded by design
+
+The `path` label is the Flask **rule** (e.g.
+`/boat_status/get/<int:instance_id>`), NOT the raw URL. `_path_label()`
+returns `request.url_rule.rule` when a route matched, falling back to
+`request.path` for 404s on unknown paths. This means every request to the
+same route hits the same counter regardless of which `instance_id` was in
+the URL — instance IDs do not blow up the label space. Do not switch this
+to `request.path` without a cardinality budget.
+
+### Metric singletons
+
+Metric objects are created lazily inside `_ensure_metrics()` and stored as
+module-level singletons (`_http_requests_total`, `_http_request_duration_seconds`,
+`_http_429_total`, `_clean_instances_deleted_total`, all initially `None`).
+`prometheus_client`'s default REGISTRY raises `ValueError` on duplicate
+registration, so the guard is mandatory. This also makes `count_429()` and
+`count_clean_instances_deletions()` safe to call when metrics haven't been
+initialized (e.g. during import, or in a stripped-down test) — they're
+no-ops.
+
+### Adding a new metric
+
+1. Declare the module-level singleton (`_foo_total: Counter | None = None`).
+2. Create it inside `_ensure_metrics()` behind an `if _foo_total is None:`
+   guard.
+3. Add an increment helper (`def count_foo() -> None:`) that's a no-op when
+   the singleton is `None`.
+4. Call the helper from the route or decorator that observes the event.
+5. Add a test in `tests/test_observability.py` following the existing
+   counter-test patterns.
 
 ## Route handler pattern
 
@@ -180,6 +290,71 @@ Three hard rules:
 `models.py` defines `TelemetryTable` (live state of every instance) and
 `HashTable` (named autopilot config snapshots, keyed by SHA-256 hash).
 
+### JSON column mutation tracking
+
+`TelemetryTable`'s JSON columns (`boat_status`, `boat_status_mapping`,
+`autopilot_parameters`, `default_autopilot_parameters`, `waypoints`,
+`diagnostic_message`) and `HashTable.data` are wrapped with
+`MutableDict.as_mutable(JSON)` (dict columns) or `MutableList.as_mutable(JSON)`
+(list columns) via the module-level `MutableJSON` / `MutableJSONList` aliases.
+
+Without this wrapper, mutating a retrieved dict/list in place and reassigning
+the same object is a no-op as far as the ORM is concerned — the change won't
+persist on `db.session.commit()` (AGENTS.md #3.13). This was a real silent-
+data-loss bug that bit `update_existing_parameter` (which did
+`current[key] = val; inst.autopilot_parameters = current` — same object,
+no-op). `MutableDict` / `MutableList` make the ORM observe top-level mutations
+and mark the attribute dirty automatically.
+
+**Important limitation: `MutableDict` tracks ONE level deep.** Mutating a
+nested dict through `__getitem__` is NOT detected:
+
+```python
+# Does NOT persist — MutableDict.__getitem__ returns a plain dict.
+inst.default_autopilot_parameters["speed"]["default"] = 5.0
+db.session.commit()  # no-op
+```
+
+When adding a route that mutates a nested value, either (a) reassign the
+top-level key with a fresh inner dict, or (b) copy-then-reassign the whole
+column:
+
+```python
+# (a) top-level reassignment — tracked
+inst.default_autopilot_parameters["speed"] = {"default": 5.0, "description": "faster"}
+
+# (b) copy-then-reassign — always safe, even for deep mutations
+current = dict(inst.autopilot_parameters)
+current["speed"]["default"] = 5.0
+inst.autopilot_parameters = current  # different object -> dirty
+```
+
+The routes avoid nested in-place mutation: they either reassign the top-level
+key with a fresh inner dict (`update_existing_parameter`), or replace the
+whole column (`set_route` on each domain assigns a brand-new object).
+
+### SQLite connection pragmas
+
+`_SQLITE_PRAGMAS` is a tuple of SQLite PRAGMA statements applied to every new
+connection on every bind by the `_set_sqlite_pragmas` event listener
+(`@event.listens_for(Engine, "connect")`). Connection-scoped: each new
+connection in the pool re-runs them.
+
+- `journal_mode=WAL` — lets readers run concurrently with the single writer
+  instead of blocking on the rollback journal. Complements the in-process
+  `ReaderWriterLock` (the lock serializes Python-side access; WAL serializes
+  only at the SQLite layer and allows read concurrency at the storage level).
+  Persistent (database-level property, not connection-scoped), but re-issuing
+  is a cheap no-op once WAL is set.
+- `synchronous=NORMAL` — safe under WAL and cuts the fsync cost on every
+  commit.
+- `busy_timeout=5000` — makes SQLite wait briefly on lock contention instead
+  of raising `database is locked` immediately. Belt-and-suspenders defense
+  even though the app-level lock should prevent cross-connection contention.
+- `cache_size=-65536` — 64 MiB page cache (negative = kibibytes).
+- `temp_store=MEMORY` — temp tables and indices in RAM.
+- `mmap_size=268435456` — 256 MiB memory-mapped I/O.
+
 ### `HashTable` — config snapshots and hashing
 
 `HashTable` is bound to `hashes.db` via `__bind_key__ = "hashes"`. PK is
@@ -220,9 +395,9 @@ Indexed columns (declared in `__table_args__` via `Index(...)`):
 - `instance_identifier` — used by `get_id/<name>` (reverse lookup by name)
   and the `set_name` uniqueness check (which scans for a matching name).
 
-When adding a new index, declare it in `__table_args__` and remember that
-`db.create_all()` only creates it on fresh DBs (see the invariant below).
-Don't add redundant indexes for query paths that are already covered.
+When adding a new index, declare it in `__table_args__` and add a migration
+(see AGENTS.md #6.2) so it lands on existing volumes too. Don't add redundant
+indexes for query paths that are already covered.
 
 Helpers:
 - `get_all_ids()` classmethod → list of all `instance_id`s.
@@ -240,18 +415,21 @@ Helpers:
   (`set_instance_identifier`) to `f"Unnamed instance #{instance_id}"` if not
   supplied. Don't duplicate this logic in route code; don't remove the
   listener — the default name depends on it.
-- `db.create_all()` only creates missing tables and indexes — it does NOT
-  alter existing ones. There is no migration framework. Prefer additive
-  schema changes (new columns with defaults, new tables, new indexes). New
-  indexes land on fresh DBs automatically; existing deployments need a
-  one-time `CREATE INDEX` run against the SQLite file in the named volume
-  (see `.github/instructions/deployment-docs.instructions.md` → "Docker
-  deployment - schema changes and the named volumes" for the
-  copy-pasteable `docker compose exec` snippet). Breaking changes require a
-  manual `ALTER TABLE` script or deleting the named volume (data loss).
-- `current_config_hash` is **not a real FK**. Deleting a `HashTable` row that
-  an instance points at will leave a dangling reference. The
-  `delete_config_route` doesn't check — don't call it on an in-use hash.
+- Schema migrations are managed with **Flask-Migrate** (Alembic). `create_app()`
+  does NOT call `db.create_all()` (only the pytest `app` fixture does, for
+  throwaway test DBs). `docker/app-entrypoint.sh` runs `flask db upgrade`
+  before gunicorn on every start. To add a schema change: edit the model,
+  run `flask db migrate -m "..."` to autogenerate (default bind only — add
+  `hashes`-bind ops by hand if `HashTable` changed), inspect the generated
+  file, then `flask db upgrade` to apply. Existing volumes that predate
+  Alembic need a one-time `flask db stamp head` first. See AGENTS.md #6.2
+  and `.github/instructions/deployment-docs.instructions.md` → "Migrations
+  and the named volumes".
+- `current_config_hash` is **not a real FK**. The `delete_config_route`
+  guards against dangling references by scanning `TelemetryTable` for rows
+  with a matching `current_config_hash` before deleting; if any are found it
+  returns 409 with `{"error": "...", "in_use_by": [instance_ids]}`. Reassign
+  or delete the offending instances before retrying the delete.
 
 ### `SQLALCHEMY_BINDS`
 
@@ -300,14 +478,26 @@ the wire format, don't renumber them.
    `default_autopilot_parameters` (400 otherwise). The value must be a
    primitive (`str|int|float|bool|list`) — 400 otherwise.
 
-   **JSON-column mutation tracking gotcha:** `autopilot_parameters` is a plain
-   `JSON` column (no `MutableDict` wrapper), so SQLAlchemy tracks changes by
-   identity. Mutating the retrieved dict in place and reassigning the same
-   object is a no-op as far as the ORM is concerned — the change won't
-   persist. The route works around this by copying the dict
-   (`dict(telemetry_instance.autopilot_parameters)`) before mutating. If you
-   add a route that mutates a JSON column in place, do the same — or use
-   `MutableDict`/`flag_modified`.
+   ### "update_existing_parameter" — why the copy
+
+   `autopilot_parameters` is wrapped with `MutableDict.as_mutable(JSON)`
+   (see `models.py`, the `MutableJSON` alias), so top-level in-place mutation
+   IS detected by SQLAlchemy and persists on `db.session.commit()`. The
+   `dict(...)` copy in `update_existing_parameter_route` is therefore
+   defense-in-depth rather than strictly required for persistence. We keep it
+   for two reasons:
+
+   - It gives the `old != new` comparison (which sets
+     `autopilot_parameters_new_flag`) a stable snapshot to diff against,
+     rather than comparing the live `MutableDict` against itself after
+     mutation.
+   - It's a guard against the `MutableDict`-tracks-one-level-deep
+     limitation (see #"JSON column mutation tracking"). If a future change
+     mutates a nested value here, the copy-then-reassign pattern stays safe.
+
+   If you add a route that mutates `autopilot_parameters` (or any `MutableJSON`
+   column) in place, prefer the same copy-then-reassign pattern, or reassign
+   the top-level key with a fresh inner dict.
 5. **Describe / list:** `get_hash_description`, `set_hash_description`,
    `get_all_hashes`, `get_hash_exists`, `get_config/<hash>`, `get_hash/<id>`
    (current hash for an instance), `get_default/<id>` (default params).
@@ -394,6 +584,20 @@ Configured in `ruff.toml`. Highlights:
 - `select = ["ALL"]` with a long curated `ignore` list.
 - Line length 130, 4-space indent, double quotes, native line endings.
 - numpy-style docstrings (`[lint.pydocstyle] convention = "numpy"`).
+  **Opening-line style:** for multi-line docstrings, the opening `"""` goes
+  on its own line, then the summary on the next line, then a blank line,
+  then the body. For one-line docstrings (single summary, no body),
+  `"""summary."""` on one line is fine. Don't put `"""` and the summary
+  text on the same line when the docstring has a body. Example:
+  ```python
+  def f(x: int) -> int:
+      """
+      Short summary of what f does.
+
+      Longer explanation if needed.
+      """
+      return x
+  ```
 - `future-annotations = true` (analysis only; runtime is 3.12, native PEP 695).
 - `skip-magic-trailing-comma = true` — don't rely on trailing commas to force
   one-per-line formatting.

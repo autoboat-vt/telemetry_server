@@ -1,56 +1,56 @@
-# Custom tailscale image with OAuth credentials baked in.
+# custom tailscale image with OAuth credentials baked in
 #
 # WHY: the upstream `tailscale/tailscale:latest` image reads TS_CLIENT_ID and
-# TS_OAUTH_SECRET from environment variables at runtime. That requires the
-# host to provide them via .env, which means a manual paste on every new host.
+# TS_OAUTH_SECRET from environment variables at runtime; that requires the
+# host to provide them via .env, which means a manual paste on every new host
 #
-# This image bakes the credentials in as ENV at build time, so the image is
+# this image bakes the credentials in as ENV at build time, so the image is
 # self-contained: `docker compose --profile tailscale up -d` works with zero
-# host-side configuration. The build happens in GitHub Actions, where the
+# host-side configuration; the build happens in GitHub Actions, where the
 # secrets ARE available (as org secrets/vars), so they never touch a developer
-# machine or the repo's git history.
+# machine or the repo's git history
 #
-# SECURITY: this image MUST be private on GHCR. The baked-in OAuth client
+# SECURITY: this image MUST be private on GHCR; the baked-in OAuth client
 # secret grants tailnet access (register devices as tag:server, SSH to
 # tag:server hosts, and -- because we use one client with both scopes --
-# read/write the tailnet policy). Anyone who can `docker pull` this image can
-# extract the secret. Make the GHCR package private at:
+# read/write the tailnet policy); anyone who can `docker pull` this image can
+# extract the secret; make the GHCR package private at:
 #   https://github.com/orgs/autoboat-vt/packages/container/telemetry_server-tailscale/settings
-# And require `docker login ghcr.io` on the host before `docker compose pull`.
+# and require `docker login ghcr.io` on the host before `docker compose pull`
 #
-# Uses the SAME OAuth client as the GitOps ACL workflow (one client with both
-# `devices:core` and `policy_file` scopes). Build args are passed from the
+# uses the SAME OAuth client as the GitOps ACL workflow (one client with both
+# `devices:core` and `policy_file` scopes); build args are passed from the
 # build workflow:
-#   TS_CLIENT_ID      - non-secret, starts with k. Read from org variable
+#   TS_CLIENT_ID      - non-secret, starts with k; read from org variable
 #                       TS_OAUTH_ID (renamed here to match containerboot's
-#                       expected env var name).
-#   TS_OAUTH_SECRET  - secret, starts with tskey-client-. Read from org
-#                       secret TS_OAUTH_SECRET.
+#                       expected env var name)
+#   TS_OAUTH_SECRET  - secret, starts with tskey-client-; read from org
+#                       secret TS_OAUTH_SECRET
 #
 # AUTH METHOD: we bake the OAuth secret into TS_AUTHKEY (not TS_OAUTH_SECRET)
 # because of a containerboot v1.98 bug: when TS_CLIENT_ID/TS_OAUTH_SECRET are
 # used, containerboot calls `tailscale up` which internally invokes
-# `check-prefs` BEFORE the OAuth client auth completes. tailscaled sees an
+# `check-prefs` BEFORE the OAuth client auth completes; tailscaled sees an
 # unauthenticated actor and rejects with HTTP 403
-# ("calling actor does not have enough permissions to perform this function").
+# ("calling actor does not have enough permissions to perform this function")
 #
-# Using TS_AUTHKEY with the OAuth secret avoids this: per Tailscale docs,
+# using TS_AUTHKEY with the OAuth secret avoids this: per Tailscale docs,
 # `TS_AUTHKEY` accepts an OAuth client secret directly, and auth + pref
 # validation happen together in a single `tailscale up --auth-key=<secret>`
-# call. The tag must be passed via TS_EXTRA_ARGS=--advertise-tags=tag:server
-# (already set in docker-compose.yml).
+# call; the tag must be passed via TS_EXTRA_ARGS=--advertise-tags=tag:server
+# (already set in docker-compose.yml)
 
 FROM tailscale/tailscale:latest
 
 ARG TS_CLIENT_ID
 ARG TS_OAUTH_SECRET
 
-# Persist as runtime env vars. containerboot reads these on startup.
-# These are baked into the image layers -- hence the "image MUST be private"
-# warning above.
+# persist as runtime env vars; containerboot reads these on startup
+# these are baked into the image layers -- hence the "image MUST be private"
+# warning above
 #
-# We set TS_AUTHKEY to the OAuth secret (not TS_OAUTH_SECRET) -- see the
-# AUTH METHOD note above. We do NOT set TS_CLIENT_ID: containerboot rejects
+# we set TS_AUTHKEY to the OAuth secret (not TS_OAUTH_SECRET) -- see the
+# AUTH METHOD note above; we do NOT set TS_CLIENT_ID: containerboot rejects
 # the combination TS_AUTHKEY + TS_CLIENT_ID with:
 #   "TS_AUTHKEY cannot be used with TS_CLIENT_ID, TS_OAUTH_SECRET,
 #    TS_ID_TOKEN, or TS_AUDIENCE"

@@ -5,6 +5,7 @@ from flask import Blueprint, jsonify, request
 
 from autoboat_telemetry_server import shared_lock_manager
 from autoboat_telemetry_server.models import TelemetryTable, db
+from autoboat_telemetry_server.observability import count_clean_instances_deletions
 from autoboat_telemetry_server.types import DiagnosticMessageIntensity, ResponseType
 
 
@@ -89,7 +90,7 @@ class InstanceManagerEndpoint:
 
             try:
                 new_instance = TelemetryTable(
-                    default_autopilot_parameters={}, autopilot_parameters={}, boat_status={}, waypoints=[], boat_status_mapping=()
+                    default_autopilot_parameters={}, autopilot_parameters={}, boat_status={}, waypoints=[], boat_status_mapping=[]
                 )
                 db.session.add(new_instance)
                 db.session.commit()
@@ -171,6 +172,10 @@ class InstanceManagerEndpoint:
                     db.session.query(TelemetryTable).filter(TelemetryTable.updated_at < cutoff).delete(synchronize_session="auto")
                 )
                 db.session.commit()
+
+                # record how many instances the cron cleanup purged this run
+                count_clean_instances_deletions(num_deleted)
+
                 return jsonify(f"Successfully deleted {num_deleted} inactive instances."), 200
 
             except Exception as e:
@@ -478,11 +483,11 @@ class InstanceManagerEndpoint:
             """
 
             try:
-                # Column-limited select: to_dict() only returns scalar fields
+                # column-limited select: to_dict() only returns scalar fields
                 # (instance_id, instance_identifier, user, current_config_hash,
                 # created_at, updated_at), so we skip the fat JSON columns
                 # (boat_status, autopilot_parameters, waypoints, etc.) that
-                # query.all() would deserialize for every row.
+                # query.all() would deserialize for every row
                 rows = db.session.execute(
                     db.select(
                         TelemetryTable.instance_id,

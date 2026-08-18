@@ -25,14 +25,14 @@ entry in the same PR** - don't let the docs drift from the code. Things worth
 recording:
 
 - **Conventions & patterns** - route URL conventions, lock decorator usage,
-  response type patterns, the route error-code ladder (§3.12).
+  response type patterns, the route error-code ladder (#3.12).
 - **Gotchas** - non-obvious behavior, footguns, environment quirks, the
   `json.loads(request.json)` double-JSON encoding, the ctypes alignment
   branching, the `TS_AUTHKEY` vs `TS_CLIENT_SECRET` workaround.
 - **Architecture decisions** - the runtime instance-dir discovery, the
   reader-writer lock asymmetry, SQLite + single worker, the outbound-only
   tunnel model.
-- **Build/deploy/CI details** - commands, env vars, secret locations (§10),
+- **Build/deploy/CI details** - commands, env vars, secret locations (#10),
   GHCR visibility rules, tag computation.
 - **Verified facts** - dependency versions, route tables, secret scopes
   (verify against the actual codebase before recording, don't trust stale
@@ -82,10 +82,10 @@ require coordinated updates to all sides.
   autopilot parameters, and waypoints to this server. Two invariants the node
   must preserve:
   - JSON bodies are sent as **JSON-encoded strings** (double-encoded). The
-    server's `json.loads(request.json)` decode (§5) depends on this. See the
+    server's `json.loads(request.json)` decode (#5) depends on this. See the
     `autoboat_vt` AGENTS.md "Cross-repo contracts" section.
   - `boat_status` fast-update binary payloads (`/boat_status/set_fast/<id>`,
-    §3.4) are positional and MUST match the instance's `boat_status_mapping`
+    #3.4) are positional and MUST match the instance's `boat_status_mapping`
     field order exactly. Field-order changes on the firmware side silently
     decode to garbage here.
 - **Enum sync**: `DiagnosticMessageIntensity` (1=INFO, 2=WARNING, 3=ERROR) is
@@ -101,7 +101,7 @@ require coordinated updates to all sides.
 | --- | --- |
 | Language | Python 3.12 (`python:3.12-slim` base image; local pyenv alias `telemetry` in `.python-version`) |
 | Framework | Flask 3.x, served by Gunicorn (1 worker, bind `0.0.0.0:8000` prod / `:6001` test) |
-| ORM | Flask-SQLAlchemy 3.x on SQLite (two DBs: `instances.db`, `hashes.db`) |
+| ORM | Flask-SQLAlchemy 3.x on SQLite (two DBs: `instances.db`, `hashes.db`); schema migrations via Flask-Migrate (Alembic, see #6.2) |
 | Concurrency | In-process fair reader-writer lock (`src/autoboat_telemetry_server/lock_manager.py`) wrapping all route handlers |
 | Lint/format | Ruff (`ruff.toml`, `select = ["ALL"]` with a long ignore list; numpy-style docstrings; line length 130) |
 | Build backend | setuptools (PEP 621 metadata in `pyproject.toml`) |
@@ -143,9 +143,13 @@ docker/
     Dockerfile                            # Alpine + curl + crond
     cron-entrypoint.sh                    # Hits DELETE /instance_manager/clean_instances every 5 min on prod
   tailscale/
-    Dockerfile                            # FROM tailscale/tailscale:latest, bakes OAuth creds as ENV (TS_AUTHKEY, NOT TS_CLIENT_SECRET — see §9)
+    Dockerfile                            # FROM tailscale/tailscale:latest, bakes OAuth creds as ENV (TS_AUTHKEY, NOT TS_CLIENT_SECRET — see #9)
 tailscale/
   policy.hujson                           # Tailnet ACL source of truth (synced by .github/workflows/tailscale.yml)
+migrations/                               # Alembic env + versions (Flask-Migrate; see #6.2)
+  env.py                                  # Multi-bind env: autogenerate diffs default bind only, runtime iterates all binds
+  versions/
+    0001_initial_schema.py                # Baseline: telemetry_table (default bind) + hash_table (hashes bind)
 scripts/                                  # Misc helper scripts
 tests/                                    # pytest suite (conftest.py + test_*.py; run with `pytest`)
 .github/
@@ -371,31 +375,61 @@ so they don't roll back. If you add a GET that reads-then-writes (like
 `get_new`), it's decorated with `require_write_lock` and the catch-all should
 roll back — copy the `boat_status.get_new_route` pattern.
 
-### 3.13 JSON columns don't track in-place mutations
+### 3.13 JSON columns use `MutableDict` / `MutableList` (one level deep)
 
 `TelemetryTable`'s JSON columns (`boat_status`, `boat_status_mapping`,
 `autopilot_parameters`, `default_autopilot_parameters`, `waypoints`,
-`diagnostic_message`) are plain `mapped_column(JSON, ...)` — **no
-`MutableDict` / `MutableList` wrapper**. SQLAlchemy tracks changes to these
-columns by identity, so mutating a retrieved dict/list in place and
-reassigning the same object is a no-op as far as the ORM is concerned — the
-change won't persist on `db.session.commit()`.
+`diagnostic_message`) and `HashTable.data` are wrapped with
+`MutableDict.as_mutable(JSON)` (for dict columns) or
+`MutableList.as_mutable(JSON)` (for list columns). See `models.py`:
+`MutableJSON` and `MutableJSONList` are defined at module scope.
 
-This bit the `update_existing_parameter` route (it did
-`current = inst.autopilot_parameters; current[key] = val;
-inst.autopilot_parameters = current` — same object, no-op). The fix is to
-**copy the container before mutating**:
+This means **top-level** in-place mutation of these columns is detected by
+SQLAlchemy and persists on `db.session.commit()` without needing to
+copy-then-reassign:
 
 ```python
-current = dict(telemetry_instance.autopilot_parameters)
-current[key] = new_value
-telemetry_instance.autopilot_parameters = current  # different object -> dirty
+inst.autopilot_parameters["speed"] = 2.5  # detected: top-level key reassignment
+db.session.commit()  # persists
 ```
 
-If you add a route that mutates a JSON column in place, do the same — or
-switch the column to `MutableDict.as_mutable(JSON)` (requires an import and
-a migration consideration). The wholesale-replacement routes (`set_route` on
-each domain) don't have this problem because they assign a brand-new object.
+**Important limitation: MutableDict tracks ONE level deep.** Mutating a
+nested dict through `__getitem__` is NOT detected:
+
+```python
+# Does NOT persist -- MutableDict.__getitem__ returns a plain dict, not a
+# tracked wrapper, so the nested mutation is invisible to the ORM.
+inst.default_autopilot_parameters["speed"]["default"] = 5.0
+db.session.commit()  # no-op
+```
+
+The routes avoid this pattern: they either reassign the top-level key with a
+fresh inner dict (`update_existing_parameter` reassigns
+`inst.autopilot_parameters[key] = new_value` where `new_value` is a primitive,
+and `set_default_route` rebuilds the whole dict), or replace the whole column
+(`set_route` on each domain assigns a brand-new object). When adding a route
+that mutates a nested value, either (a) reassign the top-level key with a new
+inner dict, or (b) copy-then-reassign the whole column:
+
+```python
+# (a) top-level reassignment -- tracked
+inst.default_autopilot_parameters["speed"] = {"default": 5.0, "description": "faster"}
+
+# (b) copy-then-reassign -- always safe, even for deep mutations
+current = dict(inst.autopilot_parameters)
+current["speed"]["default"] = 5.0
+inst.autopilot_parameters = current  # different object -> dirty
+```
+
+History: this was a real silent-data-loss bug. The columns were originally
+plain `mapped_column(JSON, ...)` (no wrapper), which tracks by identity —
+mutating the retrieved dict in place and reassigning the same object was a
+no-op. It bit `update_existing_parameter` (which did
+`current = inst.autopilot_parameters; current[key] = val;
+inst.autopilot_parameters = current` — same object, no-op). The
+`MutableDict.as_mutable(JSON)` switch (plus a regression test,
+`tests/test_models.py::TestJsonColumnMutationTracking`) closes the class for
+the top-level case the routes actually use.
 
 ### 3.14 `config.py` must define `CORS_ORIGINS`, not `DEFAULT_CORS_ORIGINS`
 
@@ -439,6 +473,10 @@ tests to match.
 - **Docstrings:** numpy convention (`[lint.pydocstyle] convention = "numpy"`).
   All public functions/classes/methods should have them. Parameters and
   returns go in dedicated `Parameters` / `Returns` / `Raises` sections.
+  **Opening-line style:** for multi-line docstrings, the opening `"""` goes
+  on its own line, then the summary on the next line; for one-line docstrings
+  (single summary, no body), `"""summary."""` on one line is fine. Don't
+  put `"""` and the summary text on the same line for multi-line docstrings.
 - **Type hints:** PEP 695 style is in use (`type X = ...`, `def f[T](...)`).
   `from __future__ import annotations` is NOT used — `ruff.toml` sets
   `future-annotations = true` for analysis purposes but the runtime is 3.12
@@ -509,9 +547,9 @@ When adding a route:
   request body. `@require_write_lock`. Sets `*_new_flag = (old != new)` so
   polling consumers see a fresh value only on actual change.
 - `/<domain>/set_fast/<int:instance_id>` — binary fast-path
-  (`boat_status` only; see §3.4).
+  (`boat_status` only; see #3.4).
 - `/<domain>/set_mapping/<int:instance_id>` — define the field order/types
-  for the fast path (`boat_status` only; see §3.4).
+  for the fast path (`boat_status` only; see #3.4).
 
 ### Request body parsing — the `json.loads(request.json)` gotcha
 
@@ -555,14 +593,15 @@ firmature integration. Routes that follow this pattern: `set_route`,
    `get_all_hashes`, `get_hash_exists`, `get_config/<hash>`, `get_hash/<id>`
    (current hash for an instance), `get_default/<id>` (default params).
 6. **Delete:** `DELETE /autopilot_parameters/delete_config/<hash>` removes a
-   `HashTable` row. Does NOT check whether any instance's
-   `current_config_hash` points at it — deleting an in-use hash will leave
-   dangling references. Don't call this on a hash that's currently applied.
+   `HashTable` row. **Rejects with 409 if any instance's `current_config_hash`
+   points at it** — the response body is `{"error": "...", "in_use_by": [ids]}`.
+   `current_config_hash` is not a real FK, so the route guards against dangling
+   references. Reassign or delete the offending instances first, then retry.
 
 ### Instance manager — lifecycle and naming
 
 - `POST /instance_manager/create` — creates a new `TelemetryTable` row. The
-  `after_insert` hook (§3.5) sets `instance_identifier` to
+  `after_insert` hook (#3.5) sets `instance_identifier` to
   `f"Unnamed instance #{instance_id}"` if not supplied.
 - `DELETE /instance_manager/delete/<id>` — single instance.
 - `DELETE /instance_manager/delete_all` — all instances (no confirmation;
@@ -573,7 +612,7 @@ firmature integration. Routes that follow this pattern: `set_route`,
   hardcoded at 5.0 minutes in the route — don't change it without updating
   the cron schedule to match.
 - `POST /instance_manager/set_user/<id>/<user_name>` — sets `user`; locked
-  after first non-`"unknown"` set (§3.3). Returns 400 on the immutability
+  after first non-`"unknown"` set (#3.3). Returns 400 on the immutability
   `ValueError`.
 - `POST /instance_manager/set_name/<id>/<name>` — sets `instance_identifier`.
   Enforces uniqueness: scans all instances and returns 400 if another
@@ -610,8 +649,8 @@ Models live in `src/autoboat_telemetry_server/models.py`. Two tables:
 
 - **`TelemetryTable`** — the live state of every instance. Bound to the
   default bind (`None` key → `instances.db`). Columns include `instance_id`
-  (PK, autoincrement), `user` (immutable after first set, §3.3),
-  `instance_identifier` (auto-set by `after_insert` hook, §3.5),
+  (PK, autoincrement), `user` (immutable after first set, #3.3),
+  `instance_identifier` (auto-set by `after_insert` hook, #3.5),
   `boat_status` (JSON), `boat_status_mapping` (JSON), `boat_status_new_flag`,
   `autopilot_parameters` (JSON), `default_autopilot_parameters` (JSON),
   `autopilot_parameters_new_flag`, `current_config_hash` (FK-ish to
@@ -620,7 +659,7 @@ Models live in `src/autoboat_telemetry_server/models.py`. Two tables:
   `created_at`, `updated_at` (timezone-aware UTC). Indexed columns
   (declared in `__table_args__`): `updated_at` (for the `clean_instances`
   cron filter) and `instance_identifier` (for `get_id/<name>` lookup and
-  the `set_name` uniqueness check). See §6.2 for the migration caveat —
+  the `set_name` uniqueness check). See #6.2 for the migration caveat —
   these indexes only land on fresh DBs.
 - **`HashTable`** — named autopilot config snapshots. Bound to the
   `"hashes"` key → `hashes.db` (via `__bind_key__ = "hashes"`). PK is
@@ -647,31 +686,79 @@ Models live in `src/autoboat_telemetry_server/models.py`. Two tables:
 - `get_all_ids()` classmethod → list of all `instance_id`s.
 - `to_dict()` → serializes the row for `get_instance_info` /
   `get_all_instance_info`.
-- `validate_user` validator — enforces §3.3 immutability.
+- `validate_user` validator — enforces #3.3 immutability.
 
-### 6.2 No migration framework
+### 6.2 Migrations: Flask-Migrate (Alembic)
 
-There is **no migration framework** (no Alembic, no Flask-Migrate).
-`create_app()` calls `db.create_all()` on startup, which only creates
-missing tables and indexes — it does NOT alter existing ones. Schema
-changes to an existing table require either:
-  1. A manual `ALTER TABLE` / data backfill script run against the SQLite file
-     in the named volume, OR
-  2. Bumping the volume (delete `prod-instance-data` / `test-instance-data`),
-     which **destroys all telemetry history**.
+The project uses **Flask-Migrate** (Alembic) for schema migrations. The
+`migrations/` directory at the repo root contains the Alembic env, the
+versions directory, and the initial schema migration
+(`migrations/versions/0001_initial_schema.py`).
 
-Prefer additive changes (new columns with defaults, new tables, new
-indexes). `db.create_all()` creates new tables and indexes on fresh DBs
-automatically; existing volumes need a one-time `CREATE INDEX` / `ALTER
-TABLE` run against the SQLite file. The operator-facing procedure (with a
-copy-pasteable `docker compose exec` snippet) is documented in
-`.github/instructions/deployment-docs.instructions.md` → "Docker deployment
-- schema changes and the named volumes". When you add an index or column,
-update that doc section in the same PR.
+`create_app()` **no longer calls `db.create_all()`** — doing so would race
+with `flask db upgrade` (create_all creates the tables, then the migration's
+`CREATE TABLE` fails with "table already exists"). Migrations are the only
+path that creates tables in production:
 
-Current indexed columns on `TelemetryTable` (see §6.1): `updated_at`,
-`instance_identifier`. Don't add redundant indexes for the same query
-paths.
+- **Production / Docker:** `docker/app-entrypoint.sh` sets
+  `FLASK_APP=autoboat_telemetry_server:create_app()` and runs
+  `flask db upgrade` before `exec "$@"` (gunicorn). This applies all pending
+  migrations on every container start. If the DB is already at head, it's a
+  no-op.
+- **Local dev:** either run `flask db upgrade` against your local instance
+  dir, or call `db.create_all()` manually for a throwaway DB. The pytest
+  fixtures call `db.create_all()` explicitly in the `app` fixture (tests
+  don't need the migration history).
+- **CI:** the `test` job runs `pytest`, which uses `db.create_all()`; it
+  does not run migrations. If you add a migration that diverges from the
+  model definitions, the migration tests in `tests/test_migrations.py`
+  will catch the drift.
+
+**Existing volumes that predate Alembic need a one-time `flask db stamp head`
+before the first deploy with the new image.** Without it, Alembic sees no
+`alembic_version` row and tries to re-create the existing tables, which
+fails. The stamp tells Alembic "this DB is already at head, don't run the
+initial migration." See `.github/instructions/deployment-docs.instructions.md`
+→ "Migrations and the named volumes" for the operator procedure.
+
+**Multi-bind autogenerate is incoherent by default** — Alembic's autogenerate
+loops over binds and emits `op.create_table` calls without bind context, so
+a single migration file ends up with tables from different binds mixed
+together. The workaround in `migrations/env.py`:
+
+- **Autogenerate** (`flask db migrate`) diffs ONLY the default bind (None),
+  producing a coherent single-bind migration. You then manually add the
+  `hashes`-bind operations to the generated file.
+- **Runtime** (`flask db upgrade` / `flask db downgrade`) iterates ALL binds
+  in `SQLALCHEMY_BINDS` (default + "hashes"). Each bind gets its own
+  `alembic_version` table and is migrated independently.
+- The active bind key is stashed in `config.attributes["bind_key"]` by
+  `env.py`'s `_stash_bind_key()`. Migration files read it via
+  `context.config.attributes.get("bind_key")` to route `op.create_table`
+  to the right bind. See `migrations/versions/0001_initial_schema.py` for
+  the pattern (the `_bind_key()` / `_default_bind()` / `_hashes_bind()`
+  helpers are inlined because Alembic's `load_python_file` bypasses the
+  package import system — migration files must be self-contained).
+
+When adding a schema change:
+
+1. Edit `src/autoboat_telemetry_server/models.py`.
+2. Run `flask db migrate -m "describe change"` to autogenerate a migration
+   (this only diffs the default bind; add `hashes`-bind ops by hand if
+   `HashTable` changed).
+3. Inspect the generated file — autogenerate is not perfect, especially for
+   JSON columns and the `MutableDict`/`MutableList` wrappers (it may try to
+   re-add columns that already exist with a different type decorator).
+4. Add a test to `tests/test_migrations.py` if the migration has nontrivial
+   logic (data backfills, conditional operations, etc.).
+5. Update the deployment docs (`.github/instructions/deployment-docs.instructions.md`)
+   if the migration has a manual step (e.g., `flask db stamp head` for
+   pre-existing volumes).
+
+**Prefer additive changes** (new columns with defaults, new tables, new
+indexes) — they're forward-compatible and don't require a downgrade path.
+Current indexed columns on `TelemetryTable` (see #6.1): `updated_at`,
+`instance_identifier`. Don't add redundant indexes for the same query paths.
 
 ### 6.3 SQLite + single worker is intentional
 
@@ -744,8 +831,8 @@ docker compose --profile tailscale up -d
 ```
 
 Host networking, root user, `cap_add: [NET_ADMIN, NET_RAW]`, mounts
-`/dev/net/tun`. Adds the host to the tailnet as `telemetry-server`. See §3.9
-and §3.10 for the auth/visibility constraints.
+`/dev/net/tun`. Adds the host to the tailnet as `telemetry-server`. See #3.9
+and #3.10 for the auth/visibility constraints.
 
 ### 8.3 Common commands
 
@@ -892,7 +979,7 @@ Keep messages in the imperative mood ("add route", not "added route").
 - **`TS_AUTHKEY` is set to an OAuth client secret, not an auth key.** Per
   Tailscale docs, an OAuth secret is accepted in `TS_AUTHKEY` as long as you
   also pass `--advertise-tags=tag:<tag>`. This is the workaround for the
-  containerboot v1.98 403 bug — see §3.9.
+  containerboot v1.98 403 bug — see #3.9.
 - **The `cron` service is built locally, not pulled.** It has no `image:`
   line pointing at a registry (only `image: telemetry-cron:latest` as a local
   tag). `docker compose pull` skips it. `docker compose up -d` builds it.
@@ -939,10 +1026,13 @@ Keep messages in the imperative mood ("add route", not "added route").
   assumptions or partial inspection.
 - After Python edits, run `ruff check --fix` and `ruff format` on the changed
   files, then run `pytest` to confirm the test suite still passes. Tests live
-  in `tests/` at the repo root (see §4).
+  in `tests/` at the repo root (see #4).
 - For route changes, update the route map docstring at the top of
   `src/autoboat_telemetry_server/routes/__init__.py` so the surface stays
   discoverable.
-- For schema changes, remember there is **no migration framework** (§6.2).
-  Prefer additive changes (new columns with defaults, new tables). Document
-  any breaking schema change in `README.md` and the release notes.
+- For schema changes, use Flask-Migrate (#6.2). Run
+  `flask db migrate -m "msg"` to autogenerate (default bind only — add
+  `hashes`-bind ops by hand if `HashTable` changed), inspect the generated
+  file, then `flask db upgrade` to apply. Prefer additive changes (new
+  columns with defaults, new tables). Document any breaking schema change
+  in `README.md` and the release notes.

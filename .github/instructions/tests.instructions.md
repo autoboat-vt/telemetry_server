@@ -14,7 +14,12 @@ the source tree where practical):
 - `test_init.py` — app factory (`create_app`), CORS resolution, `INSTANCE_DIR`
   discovery, `shared_lock_manager` singleton.
 - `test_models.py` — `TelemetryTable` + `HashTable` (hashing, validation,
-  `to_dict`, the `after_insert` hook, `validate_user` immutability).
+  `to_dict`, the `after_insert` hook, `validate_user` immutability,
+  `MutableDict`/`MutableList` mutation tracking regression tests).
+- `test_migrations.py` — Flask-Migrate wiring + multi-bind migration
+  round-trip (upgrade creates both tables in their respective SQLite DBs,
+  downgrade drops them, upgrade is idempotent). Uses its own
+  `migration_app` fixture (does NOT call `db.create_all()`).
 - `test_lock_manager.py` — `ReaderWriterLock` exclusion semantics + the
   `require_read_lock` / `require_write_lock` decorators (blocking vs 429).
 - `test_types.py` — `DiagnosticMessageIntensity` IntEnum mapping (the
@@ -131,7 +136,7 @@ imports won't be auto-removed and will fail CI.)
    `_make_config`) rather than reinventing the setup. If you need a new
    reusable setup step, add a helper next to the existing ones.
 3. **Assert on both status code and response body.** The error-code ladder
-   (AGENTS.md §3.12) is a contract: 404 for missing instance, 400 for
+   (AGENTS.md #3.12) is a contract: 404 for missing instance, 400 for
    malformed/invalid input, 429 for write-lock contention, 500 for the
    catch-all. Pin both the code and a substring of the body so error message
    drift is caught:
@@ -148,7 +153,7 @@ imports won't be auto-removed and will fail CI.)
 5. **JSON bodies:** pass `json=...` to `client.post` (Flask sets the content
    type and encodes). Read responses with `response.get_json()` for JSON, or
    `response.get_data(as_text=True)` / `response.data` for plain strings.
-6. **The double-JSON gotcha (AGENTS.md §5):** `autopilot_parameters` routes
+6. **The double-JSON gotcha (AGENTS.md #5):** `autopilot_parameters` routes
    that do `json.loads(request.json)` expect the body to be a JSON-encoded
    *string*. In tests, send `json=json.dumps({...})` (a string), not
    `json={...}` (a dict). `test_routes.py` has examples — copy them.
@@ -212,6 +217,7 @@ past a failing test in an emergency, run the `build` job alone via
 1. **Put them in the right file.** Match the module under test:
    - `create_app()`, CORS, `INSTANCE_DIR`, `shared_lock_manager` → `test_init.py`
    - `TelemetryTable` / `HashTable` models → `test_models.py`
+   - Flask-Migrate wiring, multi-bind migration round-trip → `test_migrations.py`
    - `ReaderWriterLock` / `LockManager` → `test_lock_manager.py`
    - `types.py` (enums, type aliases) → `test_types.py`
    - Any route handler → `test_routes.py` (use the Flask test client)

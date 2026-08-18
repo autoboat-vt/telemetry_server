@@ -9,6 +9,7 @@ from typing import ParamSpec, TypeVar
 
 from flask import jsonify
 
+from autoboat_telemetry_server.observability import count_429
 from autoboat_telemetry_server.types import ResponseType
 
 P = ParamSpec("P")
@@ -158,6 +159,8 @@ class LockManager:
             """
 
             if not self._rw_lock.acquire_write(blocking=False):
+                # write-lock contention counter — see observability.py
+                count_429()
                 return jsonify("Write operation in progress. Please try again later."), 429
 
             try:

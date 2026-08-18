@@ -1,5 +1,5 @@
 ---
-description: "Use when editing install.sh, .env, .env.example, README.md, or other deployment docs and scripts. Covers the one-shot cloud installer, the .env file and its secret handling, the Cloudflare Tunnel token rotation procedure, the Docker deployment reference (services, routing, first-run setup, persistence, schema changes, useful commands, comparison to install.sh), and the documentation structure."
+description: "Use when editing install.sh, .env, .env.example, README.md, or other deployment docs and scripts. Covers the one-shot cloud installer, the .env file and its secret handling, the Cloudflare Tunnel token rotation procedure, the Docker deployment reference (services, routing, first-run setup, persistence, migrations / the `flask db stamp head` procedure, useful commands, comparison to install.sh), and the documentation structure."
 applyTo: "install.sh, .env.example, README.md, TODO.md"
 ---
 
@@ -284,33 +284,69 @@ never overwrites it — so site-specific edits to `config.py` survive
 restarts. See `.github/instructions/docker.instructions.md` for the
 no-clobber rule.
 
-## Docker deployment — schema changes and the named volumes
+## Migrations and the named volumes
 
-There is **no migration framework**. `db.create_all()` only creates missing
-tables and indexes on startup — it does not alter existing ones. So
-additive schema changes (new columns, new indexes) land automatically on
-fresh volumes but **not** on existing `prod-instance-data` /
-`test-instance-data` volumes.
+Schema migrations are managed with **Flask-Migrate** (Alembic). The
+`docker/app-entrypoint.sh` script runs `flask db upgrade` before starting
+gunicorn on every container start, so pending migrations apply automatically
+on `docker compose up -d` / restarts / image pulls. If the DB is already at
+head, `upgrade` is a no-op.
 
-For example, indexes on `telemetry_table.updated_at` (used by the
-`clean_instances` cron route) and `telemetry_table.instance_identifier`
-(used by `get_id/<name>` and the `set_name` uniqueness check) were added in
-a recent release. To apply them to an existing volume without losing data:
+`create_app()` does NOT call `db.create_all()` in production (only the
+pytest fixtures use it, for throwaway test DBs). Migrations are the only
+path that creates tables in production.
+
+### One-time `stamp head` for volumes that predate Alembic
+
+If a `prod-instance-data` / `test-instance-data` volume was created before
+the Flask-Migrate integration shipped, it has the tables (from the old
+`db.create_all()` startup path) but NO `alembic_version` row. On the first
+deploy with the new image, `flask db upgrade` will try to run the initial
+migration and fail with `table telemetry_table already exists`.
+
+The fix is to stamp the DB at the current head once, which tells Alembic
+"this DB is already at head, don't run the initial migration":
 
 ```bash
-docker compose exec telemetry-prod python -c "
-from autoboat_telemetry_server import db
-from sqlalchemy import text
-with db.engine.connect() as conn:
-    conn.execute(text('CREATE INDEX IF NOT EXISTS ix_telemetry_table_updated_at ON telemetry_table (updated_at)'))
-    conn.execute(text('CREATE INDEX IF NOT EXISTS ix_telemetry_table_instance_identifier ON telemetry_table (instance_identifier)'))
-    conn.commit()
-"
+docker compose exec telemetry-prod flask db stamp head
+docker compose exec telemetry-test  flask db stamp head
 ```
 
-`docker compose down -v` recreates the volumes from scratch with all
-current indexes, but **deletes the SQLite databases** — only do this when
-the data is expendable.
+After stamping, subsequent `docker compose up -d` will see the DB at head
+and skip migrations. This is a one-time step per volume.
+
+### Adding a new migration (developer flow)
+
+On a checkout with a local instance dir (or against a throwaway DB):
+
+```bash
+flask db migrate -m "add foo column to telemetry_table"
+```
+
+This autogenerates a migration file in `migrations/versions/`. **Caveat:**
+autogenerate only diffs the **default bind** (None). If the change affects
+`HashTable` (the `hashes` bind), add the `op.*` calls for the hashes bind
+by hand — see `migrations/versions/0001_initial_schema.py` for the
+`_bind_key()` / `_default_bind()` / `_hashes_bind()` pattern (the helpers
+are inlined because Alembic's `load_python_file` bypasses the package
+import system).
+
+Then inspect the generated file (autogenerate is not perfect, especially
+for JSON columns wrapped with `MutableDict.as_mutable`), and apply it:
+
+```bash
+flask db upgrade
+```
+
+Prefer additive changes (new columns with defaults, new tables, new
+indexes) — they're forward-compatible and don't require a downgrade path.
+
+### Destructive reset (loses data)
+
+`docker compose down -v` recreates the volumes from scratch. On the next
+`docker compose up -d`, the entrypoint's `flask db upgrade` will run the
+initial migration against the empty DBs, creating all tables with current
+indexes. Only do this when the data is expendable.
 
 ## Docker deployment — running the testing branch
 

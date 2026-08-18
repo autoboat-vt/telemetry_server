@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Emit release tags for the telemetry server workflows.
+# emit release tags for the telemetry server workflows
 #
-# Usage:
+# usage:
 #   .github/scripts/compute-release-tags.sh base
 #   .github/scripts/compute-release-tags.sh suffix amd64
 #
-# Output is one tag per line.
+# output is one tag per line
 set -eu
 
 mode="${1:-base}"

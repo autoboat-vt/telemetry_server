@@ -17,12 +17,14 @@ Key steps:
 2. `WORKDIR /home/ubuntu/telemetry_server` — created as root, so `chown -R
    ubuntu:ubuntu` BEFORE `USER ubuntu` or venv creation fails with EACCES.
 3. `COPY pyproject.toml README.md ./` and `COPY src/ ./src/`.
-4. Back up `src/instance/config.py` to `/opt/config.py` — the entrypoint
+4. `COPY migrations/ ./migrations/` — the Alembic env + versions, so the
+   entrypoint can run `flask db upgrade`.
+5. Back up `src/instance/config.py` to `/opt/config.py` — the entrypoint
    restores it into the named volume on first start.
-5. `USER ubuntu`, build venv at `/home/ubuntu/telemetry_server/venv`, `pip
+6. `USER ubuntu`, build venv at `/home/ubuntu/telemetry_server/venv`, `pip
    install .`.
-6. `USER root`, copy `docker/app-entrypoint.sh` to `/opt/`, `chmod +x`.
-7. `USER ubuntu`, `EXPOSE 8000`, `ENTRYPOINT ["/opt/app-entrypoint.sh"]`,
+7. `USER root`, copy `docker/app-entrypoint.sh` to `/opt/`, `chmod +x`.
+8. `USER ubuntu`, `EXPOSE 8000`, `ENTRYPOINT ["/opt/app-entrypoint.sh"]`,
    `CMD [...gunicorn -w 1 --bind 0.0.0.0:8000 "autoboat_telemetry_server:create_app()"]`.
 
 Rules:
@@ -47,11 +49,24 @@ if [ ! -f "$INSTANCE_DIR/config.py" ]; then
     cp /opt/config.py "$INSTANCE_DIR/config.py"
 fi
 export PATH="/home/ubuntu/telemetry_server/venv/bin:$PATH"
+export FLASK_APP="autoboat_telemetry_server:create_app()"
+# Apply pending Alembic migrations before starting gunicorn. No-op if the DB
+# is already at head. (Existing volumes that predate Alembic need a one-time
+# `flask db stamp head` first — see deployment-docs.instructions.md.)
+flask db upgrade
 exec "$@"
 ```
 
 **No-clobber is critical.** Site-specific edits to `config.py` must survive
 image updates. Never change this to an unconditional `cp`.
+
+**`flask db upgrade` runs on every start.** If the DB is already at head,
+Alembic detects the `alembic_version` row and the call is a no-op. If a
+volume predates Alembic (no `alembic_version` row), the initial migration
+will fail with `table already exists` — the operator must run
+`docker compose exec telemetry-prod flask db stamp head` once first. See
+`.github/instructions/deployment-docs.instructions.md` → "Migrations and
+the named volumes".
 
 ## docker-compose.yml services
 

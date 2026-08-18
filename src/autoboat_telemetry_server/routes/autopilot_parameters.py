@@ -432,10 +432,7 @@ class AutopilotParametersEndpoint:
                 if parameter_key not in telemetry_instance.default_autopilot_parameters:
                     raise ValueError("Parameter key does not exist in the default autopilot parameters.")
 
-                # Copy the dict so SQLAlchemy detects the change. JSON columns
-                # without MutableDict track changes by identity, so mutating the
-                # retrieved dict in place and reassigning the same object is a
-                # no-op as far as the ORM is concerned.
+                # copy for a stable diff snapshot — see python-source.instructions.md #"update_existing_parameter"
                 current_parameters = (
                     dict(telemetry_instance.autopilot_parameters) if telemetry_instance.autopilot_parameters else {}
                 )
@@ -660,6 +657,19 @@ class AutopilotParametersEndpoint:
 
             try:
                 hash_entry = self._get_hash(config_hash)
+
+                # 409 guard — see python-source.instructions.md #"current_config_hash"
+                in_use = (
+                    db.session.query(TelemetryTable.instance_id).filter(TelemetryTable.current_config_hash == config_hash).all()
+                )
+                if in_use:
+                    offending_ids = [row[0] for row in in_use]
+                    return (
+                        jsonify(
+                            {"error": "Configuration is currently in use by one or more instances.", "in_use_by": offending_ids}
+                        ),
+                        409,
+                    )
 
                 db.session.delete(hash_entry)
                 db.session.commit()

@@ -7,9 +7,11 @@ from pathlib import Path
 
 from flask import Flask as _flask
 from flask_cors import CORS
+from flask_migrate import Migrate
 
 from .lock_manager import LockManager
 from .models import db
+from .observability import init_app as init_observability
 
 shared_lock_manager = LockManager()
 
@@ -32,18 +34,8 @@ from autoboat_telemetry_server.routes import (  # noqa: E402
     WaypointEndpoint,
 )
 
-# Origins allowed to make cross-origin requests to this API.
-#
-# The Autoboat website (https://autoboat.aoe.vt.edu) fetches boat positions
-# from the telemetry API in the browser, so the server must send
-# Access-Control-Allow-Origin headers for that origin. Local development of
-# the website (vite dev server on localhost) is also allowed.
-#
-# This is the lowest-precedence fallback. The instance config (src/instance/
-# config.py) may override it by defining CORS_ORIGINS (read as
-# app.config["CORS_ORIGINS"]), and the CORS_ORIGINS env var overrides both.
-# Keep this list in sync with src/instance/config.py unless you deliberately
-# want the deployed config to diverge from the baked-in default.
+# cors origins — lowest-precedence fallback; see
+# python-source.instructions.md #"CORS precedence" and #"App factory"
 DEFAULT_CORS_ORIGINS: list[str] = [
     "https://autoboat.aoe.vt.edu",
     "https://www.autoboat.aoe.vt.edu",
@@ -75,13 +67,7 @@ def create_app() -> _flask:
     config_path = INSTANCE_DIR / "config.py"
     app.config.from_pyfile(config_path)
 
-    # Determine the allowed CORS origins. Precedence (highest first):
-    #   1. CORS_ORIGINS env var (comma-separated) — works on existing
-    #      deployments without rebuilding, since src/instance/config.py is
-    #      persisted in a named volume and not overwritten on image updates.
-    #   2. app.config["CORS_ORIGINS"] (set in src/instance/config.py) —
-    #      applies on fresh installs where config.py is seeded from the image.
-    #   3. DEFAULT_CORS_ORIGINS — the known website + telemetry origins.
+    # cors origins — see python-source.instructions.md #"CORS precedence"
     env_origins = os.environ.get("CORS_ORIGINS")
     if env_origins:
         origins: str | list[str] = _parse_cors_origins(env_origins)
@@ -92,13 +78,19 @@ def create_app() -> _flask:
 
     db.init_app(app)
 
-    with app.app_context():
-        db.create_all()
+    # migrations are the only path that creates tables in prod; see
+    # python-source.instructions.md #"App factory" and AGENTS.md #6.2
+    migrate = Migrate()
+    migrate.init_app(app, db, directory=str(Path(__file__).resolve().parent.parent.parent / "migrations"))
 
     app.register_blueprint(InstanceManagerEndpoint().blueprint)
     app.register_blueprint(AutopilotParametersEndpoint().blueprint)
     app.register_blueprint(BoatStatusEndpoint().blueprint)
     app.register_blueprint(WaypointEndpoint().blueprint)
+
+    # structured logging + /metrics endpoint; see observability.py and
+    # python-source.instructions.md #"Observability"
+    init_observability(app)
 
     @app.route("/")
     def index() -> str:

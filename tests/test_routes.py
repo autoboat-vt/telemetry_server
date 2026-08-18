@@ -35,7 +35,7 @@ def _create_instance(client: FlaskClient) -> int:
     """POST /instance_manager/create and return the new instance_id."""
     response = client.get("/instance_manager/create")
     assert response.status_code == 200, response.data
-    # The route returns jsonify(instance_id), which is a JSON number.
+    # the route returns jsonify(instance_id), which is a JSON number
     return int(response.get_json())
 
 
@@ -79,9 +79,9 @@ class TestInstanceManagerCreate:
         assert response.status_code == 200
         data = response.get_json()
         assert len(data) == 2
-        # Pin the exact key set so a regression that re-introduces the fat
+        # pin the exact key set so a regression that re-introduces the fat
         # JSON columns (boat_status, autopilot_parameters, waypoints, etc.)
-        # would fail here.
+        # would fail here
         assert set(data[0].keys()) == {
             "instance_id",
             "instance_identifier",
@@ -110,7 +110,7 @@ class TestInstanceManagerDelete:
         response = client.delete("/instance_manager/delete_all")
         assert response.status_code == 200
         assert b"2" in response.data
-        # Verify empty
+        # verify empty
         assert client.get("/instance_manager/get_ids").get_json() == []
 
 
@@ -228,11 +228,11 @@ class TestInstanceManagerCleanInstances:
         db.session.add(instance)
         db.session.commit()
 
-        # Capture the id before we mutate/delete - accessing it after the
-        # clean route runs would raise DetachedInstanceError.
+        # capture the id before we mutate/delete - accessing it after the
+        # clean route runs would raise DetachedInstanceError
         instance_id = instance.instance_id
 
-        # Backdate updated_at to be older than the 5-minute cutoff.
+        # backdate updated_at to be older than the 5-minute cutoff
         instance.updated_at = datetime.now(UTC) - timedelta(minutes=10)
         db.session.commit()
         db.session.expunge_all()
@@ -241,14 +241,14 @@ class TestInstanceManagerCleanInstances:
         assert response.status_code == 200
         assert b"1" in response.data
 
-        # Verify it's gone.
+        # verify it's gone
         assert client.get(f"/instance_manager/get_instance_info/{instance_id}").status_code == 404
 
     def test_clean_keeps_recent_instances(self, app: Flask, client: FlaskClient) -> None:
         instance_id = _create_instance(client)
         response = client.delete("/instance_manager/clean_instances")
         assert response.status_code == 200
-        # The just-created instance should still be there.
+        # the just-created instance should still be there
         assert client.get(f"/instance_manager/get_instance_info/{instance_id}").status_code == 200
 
 
@@ -364,17 +364,17 @@ class TestBoatStatusSetFast:
 
     def test_set_fast_with_mapping_updates_status(self, client: FlaskClient) -> None:
         instance_id = _create_instance(client)
-        # Set up a mapping with two c_floats (4 bytes each).
+        # set up a mapping with two c_floats (4 bytes each)
         client.post(f"/boat_status/set_mapping/{instance_id}", json=[["heading", "c_float"], ["speed", "c_float"]])
 
-        # Pack two little-endian floats: heading=1.0, speed=2.0
+        # pack two little-endian floats: heading=1.0, speed=2.0
         import struct
 
         payload = struct.pack("<ff", 1.0, 2.0)
         response = client.post(f"/boat_status/set_fast/{instance_id}", data=payload, content_type="application/octet-stream")
         assert response.status_code == 200
 
-        # Verify the decoded values landed in boat_status.
+        # verify the decoded values landed in boat_status
         status = client.get(f"/boat_status/get/{instance_id}").get_json()
         assert status["heading"] == pytest.approx(1.0)
         assert status["speed"] == pytest.approx(2.0)
@@ -460,8 +460,8 @@ class TestAutopilotCreateConfig:
 
     def test_create_config_returns_hash(self, client: FlaskClient) -> None:
         config = _make_config()
-        # The route does json.loads(request.json), so we send a JSON-encoded
-        # string of the config.
+        # the route does json.loads(request.json), so we send a JSON-encoded
+        # string of the config
         response = client.post("/autopilot_parameters/create_config", json=json.dumps(config))
         assert response.status_code == 200
         hash_value = response.get_json()
@@ -478,7 +478,7 @@ class TestAutopilotCreateConfig:
         assert b"already exists" in response.data
 
     def test_create_config_invalid_returns_400(self, client: FlaskClient) -> None:
-        # Missing 'description' key in the inner dict.
+        # missing 'description' key in the inner dict
         bad_config = {"speed": {"default": 1.0}}
         response = client.post("/autopilot_parameters/create_config", json=json.dumps(bad_config))
         assert response.status_code == 400
@@ -504,8 +504,8 @@ class TestAutopilotCreateConfig:
         data = response.get_json()
         assert len(data) == 1
         assert "config_hash" in data[0]
-        # Pin the exact key set so a regression that re-introduces the `data`
-        # JSON column would fail here.
+        # pin the exact key set so a regression that re-introduces the `data`
+        # JSON column would fail here
         assert set(data[0].keys()) == {"config_hash", "description", "created_at"}
 
     def test_get_config_by_hash(self, client: FlaskClient) -> None:
@@ -528,6 +528,50 @@ class TestAutopilotCreateConfig:
         response = client.delete("/autopilot_parameters/delete_config/" + "0" * 64)
         assert response.status_code == 404
 
+    def test_delete_in_use_config_returns_409(self, client: FlaskClient) -> None:
+        """A hash applied to an instance via set_default cannot be deleted.
+
+        current_config_hash is not a real FK, so deleting an in-use hash would
+        leave a dangling reference. The route must reject with 409 and report
+        the offending instance_ids.
+        """
+
+        instance_id = _create_instance(client)
+        hash_value = client.post(f"/autopilot_parameters/set_default/{instance_id}", json=json.dumps(_make_config())).get_json()
+
+        response = client.delete(f"/autopilot_parameters/delete_config/{hash_value}")
+        assert response.status_code == 409
+        body = response.get_json()
+        assert body["error"] == "Configuration is currently in use by one or more instances."
+        assert body["in_use_by"] == [instance_id]
+
+        # the hash must still exist after the rejected delete
+        assert client.get(f"/autopilot_parameters/get_hash_exists/{hash_value}").get_json() is True
+
+    def test_delete_config_after_reassignment_succeeds(self, client: FlaskClient) -> None:
+        """Once no instance points at the hash, deletion succeeds (200).
+
+        This confirms the 409 is not sticky: reassigning the instance to a
+        different hash (or no hash) clears the in-use block.
+        """
+
+        instance_id = _create_instance(client)
+        client.post(f"/autopilot_parameters/set_default/{instance_id}", json=json.dumps(_make_config())).get_json()
+
+        # apply a different config to the same instance; the old hash is now
+        # unreferenced and can be deleted
+        old_hash = client.get(f"/autopilot_parameters/get_hash/{instance_id}").get_json()
+        different_config = {
+            "speed": {"default": 3.0, "description": "faster"},
+            "heading": {"default": 0.0, "description": "target heading"},
+        }
+        new_hash = client.post(f"/autopilot_parameters/set_default/{instance_id}", json=json.dumps(different_config)).get_json()
+        assert new_hash != old_hash
+
+        response = client.delete(f"/autopilot_parameters/delete_config/{old_hash}")
+        assert response.status_code == 200
+        assert client.get(f"/autopilot_parameters/get_hash_exists/{old_hash}").get_json() is False
+
     def test_set_hash_description(self, client: FlaskClient) -> None:
         hash_value = client.post("/autopilot_parameters/create_config", json=json.dumps(_make_config())).get_json()
 
@@ -547,11 +591,11 @@ class TestAutopilotSetDefault:
         hash_value = response.get_json()
         assert len(hash_value) == 64
 
-        # The route should have reset autopilot_parameters to the defaults.
+        # the route should have reset autopilot_parameters to the defaults
         params = client.get(f"/autopilot_parameters/get/{instance_id}").get_json()
         assert params == {"speed": 1.5, "heading": 0.0}
 
-        # current_config_hash should match the returned hash.
+        # current_config_hash should match the returned hash
         current_hash = client.get(f"/autopilot_parameters/get_hash/{instance_id}").get_json()
         assert current_hash == hash_value
 
@@ -598,7 +642,7 @@ class TestAutopilotSet:
         config = _make_config()
         client.post(f"/autopilot_parameters/set_default/{instance_id}", json=json.dumps(config))
 
-        # 'speed' and 'heading' are expected; 'extra' is not.
+        # 'speed' and 'heading' are expected; 'extra' is not
         bad_params = {"speed": 2.0, "extra": 1.0}
         response = client.post(f"/autopilot_parameters/set/{instance_id}", json=json.dumps(bad_params))
         assert response.status_code == 400
@@ -666,7 +710,7 @@ class TestAutopilotUpdateExistingParameter:
         config = _make_config()
         client.post(f"/autopilot_parameters/set_default/{instance_id}", json=json.dumps(config))
 
-        # A dict is not a valid primitive value.
+        # a dict is not a valid primitive value
         response = client.post(
             f"/autopilot_parameters/update_existing_parameter/{instance_id}/speed", json=json.dumps({"nested": "dict"})
         )
@@ -682,7 +726,7 @@ class TestAutopilotSetDefaultFromHash:
         response = client.post(f"/autopilot_parameters/set_default_from_hash/{instance_id}/{hash_value}")
         assert response.status_code == 200
 
-        # The instance's current_config_hash should now point at the hash.
+        # the instance's current_config_hash should now point at the hash
         assert client.get(f"/autopilot_parameters/get_hash/{instance_id}").get_json() == hash_value
 
     def test_set_default_from_nonexistent_hash_returns_400(self, client: FlaskClient) -> None:
@@ -733,13 +777,13 @@ class TestErrorCodeLadder:
     def test_input_type_error_returns_404(self, client: FlaskClient) -> None:
         instance_id = _create_instance(client)
         # boat_status.set maps TypeError -> 404 (Section 3.12 gotcha: this route lumps
-        # instance-not-found and input-validation TypeErrors together).
+        # instance-not-found and input-validation TypeErrors together)
         response = client.post(f"/boat_status/set/{instance_id}", json=[1, 2])
         assert response.status_code == 404
 
     def test_input_value_error_returns_400(self, client: FlaskClient) -> None:
         instance_id = _create_instance(client)
-        # set_user immutability raises ValueError (400).
+        # set_user immutability raises ValueError (400)
         client.post(f"/instance_manager/set_user/{instance_id}/alice")
         response = client.post(f"/instance_manager/set_user/{instance_id}/bob")
         assert response.status_code == 400

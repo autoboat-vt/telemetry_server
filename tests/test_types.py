@@ -72,7 +72,7 @@ class TestTypeAliases:
     def test_response_type_is_tuple_alias(self) -> None:
         # ResponseType is `tuple[Response, int]`; we can't isinstance-check
         # generic aliases at runtime, but we can confirm it's subscriptable
-        # and evaluates without error.
+        # and evaluates without error
         assert ResponseType is not None
 
     def test_waypoint_type_alias_exists(self) -> None:

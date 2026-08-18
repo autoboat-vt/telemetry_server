@@ -30,8 +30,10 @@ dependencies = [
     "Flask>=3.1,<4.0",
     "Flask-Cors>=5.0,<7.0",
     "Flask-SQLAlchemy>=3.1,<4.0",
+    "Flask-Migrate>=4.0,<5.0",
     "gunicorn>=23.0,<27.0",
     "SQLAlchemy>=2.0,<3.0",
+    "prometheus-client>=0.20,<1.0",
 ]
 
 [project.optional-dependencies]
@@ -71,7 +73,7 @@ autoboat_telemetry_server = ["py.typed"]
 [tool.ruff]
 line-length = 130
 
-# The test suite lives in tests/ at the repo root (see AGENTS.md §4).
+# The test suite lives in tests/ at the repo root (see AGENTS.md #4).
 # Run it with `pytest` after `pip install -e ".[dev]"`.
 [tool.pytest.ini_options]
 minversion = "8.0"

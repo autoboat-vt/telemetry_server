@@ -6,9 +6,9 @@ Covers:
 - ``HashTable.validate_config`` (pure static method: structural validation).
 - ``HashTable.check_hash_exists`` (DB-backed classmethod).
 - ``HashTable.to_dict`` (serialization).
-- ``TelemetryTable.validate_user`` (the immutability invariant, §3.3).
+- ``TelemetryTable.validate_user`` (the immutability invariant, #3.3).
 - ``TelemetryTable.to_dict`` and ``get_all_ids``.
-- The ``after_insert`` hook that auto-sets ``instance_identifier`` (§3.5).
+- The ``after_insert`` hook that auto-sets ``instance_identifier`` (#3.5).
 """
 
 from __future__ import annotations
@@ -123,8 +123,8 @@ class TestValidateConfig:
         assert valid is True
 
     def test_non_string_top_level_key_rejected(self) -> None:
-        # JSON keys are always strings, but validate_config is called on
-        # Python objects too, so int keys should be rejected.
+        # json keys are always strings, but validate_config is called on
+        # python objects too, so int keys should be rejected
         config = {1: {"default": 1, "description": "x"}}
         valid, msg = HashTable.validate_config(config)
         assert valid is False
@@ -132,7 +132,7 @@ class TestValidateConfig:
 
 
 # --------------------------------------------------------------------------- #
-# TelemetryTable.validate_user -- the immutability invariant (§3.3)
+# TelemetryTable.validate_user -- the immutability invariant (#3.3)
 # --------------------------------------------------------------------------- #
 
 
@@ -191,7 +191,7 @@ class TestValidateUser:
 
 
 class TestAfterInsertHook:
-    """The ``after_insert`` event auto-sets ``instance_identifier`` (§3.5)."""
+    """The ``after_insert`` event auto-sets ``instance_identifier`` (#3.5)."""
 
     def test_auto_sets_default_identifier(self, app: Flask) -> None:
         instance = TelemetryTable(
@@ -253,7 +253,7 @@ class TestTelemetryTableToDict:
         assert data["user"] == "unknown"
         assert data["current_config_hash"] == ""
 
-    def test_to_dict_timestamps_are_iso_strings(self, app) -> None:
+    def test_to_dict_timestamps_are_iso_strings(self, app: Flask) -> None:
         instance = TelemetryTable(
             default_autopilot_parameters={}, autopilot_parameters={}, boat_status={}, waypoints=[], boat_status_mapping=[]
         )
@@ -351,7 +351,7 @@ class TestSqlitePragmas:
         assert str(result).lower() == "wal"
 
     def test_synchronous_is_normal(self, app: Flask) -> None:
-        # synchronous=NORMAL is reported as the integer 1 under SQLite.
+        # synchronous=NORMAL is reported as the integer 1 under SQLite
         assert self._pragma(app, "synchronous") == 1
 
     def test_busy_timeout_is_set(self, app: Flask) -> None:
@@ -366,7 +366,7 @@ class TestSqlitePragmas:
 class TestTelemetryTableIndexes:
     """``db.create_all()`` must create indexes on fresh databases.
 
-    See AGENTS.md §6.2: there is no migration framework, so existing
+    See AGENTS.md #6.2: there is no migration framework, so existing
     deployments need a one-time ``CREATE INDEX`` on the volume. These tests
     only pin the fresh-DB behavior; they do not exercise the migration path.
     """
@@ -383,3 +383,111 @@ class TestTelemetryTableIndexes:
 
     def test_instance_identifier_index_exists(self, app: Flask) -> None:
         assert "ix_telemetry_table_instance_identifier" in self._index_names(app)
+
+
+# --------------------------------------------------------------------------- #
+# MutableDict / MutableList tracking of JSON columns (AGENTS.md #3.13)
+# --------------------------------------------------------------------------- #
+
+
+class TestJsonColumnMutationTracking:
+    """In-place mutation of a JSON column must persist without manual copy.
+
+    Regression guard for the #3.13 bug: JSON columns without MutableDict track
+    changes by identity, so `inst.autopilot_parameters[key] = val;
+    db.session.commit()` was a silent no-op (same object, not dirty). The
+    columns now use MutableDict.as_mutable(JSON), so in-place mutation is
+    detected automatically.
+    """
+
+    def _make_instance(self, app: Flask) -> TelemetryTable:
+        with app.app_context():
+            inst = TelemetryTable(
+                default_autopilot_parameters={"speed": {"default": 1.0, "description": "speed"}},
+                autopilot_parameters={"speed": 1.0},
+                boat_status={"heading": 0.0},
+                waypoints=[[0.0, 0.0]],
+                boat_status_mapping=[["heading", "c_float"]],
+            )
+            db.session.add(inst)
+            db.session.commit()
+            db.session.refresh(inst)
+            return inst
+
+    def test_in_place_dict_mutation_persists(self, app: Flask) -> None:
+        instance_id = self._make_instance(app).instance_id
+
+        with app.app_context():
+            inst = db.session.get(TelemetryTable, instance_id)
+            assert inst is not None
+            # in-place mutation, NO reassignment of the attribute
+            inst.autopilot_parameters["speed"] = 2.5
+            db.session.commit()
+
+        with app.app_context():
+            reloaded = db.session.get(TelemetryTable, instance_id)
+            assert reloaded is not None
+            assert reloaded.autopilot_parameters["speed"] == 2.5
+
+    def test_in_place_nested_dict_mutation_persists(self, app: Flask) -> None:
+        """Top-level key replacement on a nested-dict column persists.
+
+        ``default_autopilot_parameters`` is shaped ``{key: {"default": v, ...}}``.
+        The routes never mutate ``["key"]["subkey"]`` in place -- they either
+        replace the whole dict (set_default_route) or reassign the top-level
+        key. MutableDict tracks one level deep, so reassigning the top-level
+        key (replacing the inner dict wholesale) is detected; in-place
+        mutation of a nested dict through ``__getitem__`` is NOT. This test
+        pins the pattern the routes actually use.
+        """
+
+        instance_id = self._make_instance(app).instance_id
+
+        with app.app_context():
+            inst = db.session.get(TelemetryTable, instance_id)
+            assert inst is not None
+            # reassign the top-level key with a new inner dict (the route pattern)
+            inst.default_autopilot_parameters["speed"] = {"default": 5.0, "description": "faster"}
+            db.session.commit()
+
+        with app.app_context():
+            reloaded = db.session.get(TelemetryTable, instance_id)
+            assert reloaded is not None
+            assert reloaded.default_autopilot_parameters["speed"]["default"] == 5.0
+
+    def test_in_place_list_mutation_persists(self, app: Flask) -> None:
+        instance_id = self._make_instance(app).instance_id
+
+        with app.app_context():
+            inst = db.session.get(TelemetryTable, instance_id)
+            assert inst is not None
+            inst.waypoints.append([1.0, 1.0])
+            db.session.commit()
+
+        with app.app_context():
+            reloaded = db.session.get(TelemetryTable, instance_id)
+            assert reloaded is not None
+            assert reloaded.waypoints == [[0.0, 0.0], [1.0, 1.0]]
+
+    def test_in_place_list_of_lists_mutation_persists(self, app: Flask) -> None:
+        """boat_status_mapping is a list of [name, type] pairs; mutating a
+        nested entry must persist (MutableList tracks the outer list, but a
+        nested list inside a MutableList-wrapped column is itself a MutableDict
+        only if it's a dict; for lists of lists we rely on the parent tracking
+        identity reassignment. This test documents the actual behavior..
+        """
+
+        instance_id = self._make_instance(app).instance_id
+
+        with app.app_context():
+            inst = db.session.get(TelemetryTable, instance_id)
+            assert inst is not None
+            # reassign the inner entry -- this mutates the outer list's element
+            # identity from MutableList's perspective, so it's tracked
+            inst.boat_status_mapping[0] = ["heading", "c_int"]
+            db.session.commit()
+
+        with app.app_context():
+            reloaded = db.session.get(TelemetryTable, instance_id)
+            assert reloaded is not None
+            assert reloaded.boat_status_mapping[0] == ["heading", "c_int"]

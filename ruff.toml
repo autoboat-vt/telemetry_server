@@ -116,3 +116,9 @@ ignore = [
 # import (PLC0415).
 [lint.per-file-ignores]
 "tests/**" = ["D102", "ANN001", "ANN201", "PLC0415", "PT018"]
+# Alembic migration files: env.py is auto-generated boilerplate (no public API
+# to annotate), migration versions defer `from alembic import context` inside
+# helpers because Alembic loads them via load_python_file (PLC0415), and the
+# revision functions use intentionally-loose signatures matching Alembic's
+# contract (ANN001/ANN201).
+"migrations/**" = ["ANN001", "ANN201", "PLC0415", "D100", "D101", "D103", "D107"]

@@ -1,19 +1,19 @@
 #!/bin/sh
-# cloudflared entrypoint.
+# cloudflared entrypoint
 #
-# Supports two modes:
+# supports two modes:
 #
-# 1. Dashboard-managed tunnel (default): set TUNNEL_TOKEN in .env to the token
+# 1. dashboard-managed tunnel (default): set TUNNEL_TOKEN in .env to the token
 #    from Cloudflare Zero Trust dashboard -> Networks -> Tunnels -> (your
-#    tunnel) -> Install. The tunnel's public hostname -> service routing is
-#    configured in the dashboard UI. This is the simplest mode.
+#    tunnel) -> Install; the tunnel's public hostname -> service routing is
+#    configured in the dashboard UI, this is the simplest mode
 #
-# 2. File-managed tunnel: set USE_CONFIG_FILE=1 and TUNNEL_ID in .env, and
-#    place the credentials JSON at docker/cloudflared/<TUNNEL_ID>.json.
-#    Routing uses docker/cloudflared/config.yml.
+# 2. file-managed tunnel: set USE_CONFIG_FILE=1 and TUNNEL_ID in .env, and
+#    place the credentials JSON at docker/cloudflared/<TUNNEL_ID>.json;
+#    routing uses docker/cloudflared/config.yml
 #
-# In both modes cloudflared dials OUT to Cloudflare's edge, so no inbound
-# ports need to be open on the host.
+# in both modes cloudflared dials OUT to Cloudflare's edge, so no inbound
+# ports need to be open on the host
 set -eu
 
 if [ "${USE_CONFIG_FILE:-0}" = "1" ]; then

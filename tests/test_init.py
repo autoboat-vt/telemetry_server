@@ -156,9 +156,9 @@ class TestCorsPrecedence:
 
         import autoboat_telemetry_server as ats
 
-        # Write a config.py with a distinctive CORS_ORIGINS we can detect via
-        # the response header. Include both SQLAlchemy binds so db.create_all
-        # doesn't blow up on the missing 'hashes' bind.
+        # write a config.py with a distinctive CORS_ORIGINS we can detect via
+        # the response header; include both SQLAlchemy binds so db.create_all
+        # doesn't blow up on the missing 'hashes' bind
         (tmp_instance_dir / "config.py").write_text(
             "SQLALCHEMY_BINDS = {None: 'sqlite:///:memory:', 'hashes': 'sqlite:///:memory:'}\n"
             "SQLALCHEMY_TRACK_MODIFICATIONS = False\n"
@@ -172,7 +172,7 @@ class TestCorsPrecedence:
             client = app.test_client()
             response = client.get("/", headers={"Origin": "https://override-marker.example.com"})
             assert response.headers.get("Access-Control-Allow-Origin") == "https://override-marker.example.com"
-            # And a non-listed origin does NOT get echoed back.
+            # and a non-listed origin does NOT get echoed back
             other = client.get("/", headers={"Origin": "https://not-allowed.example.com"})
             assert other.headers.get("Access-Control-Allow-Origin") != "https://not-allowed.example.com"
         finally:
@@ -196,7 +196,7 @@ class TestCorsPrecedence:
         try:
             app = ats.create_app()
             client = app.test_client()
-            # The env-var origin is echoed; the config-only origin is not.
+            # the env-var origin is echoed; the config-only origin is not
             response = client.get("/", headers={"Origin": "https://from-env.example.com"})
             assert response.headers.get("Access-Control-Allow-Origin") == "https://from-env.example.com"
             other = client.get("/", headers={"Origin": "https://from-config.example.com"})
@@ -269,7 +269,7 @@ class TestCreateApp:
         """CORS is configured globally; responses should carry the header."""
 
         response = client.get("/", headers={"Origin": "https://autoboat.aoe.vt.edu"})
-        # The exact value depends on config, but the header should be present.
+        # the exact value depends on config, but the header should be present
         assert "Access-Control-Allow-Origin" in response.headers
 
     def test_app_is_in_testing_mode(self, app: Flask) -> None:
@@ -283,16 +283,17 @@ class TestInstanceDirDiscovery:
         from autoboat_telemetry_server import INSTANCE_DIR
 
         assert INSTANCE_DIR is not None
-        # The conftest patches /home to return the repo's parent dir, so
-        # INSTANCE_DIR should point at .../telemetry_server/src/instance.
+        # the conftest patches /home to return the repo's parent dir, so
+        # INSTANCE_DIR should point at .../telemetry_server/src/instance
         assert INSTANCE_DIR.name == "instance"
 
     def test_home_dir_is_fake_home(self) -> None:
         from autoboat_telemetry_server import HOME_DIR
 
-        # The conftest patches /home to return the repo's parent dir so that
+        # the conftest patches /home to return the repo's parent dir so that
         # HOME_DIR / "telemetry_server" / "src" / "instance" resolves to the
-        # repo's checked-in src/instance. In production this would be /home/ubuntu.
+        # repo's checked-in src/instance; in production this would be
+        # /home/ubuntu
         # HOME_DIR == FAKE_HOME (the repo's parent) on every machine, regardless
-        # of what that parent happens to be named locally.
+        # of what that parent happens to be named locally
         assert HOME_DIR == FAKE_HOME
