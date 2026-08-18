@@ -6,12 +6,11 @@ import json
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
-from unittest.mock import patch
 
-import pytest
 from flask.testing import FlaskClient
 
 if TYPE_CHECKING:
+    from flask import Flask
     from prometheus_client import Counter
 
 # pull the module-level metric singletons so tests can read their values
