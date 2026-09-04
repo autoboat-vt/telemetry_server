@@ -206,6 +206,7 @@ class TelemetryTable(db.Model):
             "instance_identifier": self.instance_identifier,
             "user": self.user,
             "current_config_hash": self.current_config_hash,
+            "current_image_uuid": self.camera_image_uuid,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
