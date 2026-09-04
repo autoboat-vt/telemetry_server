@@ -246,6 +246,7 @@ class TestTelemetryTableToDict:
             "instance_identifier",
             "user",
             "current_config_hash",
+            "current_image_uuid",
             "created_at",
             "updated_at",
         }
