@@ -47,13 +47,13 @@ class ReaderWriterLock:
         Parameters
         ----------
         blocking
-            - If ``True``, block until the lock is acquired.
-            - If ``False``, return immediately if the lock cannot be acquired.
+            - If `True`, block until the lock is acquired.
+            - If `False`, return immediately if the lock cannot be acquired.
 
         Returns
         -------
-        bool
-            ``True`` if the lock was acquired, ``False`` otherwise.
+        `bool`
+            `True` if the lock was acquired, `False` otherwise.
         """
 
         acquired = self._cond.acquire(blocking)
@@ -95,7 +95,7 @@ class LockManager:
 
         Returns
         -------
-        Callable[P, R]
+        `Callable[P, R]`
             The decorated function.
         """
 
@@ -138,7 +138,7 @@ class LockManager:
 
         Returns
         -------
-        Callable[P, R]
+        `Callable[P, R]`
             The decorated function.
         """
 

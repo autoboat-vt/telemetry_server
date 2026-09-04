@@ -491,3 +491,80 @@ class TestJsonColumnMutationTracking:
             reloaded = db.session.get(TelemetryTable, instance_id)
             assert reloaded is not None
             assert reloaded.boat_status_mapping[0] == ["heading", "c_int"]
+
+
+# --------------------------------------------------------------------------- #
+# ImageTable -- content-addressed image storage
+# --------------------------------------------------------------------------- #
+
+
+class TestImageTable:
+    """``ImageTable`` UUIDs are derived from the image bytes, so identical
+    images always map to the same row and distinct images never collide.
+    """
+
+    def test_compute_uuid_is_deterministic(self) -> None:
+        from autoboat_telemetry_server.models import ImageTable
+
+        data = b"\x89PNG\r\n\x1a\nfake-image-bytes"
+        assert ImageTable.compute_uuid(data) == ImageTable.compute_uuid(data)
+
+    def test_compute_uuid_differs_for_different_images(self) -> None:
+        from autoboat_telemetry_server.models import ImageTable
+
+        assert ImageTable.compute_uuid(b"image-a") != ImageTable.compute_uuid(b"image-b")
+
+    def test_compute_uuid_returns_canonical_uuid_string(self) -> None:
+        import uuid
+
+        from autoboat_telemetry_server.models import ImageTable
+
+        # raises ValueError if not a valid UUID string
+        parsed = uuid.UUID(ImageTable.compute_uuid(b"image"))
+        assert parsed.version == 5
+
+    def test_get_or_create_creates_row(self, app: Flask) -> None:
+        from autoboat_telemetry_server.models import ImageTable
+
+        with app.app_context():
+            image = ImageTable.get_or_create(b"image-bytes")
+            db.session.commit()
+            assert image.image_uuid == ImageTable.compute_uuid(b"image-bytes")
+            assert db.session.get(ImageTable, image.image_uuid).data == b"image-bytes"
+
+    def test_get_or_create_is_idempotent(self, app: Flask) -> None:
+        """Storing the same image twice returns the existing row (no duplicate)."""
+
+        from autoboat_telemetry_server.models import ImageTable
+
+        with app.app_context():
+            first = ImageTable.get_or_create(b"same-image")
+            db.session.commit()
+            second = ImageTable.get_or_create(b"same-image")
+            db.session.commit()
+
+            assert first.image_uuid == second.image_uuid
+            assert db.session.execute(db.select(ImageTable)).scalars().all().__len__() == 1
+
+    def test_to_dict_has_no_binary_payload(self, app: Flask) -> None:
+        from autoboat_telemetry_server.models import ImageTable
+
+        with app.app_context():
+            image = ImageTable.get_or_create(b"image-bytes")
+            db.session.commit()
+
+            result = image.to_dict()
+            assert set(result.keys()) == {"image_uuid", "size_bytes", "created_at"}
+            assert result["size_bytes"] == len(b"image-bytes")
+
+    def test_instance_camera_image_uuid_defaults_to_empty(self, app: Flask) -> None:
+        with app.app_context():
+            inst = TelemetryTable(
+                default_autopilot_parameters={"speed": {"default": 1.0, "description": "speed"}},
+                autopilot_parameters={"speed": 1.0},
+                boat_status={"heading": 0.0},
+                waypoints=[[0.0, 0.0]],
+            )
+            db.session.add(inst)
+            db.session.commit()
+            assert db.session.get(TelemetryTable, inst.instance_id).camera_image_uuid == ""

@@ -54,8 +54,9 @@ config to diverge from the baked-in default.
    tables in production. `docker/app-entrypoint.sh` runs `flask db upgrade`
    before gunicorn. The pytest `app` fixture calls `db.create_all()` explicitly
    for throwaway test DBs.
-4. Registers the four blueprints: `InstanceManagerEndpoint`,
-   `AutopilotParametersEndpoint`, `BoatStatusEndpoint`, `WaypointEndpoint`.
+4. Registers the five blueprints: `InstanceManagerEndpoint`,
+   `AutopilotParametersEndpoint`, `BoatStatusEndpoint`, `WaypointEndpoint`,
+   `ImageManagerEndpoint`.
 5. Calls `init_observability(app)` (see "Observability" below).
 6. Adds a trivial `/` index route.
 
@@ -292,8 +293,38 @@ Three hard rules:
 
 ## Models
 
-`models.py` defines `TelemetryTable` (live state of every instance) and
-`HashTable` (named autopilot config snapshots, keyed by SHA-256 hash).
+`models.py` defines `TelemetryTable` (live state of every instance),
+`HashTable` (named autopilot config snapshots, keyed by SHA-256 hash), and
+`ImageTable` (content-addressed camera image store, keyed by a UUID derived
+from the image bytes).
+
+### `ImageTable` — content-addressed image storage
+
+`ImageTable` (bind `"images"` -> `images.db`, `__bind_key__ = "images"`) stores
+camera image bytes keyed by a content-derived UUID:
+`uuid5(NAMESPACE_DNS, f"autoboat-image:{sha256(image_bytes).hexdigest()}")`.
+PK is `image_uuid` (36-char UUID string); columns are `image_uuid`, `data`
+(`LargeBinary`), `created_at`. See AGENTS.md #3.15 for the full invariant.
+
+Helpers (use these, don't reimplement):
+- `ImageTable.compute_uuid(image_data)` — the deterministic UUID for the
+  given bytes.
+- `ImageTable.get_or_create(image_data)` — returns the existing row if the
+  bytes are already stored (dedup is the whole point), else a new row added
+  to the session (caller still commits).
+- `ImageTable.to_dict()` — metadata only: `image_uuid`, `size_bytes`,
+  `created_at`. Never includes the binary payload.
+
+`TelemetryTable.camera_image_uuid` is a soft reference to an `ImageTable`
+row (no cross-bind FK). Empty string means no image is set. Deleting an
+image row that an instance still points at makes `get_image` return 404 —
+tolerated, not an error.
+
+**Deployment caveat:** the `"images"` bind lives in
+`src/instance/config.py:SQLALCHEMY_BINDS`, which is preserved in a named
+volume on upgrades (AGENTS.md #3.2). Pre-existing deployments keep their
+old two-bind config.py until the operator updates the file manually — don't
+assume every production DB has an `images.db`.
 
 ### JSON column mutation tracking
 
@@ -474,11 +505,12 @@ wrong values.
   throwaway test DBs). `docker/app-entrypoint.sh` runs `flask db upgrade`
   before gunicorn on every start. To add a schema change: edit the model,
   run `flask db migrate -m "..."` to autogenerate (default bind only — add
-  `hashes`-bind ops by hand if `HashTable` changed), inspect the generated
-  file, then `flask db upgrade` to apply. Existing volumes that predate
-  Alembic need a one-time `flask db stamp head` first. See AGENTS.md #6.2
-  and `.github/instructions/deployment-docs.instructions.md` → "Migrations
-  and the named volumes".
+  `hashes`- or `images`-bind ops by hand if the corresponding model
+  changed), inspect the generated file, then `flask db upgrade` to apply.
+  Existing volumes that predate Alembic need a one-time `flask db stamp
+  head` first. See AGENTS.md #6.2 and
+  `.github/instructions/deployment-docs.instructions.md` → "Migrations and
+  the named volumes".
 - `current_config_hash` is **not a real FK**. The `delete_config_route`
   guards against dangling references by scanning `TelemetryTable` for rows
   with a matching `current_config_hash` before deleting; if any are found it
@@ -490,8 +522,11 @@ wrong values.
 `SQLALCHEMY_BINDS` in `src/instance/config.py`:
 - `None` key → `instances.db` (the default bind, used by `TelemetryTable`).
 - `"hashes"` key → `hashes.db` (used by `HashTable`, which declares
-  `__bind_key__ = "hashes"`). You never need to specify the bind in query
-code — SQLAlchemy routes based on the model's `__bind_key__`.
+  `__bind_key__ = "hashes"`).
+- `"images"` key → `images.db` (used by `ImageTable`, which declares
+  `__bind_key__ = "images"`).
+You never need to specify the bind in query code — SQLAlchemy routes based
+on the model's `__bind_key__`.
 
 ## Types
 
@@ -556,9 +591,11 @@ the wire format, don't renumber them.
    `get_all_hashes`, `get_hash_exists`, `get_config/<hash>`, `get_hash/<id>`
    (current hash for an instance), `get_default/<id>` (default params).
 6. **Delete:** `DELETE /autopilot_parameters/delete_config/<hash>` removes a
-   `HashTable` row. Does NOT check whether any instance's
-   `current_config_hash` points at it — deleting an in-use hash will leave
-   dangling references. Don't call this on a hash that's currently applied.
+   `HashTable` row. **Rejects with 409 if any instance's
+   `current_config_hash` points at it** — the response body is
+   `{"error": "...", "in_use_by": [ids]}`. `current_config_hash` is not a real
+   FK, so the route guards against dangling references at the application
+   layer. Reassign or delete the offending instances first, then retry.
 
 ## Instance manager — lifecycle and naming
 
@@ -600,6 +637,50 @@ the wire format, don't renumber them.
   each coordinate is `int|float`. Validates each point is a list/tuple of
   length 2 with numeric coords; 400 otherwise. Sets
   `waypoints_new_flag = True`.
+
+## Instance image routes (boat_status domain)
+
+The per-instance camera image lives on the `boat_status` blueprint (per the
+feature spec — the image is a boat-status property); the backing store is
+`image_manager` (below).
+
+- `GET /boat_status/get_image/<id>` — `@require_read_lock`. Returns the raw
+  image bytes (`Content-Type: application/octet-stream` — NOT a mimetype like
+  `image/jpeg`; the server doesn't sniff content types). Three distinct
+  404s: unknown instance, no image set (`camera_image_uuid == ""`), or the
+  referenced row is gone from `images.db` (dangling soft reference).
+- `POST /boat_status/set_image/<id>` — `@require_write_lock`. Body is either
+  multipart form-data (uses the first `request.files` field, matching
+  `requests.post(files={"image": ...})`) or the raw request body. Stores the
+  bytes via `ImageTable.get_or_create` (dedup), re-points the instance's
+  `camera_image_uuid`, commits. **Empty body raises `TypeError` and shares
+  the boat_status 404 branch** (the boat_status `TypeError` ladder lumps
+  "instance not found" and input errors together — see the error-code
+  section). An empty body here returns **404**, not 400. Copy the
+  `set_route` except-ladder if you're unsure.
+
+## Image manager — the content-addressed store
+
+`image_manager` manages `images.db` directly (Blueprint
+`image_manager_page`, `url_prefix="/image_manager"`). Underlying store is
+`ImageTable` — see the Models section. Content-addressed UUIDs mean
+re-uploading the same bytes returns the same UUID without creating a row
+(AGENTS.md #3.15); don't random-generate UUIDs.
+
+Routes:
+- `GET /test` — literal health-check string. Not lock-decorated.
+- `GET /get/<uuid>` — `@require_read_lock`. Raw bytes,
+  `application/octet-stream`. 404 if the UUID isn't stored.
+- `GET /get_info/<uuid>` — `@require_read_lock`. `to_dict()` metadata
+  (`image_uuid`, `size_bytes`, `created_at`) — never the binary payload.
+- `GET /get_all` — `@require_read_lock`. List of `to_dict()` for every row.
+- `POST /upload` — `@require_write_lock`. Multipart first-file-field or raw
+  body. Empty body raises `TypeError` → **400** (this domain maps input
+  TypeErrors to 400, unlike boat_status which lumps them into 404).
+- `DELETE /delete/<uuid>` — `@require_write_lock`. 404 if missing.
+- `DELETE /delete_all` — `@require_write_lock`. Deletes every row and
+  returns the count. Destructive; not called by cron — there's no automatic
+  image GC (TODO.md).
 
 ## Lock manager
 

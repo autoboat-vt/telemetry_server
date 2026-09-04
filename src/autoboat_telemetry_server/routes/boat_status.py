@@ -1,10 +1,10 @@
 import ctypes
 from typing import ClassVar, Literal
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, Response, jsonify, request
 
 from autoboat_telemetry_server import shared_lock_manager
-from autoboat_telemetry_server.models import TelemetryTable, db
+from autoboat_telemetry_server.models import ImageTable, TelemetryTable, db
 from autoboat_telemetry_server.types import ResponseType
 
 
@@ -31,12 +31,12 @@ class BoatStatusEndpoint:
 
         Returns
         -------
-        TelemetryTable
+        :class:`TelemetryTable`
             The telemetry instance corresponding to the provided ID.
 
         Raises
         ------
-        TypeError
+        :class:`TypeError`
             If the instance with the given ID does not exist.
         """
 
@@ -53,7 +53,7 @@ class BoatStatusEndpoint:
 
         Returns
         -------
-        str
+        `str`
             Confirmation message indicating the routes have been registered successfully.
         """
 
@@ -66,7 +66,7 @@ class BoatStatusEndpoint:
 
             Returns
             -------
-            Literal["boat_status route testing!"]
+            `Literal["boat_status route testing!"]`
                 Confirmation message for testing the boat status route.
             """
 
@@ -87,7 +87,7 @@ class BoatStatusEndpoint:
 
             Returns
             -------
-            ResponseType
+            :type:`ResponseType`
                 A tuple containing a JSON response with the boat status for the specified telemetry instance,
                 or an error message if the instance is not found.
             """
@@ -118,7 +118,7 @@ class BoatStatusEndpoint:
 
             Returns
             -------
-            ResponseType
+            :type:`ResponseType`
                 A tuple containing a JSON response with the boat status for the specified telemetry instance,
                 or an empty dictionary if there is no new boat status, or an error message if the instance is not found.
             """
@@ -155,7 +155,7 @@ class BoatStatusEndpoint:
 
             Returns
             -------
-            ResponseType
+            :type:`ResponseType`
                 A tuple containing a JSON response confirming the boat status has been updated successfully,
                 or an error message if the instance is not found or if the input format is invalid.
             """
@@ -195,7 +195,7 @@ class BoatStatusEndpoint:
 
             Returns
             -------
-            ResponseType
+            :type:`ResponseType`
                 A tuple containing a JSON response confirming the boat status has been updated successfully,
                 or an error message if the instance is not found or if the input format is invalid.
             """
@@ -250,7 +250,7 @@ class BoatStatusEndpoint:
 
             Returns
             -------
-            ResponseType
+            :type:`ResponseType`
                 A tuple containing a JSON response confirming the boat status mapping has been updated successfully,
                 or an error message if the instance is not found or if the input format is invalid.
             """
@@ -274,6 +274,88 @@ class BoatStatusEndpoint:
                 db.session.commit()
 
                 return jsonify("Boat status mapping updated successfully."), 200
+
+            except TypeError as e:
+                return jsonify(str(e)), 404
+
+            except Exception as e:
+                db.session.rollback()
+                return jsonify(str(e)), 500
+
+        @self._blueprint.route("/get_image/<int:instance_id>", methods=["GET"])
+        @shared_lock_manager.require_read_lock
+        def get_image_route(instance_id: int) -> ResponseType:
+            """
+            Get the current camera image for a specific telemetry instance.
+
+            Method: GET
+
+            Parameters
+            ----------
+            instance_id
+                The ID of the telemetry instance to retrieve the image for.
+
+            Returns
+            -------
+            :type:`ResponseType`
+                A tuple containing the raw image bytes in the response, or an error message if the instance is not found
+                or if there is no image set for the instance.
+            """
+
+            try:
+                telemetry_instance = self._get_instance(instance_id)
+
+                if not telemetry_instance.camera_image_uuid:
+                    return jsonify("No image set for this instance."), 404
+
+                image = db.session.get(ImageTable, telemetry_instance.camera_image_uuid)
+                if image is None:
+                    return jsonify("Image not found."), 404
+
+                return Response(image.data, mimetype="application/octet-stream"), 200
+
+            except TypeError as e:
+                return jsonify(str(e)), 404
+
+        @self._blueprint.route("/set_image/<int:instance_id>", methods=["POST"])
+        @shared_lock_manager.require_write_lock
+        def set_image_route(instance_id: int) -> ResponseType:
+            """
+            Set the current camera image for a specific telemetry instance.
+
+            Accepts a multipart/form-data file upload or a raw binary body.
+            The image is stored in the content-addressed image database (see
+            :class:`ImageTable`) and the instance is pointed at its UUID.
+
+            Method: POST
+
+            Parameters
+            ----------
+            instance_id
+                The ID of the telemetry instance to set the image for.
+
+            Returns
+            -------
+            :type:`ResponseType`
+                A tuple containing a JSON response with the image UUID, or an
+                error message if the instance is not found or the request has
+                no image data.
+            """
+
+            try:
+                telemetry_instance = self._get_instance(instance_id)
+
+                # multipart upload (requests.post(files={...})) or raw binary body
+                image_data = next(iter(request.files.values())).read() if request.files else request.get_data(cache=False)
+
+                if not image_data:
+                    raise TypeError("No image data in the request.")
+
+                image = ImageTable.get_or_create(image_data)
+                telemetry_instance.camera_image_uuid = image.image_uuid
+                db.session.commit()
+
+                return jsonify(image.image_uuid), 200
 
             except TypeError as e:
                 return jsonify(str(e)), 404

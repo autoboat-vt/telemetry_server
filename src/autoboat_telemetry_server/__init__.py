@@ -30,6 +30,7 @@ INSTANCE_DIR = HOME_DIR / "telemetry_server" / "src" / "instance"
 from autoboat_telemetry_server.routes import (  # noqa: E402
     AutopilotParametersEndpoint,
     BoatStatusEndpoint,
+    ImageManagerEndpoint,
     InstanceManagerEndpoint,
     WaypointEndpoint,
 )
@@ -49,6 +50,7 @@ DEFAULT_CORS_ORIGINS: list[str] = [
 
 def _parse_cors_origins(raw: str) -> list[str]:
     """Split a comma-separated CORS_ORIGINS env var into a list of origins."""
+
     return [origin.strip() for origin in raw.split(",") if origin.strip()]
 
 
@@ -58,7 +60,7 @@ def create_app() -> _flask:
 
     Returns
     -------
-    Flask
+    :class:`Flask`
         Configured Flask application instance.
     """
 
@@ -95,6 +97,7 @@ def create_app() -> _flask:
     app.register_blueprint(AutopilotParametersEndpoint().blueprint)
     app.register_blueprint(BoatStatusEndpoint().blueprint)
     app.register_blueprint(WaypointEndpoint().blueprint)
+    app.register_blueprint(ImageManagerEndpoint().blueprint)
 
     # structured logging + /metrics endpoint; see observability.py and
     # .github/instructions/python-source.instructions.md#Observability
@@ -107,7 +110,7 @@ def create_app() -> _flask:
 
         Returns
         -------
-        str
+        `str`
             Confirmation message indicating which server is running.
         """
 

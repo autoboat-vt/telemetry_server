@@ -4,18 +4,20 @@ Database models for the Autoboat Telemetry Server.
 Includes:
 - TelemetryTable: Model for storing telemetry data.
 - HashTable: Model for storing configuration hashes.
+- ImageTable: Model for storing content-addressed camera images.
 """
 
-__all__ = ["HashTable", "TelemetryTable", "db"]
+from __future__ import annotations
 
 import hashlib
 import json
 import sqlite3
+import uuid
 from datetime import UTC, datetime
 from typing import Any
 
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import Boolean, Index, Integer, String, event
+from sqlalchemy import Boolean, Index, Integer, LargeBinary, String, event
 from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.ext.mutable import MutableDict, MutableList
 from sqlalchemy.orm import Mapped, Mapper, mapped_column, validates
@@ -28,6 +30,8 @@ from autoboat_telemetry_server.types import (
     DiagnosticMessageType,
     WaypointSequenceType,
 )
+
+__all__ = ["HashTable", "ImageTable", "TelemetryTable", "db"]
 
 # json column mutation tracking — see python-source.instructions.md
 # #"JSON column mutation tracking" and AGENTS.md #3.13
@@ -50,7 +54,8 @@ _SQLITE_PRAGMAS = (
 
 @event.listens_for(Engine, "connect")
 def _set_sqlite_pragmas(dbapi_connection: object, _connection_record: object) -> None:
-    """Apply SQLite performance pragmas to every new connection on every bind.
+    """
+    Apply SQLite performance pragmas to every new connection on every bind.
 
     Parameters
     ----------
@@ -78,7 +83,7 @@ class TelemetryTable(db.Model):
 
     Inherits
     -------
-    ``db.Model``
+    :class:`db.Model`
         SQLAlchemy base model for database interaction.
 
     Attributes
@@ -115,6 +120,10 @@ class TelemetryTable(db.Model):
     waypoints_new_flag : bool
         Flag indicating if there are new waypoints.
 
+    camera_image_uuid : str
+        UUID of the instance's current camera image in the ``images`` bind
+        (see :class:`ImageTable`). Empty string when no image has been set.
+
     created_at : datetime
         Timestamp when the telemetry instance was created.
     updated_at : datetime
@@ -146,6 +155,8 @@ class TelemetryTable(db.Model):
     waypoints: Mapped[WaypointSequenceType] = mapped_column(MutableJSONList, nullable=False)
     waypoints_new_flag: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
+    camera_image_uuid: Mapped[str] = mapped_column(String, default="", nullable=False)
+
     created_at: Mapped[datetime] = mapped_column(db.DateTime, default=lambda: datetime.now(UTC), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         db.DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), nullable=False
@@ -166,12 +177,12 @@ class TelemetryTable(db.Model):
 
         Returns
         -------
-        str
+        `str`
             The validated value.
 
         Raises
         ------
-        ValueError
+        :class:`ValueError`
             If there is an attempt to change the user after it has been set.
         """
 
@@ -186,7 +197,7 @@ class TelemetryTable(db.Model):
 
         Returns
         -------
-        dict[str, Any]
+        `dict[str, Any]`
             A dictionary representation of the telemetry instance.
         """
 
@@ -206,7 +217,7 @@ class TelemetryTable(db.Model):
 
         Returns
         -------
-        list[int]
+        `list[int]`
             A list of all instance IDs.
         """
 
@@ -216,7 +227,7 @@ class TelemetryTable(db.Model):
 @event.listens_for(TelemetryTable, "after_insert")
 def set_instance_identifier(mapper: Mapper, connection: Connection, target: TelemetryTable) -> None:
     """
-    Event listener to set the ``instance_identifier`` after a ``TelemetryTable`` row is inserted.
+    Event listener to set the :attr:`instance_identifier` after a :class:`TelemetryTable` row is inserted.
 
     Parameters
     ----------
@@ -225,11 +236,11 @@ def set_instance_identifier(mapper: Mapper, connection: Connection, target: Tele
     connection
         Database connection used for the update.
     target
-        The instance of ``TelemetryTable`` that was inserted.
+        The instance of :class:`TelemetryTable` that was inserted.
 
     Returns
     -------
-    None
+    `None`
     """
 
     new_identifier = f"Unnamed instance #{target.instance_id}"
@@ -248,7 +259,7 @@ class HashTable(db.Model):
 
     Inherits
     -------
-    ``db.Model``
+    :class:`db.Model`
         SQLAlchemy base model for database interaction.
 
     Attributes
@@ -278,7 +289,7 @@ class HashTable(db.Model):
 
         Returns
         -------
-        dict[str, Any]
+        `dict[str, Any]`
             A dictionary representation of the hash instance.
         """
 
@@ -296,8 +307,8 @@ class HashTable(db.Model):
 
         Returns
         -------
-        bool
-            ``True`` if the hash exists, ``False`` otherwise.
+        `bool`
+            `True` if the hash exists, `False` otherwise.
         """
 
         exists = db.session.execute(db.select(cls.config_hash).where(cls.config_hash == config_hash)).first()
@@ -315,7 +326,7 @@ class HashTable(db.Model):
 
         Returns
         -------
-        str
+        `str`
             The SHA-256 hash of the configuration data.
         """
 
@@ -335,7 +346,7 @@ class HashTable(db.Model):
 
         Returns
         -------
-        bool, str
+        `tuple[bool, str]`
             A tuple where the first element is a boolean indicating if the configuration is valid,
             and the second element is a message describing the validation result.
         """
@@ -360,3 +371,100 @@ class HashTable(db.Model):
                 return False, "Each inner dictionary must contain 'default' and 'description' keys."
 
         return True, "The configuration is valid."
+
+
+class ImageTable(db.Model):
+    """
+    Database model for content-addressed camera image storage.
+
+    Images are keyed by a UUID derived deterministically from the image bytes
+    (see :meth:`compute_uuid`), so identical images always map to the same row and
+    two distinct images can never collide on a UUID. Instances reference their
+    current image via :meth:`TelemetryTable.camera_image_uuid`.
+
+    Inherits
+    -------
+    :class:`db.Model`
+        SQLAlchemy base model for database interaction.
+
+    Attributes
+    ----------
+    image_uuid : str
+        Content-addressed UUID (primary key), derived from the image data.
+    data : bytes
+        The raw image bytes.
+    created_at : datetime
+        Timestamp when the image was first stored.
+    """
+
+    __tablename__ = "image_table"
+    __bind_key__ = "images"
+
+    image_uuid: Mapped[str] = mapped_column(String(36), primary_key=True, nullable=False)
+    data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(db.DateTime, default=lambda: datetime.now(UTC), nullable=False)
+
+    @staticmethod
+    def compute_uuid(image_data: bytes) -> str:
+        """
+        Compute the content-addressed UUID for the given image data.
+
+        Uses UUIDv5 (SHA-1 name-based) over the SHA-256 hex digest of the
+        image bytes within the DNS namespace, so the same image always
+        produces the same UUID and different images produce different UUIDs.
+
+        Parameters
+        ----------
+        image_data
+            The raw image bytes.
+
+        Returns
+        -------
+        `str`
+            The UUID (canonical string form) for the image data.
+        """
+
+        # content-addressed uuid — see python-source.instructions.md#ImageTable
+        digest = hashlib.sha256(image_data).hexdigest()
+        return str(uuid.uuid5(uuid.NAMESPACE_DNS, f"autoboat-image:{digest}"))
+
+    @classmethod
+    def get_or_create(cls, image_data: bytes) -> ImageTable:
+        """
+        Retrieve the row for the given image data, creating it if it doesn't exist.
+
+        Because the UUID is content-addressed, storing the same image twice is
+        a no-op that returns the existing row.
+
+        Parameters
+        ----------
+        image_data
+            The raw image bytes.
+
+        Returns
+        -------
+        :class:`ImageTable`
+            The existing or newly-created image row (added to the session).
+        """
+
+        image_uuid = cls.compute_uuid(image_data)
+        existing = db.session.get(cls, image_uuid)
+        if existing is not None:
+            return existing
+
+        image = cls(image_uuid=image_uuid, data=image_data)
+        db.session.add(image)
+        return image
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Convert the image row to a dictionary (metadata only, not the image bytes).
+
+        Returns
+        -------
+        `dict[str, Any]`
+            A dictionary representation of the image row without the binary payload.
+        """
+
+        return {"image_uuid": self.image_uuid, "size_bytes": len(self.data), "created_at": self.created_at.isoformat()}

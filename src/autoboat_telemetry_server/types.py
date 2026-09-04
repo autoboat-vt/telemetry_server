@@ -54,18 +54,16 @@ class DiagnosticMessageIntensity(IntEnum):
 
     Attributes
     ----------
-    - ```INFO```: Represents informational messages that indicate normal operation or
-        provide general information.
-
-    - ```WARNING```: Represents warning messages that indicate a potential issue or a
-        situation that may require attention but does not necessarily indicate an immediate problem.
-
-    - ```ERROR```: Represents error messages that indicate a significant problem or
-        failure that requires immediate attention and may impact the functionality of the system.
+    INFO
+        Represents an informational message (value: 1).
+    WARNING
+        Represents a warning message (value: 2).
+    ERROR
+        Represents an error message (value: 3).
 
     Inherits
     -------
-    ``IntEnum``
+    :class:`IntEnum`
     """
 
     INFO = 1

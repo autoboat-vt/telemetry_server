@@ -1,13 +1,24 @@
 [project]
-name            = "telemetry_server"
-version         = "0.0.0"
-description     = "Telemetry server for the Virginia Tech Autoboat project."
-readme          = "README.md"
+name = "telemetry_server"
+version = "0.0.0"
+description = "Telemetry server for the Virginia Tech Autoboat project."
+readme = "README.md"
 requires-python = ">=3.12"
-license         = "GPL-3.0-or-later"
-license-files   = ["LICENSE"]
-authors         = [{ name = "Virginia Tech Autoboat Team" }]
-keywords        = ["autoboat", "telemetry", "flask", "virginia-tech"]
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+authors = [{ name = "Autoboat at Virginia Tech", email = "autoboat@vt.edu" }]
+keywords = [
+    "autonomous boat",
+    "autonomous vehicle",
+    "autoboat",
+    "flask",
+    "prometheus",
+    "sqlalchemy",
+    "telemetry",
+    "virginia tech",
+    "vt",
+    "watercraft",
+]
 # Note: no "License ::" classifier - PEP 639 requires the `license` SPDX
 # expression below to be the sole source of license metadata.
 classifiers = [
@@ -50,9 +61,10 @@ dev = [
 ]
 
 [project.urls]
-Repository    = "https://github.com/autoboat-vt/telemetry_server"
-Documentation = "https://autoboat-vt.github.io/documentation"
-Issues        = "https://github.com/autoboat-vt/telemetry_server/issues"
+homepage      = "https://autoboat.aoe.vt.edu"
+source        = "https://github.com/autoboat-vt/telemetry_server"
+documentation = "https://autoboat-vt.github.io/documentation"
+issues        = "https://github.com/autoboat-vt/telemetry_server/issues"
 
 [build-system]
 # setuptools >= 77 is required for PEP 639 license-expression support
@@ -73,7 +85,6 @@ include = ["autoboat_telemetry_server*"]
 # __file__ points into site-packages and the migrations/ dir was only COPY'd
 # to WORKDIR in the Dockerfile (not into the package). See AGENTS.md #6.2.
 autoboat_telemetry_server = [
-    "py.typed",
     "migrations/*.ini",
     "migrations/*.py",
     "migrations/*.mako",

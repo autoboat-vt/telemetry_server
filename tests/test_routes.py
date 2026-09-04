@@ -787,3 +787,138 @@ class TestErrorCodeLadder:
         client.post(f"/instance_manager/set_user/{instance_id}/alice")
         response = client.post(f"/instance_manager/set_user/{instance_id}/bob")
         assert response.status_code == 400
+
+
+# --------------------------------------------------------------------------- #
+# Image manager + per-instance image routes
+# --------------------------------------------------------------------------- #
+
+
+class TestImageManager:
+    """The image database routes manage content-addressed images by UUID."""
+
+    def test_upload_raw_body_returns_uuid(self, client: FlaskClient) -> None:
+        from autoboat_telemetry_server.models import ImageTable
+
+        data = b"\x89PNG\r\n\x1a\nfake-png"
+        response = client.post("/image_manager/upload", data=data, content_type="application/octet-stream")
+        assert response.status_code == 200
+        assert response.get_json() == ImageTable.compute_uuid(data)
+
+    def test_upload_multipart_file_returns_uuid(self, client: FlaskClient) -> None:
+        import io
+
+        from autoboat_telemetry_server.models import ImageTable
+
+        data = b"multipart-image-bytes"
+        # mirrors requests.post(url, files={"file": ("img.png", data, "image/png")})
+        response = client.post(
+            "/image_manager/upload", data={"file": (io.BytesIO(data), "img.png", "image/png")}, content_type="multipart/form-data"
+        )
+        assert response.status_code == 200
+        assert response.get_json() == ImageTable.compute_uuid(data)
+
+    def test_upload_same_image_twice_reuses_uuid(self, client: FlaskClient) -> None:
+        data = b"same-image"
+        first = client.post("/image_manager/upload", data=data, content_type="application/octet-stream")
+        second = client.post("/image_manager/upload", data=data, content_type="application/octet-stream")
+        assert first.get_json() == second.get_json()
+
+        listing = client.get("/image_manager/get_all")
+        assert listing.status_code == 200
+        assert len(listing.get_json()) == 1
+
+    def test_upload_empty_body_returns_400(self, client: FlaskClient) -> None:
+        response = client.post("/image_manager/upload", data=b"", content_type="application/octet-stream")
+        assert response.status_code == 400
+
+    def test_get_returns_raw_bytes(self, client: FlaskClient) -> None:
+        from autoboat_telemetry_server.models import ImageTable
+
+        data = b"roundtrip-image"
+        uuid = client.post("/image_manager/upload", data=data, content_type="application/octet-stream").get_json()
+        assert uuid == ImageTable.compute_uuid(data)
+
+        response = client.get(f"/image_manager/get/{uuid}")
+        assert response.status_code == 200
+        assert response.data == data
+
+    def test_get_unknown_uuid_returns_404(self, client: FlaskClient) -> None:
+        response = client.get("/image_manager/get/00000000-0000-0000-0000-000000000000")
+        assert response.status_code == 404
+
+    def test_get_info_returns_metadata(self, client: FlaskClient) -> None:
+        data = b"metadata-image"
+        uuid = client.post("/image_manager/upload", data=data, content_type="application/octet-stream").get_json()
+
+        response = client.get(f"/image_manager/get_info/{uuid}")
+        assert response.status_code == 200
+        info = response.get_json()
+        assert info["image_uuid"] == uuid
+        assert info["size_bytes"] == len(data)
+
+    def test_delete_removes_image(self, client: FlaskClient) -> None:
+        data = b"delete-me"
+        uuid = client.post("/image_manager/upload", data=data, content_type="application/octet-stream").get_json()
+
+        response = client.delete(f"/image_manager/delete/{uuid}")
+        assert response.status_code == 200
+        assert client.get(f"/image_manager/get/{uuid}").status_code == 404
+
+    def test_delete_unknown_uuid_returns_404(self, client: FlaskClient) -> None:
+        response = client.delete("/image_manager/delete/00000000-0000-0000-0000-000000000000")
+        assert response.status_code == 404
+
+    def test_delete_all(self, client: FlaskClient) -> None:
+        client.post("/image_manager/upload", data=b"one", content_type="application/octet-stream")
+        client.post("/image_manager/upload", data=b"two", content_type="application/octet-stream")
+
+        response = client.delete("/image_manager/delete_all")
+        assert response.status_code == 200
+        assert b"2" in response.data
+        assert client.get("/image_manager/get_all").get_json() == []
+
+
+class TestInstanceImage:
+    """boat_status routes for a specific instance's current image."""
+
+    def test_set_and_get_image_roundtrip(self, client: FlaskClient) -> None:
+        instance_id = _create_instance(client)
+        data = b"instance-image"
+
+        set_response = client.post(f"/boat_status/set_image/{instance_id}", data=data, content_type="application/octet-stream")
+        assert set_response.status_code == 200
+
+        get_response = client.get(f"/boat_status/get_image/{instance_id}")
+        assert get_response.status_code == 200
+        assert get_response.data == data
+
+    def test_set_image_stores_in_image_db(self, client: FlaskClient) -> None:
+        from autoboat_telemetry_server.models import ImageTable
+
+        instance_id = _create_instance(client)
+        data = b"stored-image"
+        uuid = client.post(f"/boat_status/set_image/{instance_id}", data=data, content_type="application/octet-stream").get_json()
+
+        # the image is retrievable from the image manager by its uuid
+        assert client.get(f"/image_manager/get/{uuid}").data == data
+        assert uuid == ImageTable.compute_uuid(data)
+
+    def test_get_image_unset_returns_404(self, client: FlaskClient) -> None:
+        instance_id = _create_instance(client)
+        response = client.get(f"/boat_status/get_image/{instance_id}")
+        assert response.status_code == 404
+
+    def test_get_image_unknown_instance_returns_404(self, client: FlaskClient) -> None:
+        response = client.get("/boat_status/get_image/9999")
+        assert response.status_code == 404
+
+    def test_set_image_unknown_instance_returns_404(self, client: FlaskClient) -> None:
+        response = client.post("/boat_status/set_image/9999", data=b"img", content_type="application/octet-stream")
+        assert response.status_code == 404
+
+    def test_set_image_empty_body_returns_error(self, client: FlaskClient) -> None:
+        instance_id = _create_instance(client)
+        response = client.post(f"/boat_status/set_image/{instance_id}", data=b"", content_type="application/octet-stream")
+        # boat_status routes lump TypeErrors into 404 (Section 3.12 gotcha)
+        assert response.status_code == 404

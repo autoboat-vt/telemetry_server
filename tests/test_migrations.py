@@ -102,9 +102,11 @@ class TestMultiBindMigration:
     def test_upgrade_creates_both_tables(self, migration_app: Flask, tmp_path: Path) -> None:
         instances_db = migration_app.config["SQLALCHEMY_BINDS"][None]
         hashes_db = migration_app.config["SQLALCHEMY_BINDS"]["hashes"]
+        images_db = migration_app.config["SQLALCHEMY_BINDS"]["images"]
         # extract the file path from the sqlite URI
         instances_path = Path(instances_db.replace("sqlite:///", ""))
         hashes_path = Path(hashes_db.replace("sqlite:///", ""))
+        images_path = Path(images_db.replace("sqlite:///", ""))
 
         with migration_app.app_context():
             from flask_migrate import upgrade
@@ -115,23 +117,30 @@ class TestMultiBindMigration:
         assert "alembic_version" in _tables_in(instances_path)
         assert "hash_table" in _tables_in(hashes_path)
         assert "alembic_version" in _tables_in(hashes_path)
+        assert "image_table" in _tables_in(images_path)
+        assert "alembic_version" in _tables_in(images_path)
 
-    def test_downgrade_drops_both_tables(self, migration_app: Flask, tmp_path: Path) -> None:
+    def test_downgrade_drops_all_tables(self, migration_app: Flask, tmp_path: Path) -> None:
         instances_db = migration_app.config["SQLALCHEMY_BINDS"][None]
         hashes_db = migration_app.config["SQLALCHEMY_BINDS"]["hashes"]
+        images_db = migration_app.config["SQLALCHEMY_BINDS"]["images"]
         instances_path = Path(instances_db.replace("sqlite:///", ""))
         hashes_path = Path(hashes_db.replace("sqlite:///", ""))
+        images_path = Path(images_db.replace("sqlite:///", ""))
 
         with migration_app.app_context():
             from flask_migrate import downgrade, upgrade
 
             upgrade()
-            downgrade()
+            # flask_migrate.downgrade() defaults to revision="-1" (one step);
+            # go all the way to base so every data table is dropped
+            downgrade(revision="base")
 
         # alembic_version persists after downgrade to base, but the data
         # tables should be gone
         assert "telemetry_table" not in _tables_in(instances_path)
         assert "hash_table" not in _tables_in(hashes_path)
+        assert "image_table" not in _tables_in(images_path)
 
     def test_upgrade_is_idempotent_when_run_twice(self, migration_app: Flask, tmp_path: Path) -> None:
         """Running upgrade twice should not error (Alembic tracks state)."""

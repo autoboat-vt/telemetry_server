@@ -33,11 +33,30 @@ _http_response_bytes_total: Counter | None = None
 
 
 class _JsonFormatter(logging.Formatter):
-    """Minimal JSON formatter for structured request logs."""
+    """
+    Minimal JSON formatter for structured request logs.
+
+    Inherits
+    --------
+    :class:`logging.Formatter`
+    """
 
     _REQUEST_FIELDS = ("method", "path", "status", "duration_ms", "response_bytes", "request_id")
 
     def format(self, record: logging.LogRecord) -> str:
+        """
+        Format a log record as a JSON string.
+
+        Parameters
+        ----------
+        record
+            The log record to format.
+
+        Returns
+        -------
+        `str`
+            The formatted JSON string representing the log record.
+        """
 
         payload: dict[str, Any] = {
             "ts": self.formatTime(record, datefmt="%Y-%m-%dT%H:%M:%S%z"),
@@ -66,6 +85,11 @@ def setup_logging(*, level: int = logging.INFO) -> None:
     Configure the root logger with the JSON formatter.
 
     Idempotent — see instructions #"Structured logging".
+
+    Parameters
+    ----------
+    level
+        The logging level to set for the root logger. Default is :attr:`logging.INFO`.
     """
 
     root = logging.getLogger()
@@ -114,6 +138,12 @@ def _path_label() -> str:
     Return the Flask routing rule as a stable label, not the raw URL.
 
     See instructions #"Metric cardinality is bounded by design".
+
+    Returns
+    -------
+    `str`
+        The Flask routing rule (e.g., ``/boat_status/get/<int:instance_id>``) if available,
+        otherwise the raw request path.
     """
 
     if request.url_rule is not None:
@@ -123,7 +153,19 @@ def _path_label() -> str:
 
 
 def _log_request(response: Response) -> Response:
-    """Emit the structured request log record and record metrics."""
+    """
+    Emit the structured request log record and record metrics.
+
+    Parameters
+    ----------
+    response
+        The Flask response object to log and record metrics for.
+
+    Returns
+    -------
+    :class:`Response`
+        The same Flask response object, unmodified.
+    """
 
     duration_ms = (time.perf_counter() - g.request_start) * 1000.0
     response_bytes = len(response.get_data())
@@ -152,7 +194,14 @@ def _log_request(response: Response) -> Response:
 
 
 def init_app(app: Flask) -> None:
-    """Register structured logging, request hooks, and the /metrics endpoint."""
+    """
+    Register structured logging, request hooks, and the `/metrics` endpoint.
+
+    Parameters
+    ----------
+    app
+        The Flask application instance to initialize observability for.
+    """
 
     _ensure_metrics()
     setup_logging()
@@ -165,6 +214,20 @@ def init_app(app: Flask) -> None:
 
     @app.after_request
     def _after_request(response: Response) -> Response:
+        """
+        Emit the structured request log record and record metrics after each request.
+
+        Parameters
+        ----------
+        response
+            The Flask response object to log and record metrics for.
+
+        Returns
+        -------
+        :class:`Response`
+            The same Flask response object, unmodified.
+        """
+
         return _log_request(response)
 
     # /metrics endpoint — not CORS-enabled, not lock-decorated; see instructions
@@ -172,7 +235,14 @@ def init_app(app: Flask) -> None:
 
     @metrics_bp.route("/metrics", methods=["GET"])
     def metrics() -> Response:
-        """Expose Prometheus metrics in the text exposition format."""
+        """
+        Expose Prometheus metrics in the text exposition format.
+
+        Returns
+        -------
+        :class:`Response`
+            A Flask response containing the Prometheus metrics in the text exposition format.
+        """
 
         return Response(generate_latest(), mimetype=CONTENT_TYPE_LATEST)
 
@@ -187,7 +257,14 @@ def count_429() -> None:
 
 
 def count_clean_instances_deletions(num_deleted: int) -> None:
-    """Increment the clean_instances deletion counter by ``num_deleted``."""
+    """
+    Increment the clean_instances deletion counter by ``num_deleted``.
+
+    Parameters
+    ----------
+    num_deleted
+        The number of telemetry instances deleted by the clean_instances cron route.
+    """
 
     if _clean_instances_deleted_total is not None:
         _clean_instances_deleted_total.inc(num_deleted)

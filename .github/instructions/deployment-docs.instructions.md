@@ -269,7 +269,7 @@ the dashboard:
 
 Named volumes:
 - `prod-instance-data` — production SQLite databases (`instances.db`,
-  `hashes.db`) and `config.py`.
+  `hashes.db`, `images.db`) and `config.py`.
 - `test-instance-data` — testing SQLite databases and `config.py`.
 - `cloudflared-creds` — mount point for file-managed tunnel credentials
   (unused in dashboard-managed mode).
@@ -277,6 +277,15 @@ Named volumes:
 - `tailscale-state` — Tailscale daemon state (machine key, node ID).
   Persisted so the container rejoins your tailnet as the same node after
   restarts instead of generating a new node and orphaning the old one.
+
+The third DB, `images.db`, only exists on fresh installs. Because
+`config.py` is volume-preserved (no-clobber), a volume created before the
+images feature shipped keeps its old two-bind config — migrations iterate
+whatever binds are present in `SQLALCHEMY_BINDS`, so no `images.db` (and no
+`image_table`) is created there. To opt an existing deployment into image
+storage, edit `config.py` in the volume to add the `"images"` bind, then
+`docker compose restart telemetry-prod` so the entrypoint's
+`flask db upgrade` creates `image_table`. See AGENTS.md #3.15.
 
 `docker/app-entrypoint.sh` restores the default `config.py` (baked into the
 image at `/opt/config.py`) into the instance volume on first start, then
@@ -323,13 +332,15 @@ On a checkout with a local instance dir (or against a throwaway DB):
 flask db migrate -m "add foo column to telemetry_table"
 ```
 
-This autogenerates a migration file in `migrations/versions/`. **Caveat:**
-autogenerate only diffs the **default bind** (None). If the change affects
-`HashTable` (the `hashes` bind), add the `op.*` calls for the hashes bind
-by hand — see `migrations/versions/0001_initial_schema.py` for the
-`_bind_key()` / `_default_bind()` / `_hashes_bind()` pattern (the helpers
-are inlined because Alembic's `load_python_file` bypasses the package
-import system).
+This autogenerates a migration file in `src/autoboat_telemetry_server/migrations/versions/`.
+**Caveat:** autogenerate only diffs the **default bind** (None). If the
+change affects `HashTable` (the `hashes` bind) or `ImageTable` (the
+`images` bind), add the `op.*` calls for the off-default bind by hand — see
+`migrations/versions/0001_initial_schema.py` (`_hashes_bind()`) and
+`migrations/versions/0002_image_storage.py` (`_images_bind()`) for the
+pattern (the helpers are inlined because Alembic's `load_python_file`
+bypasses the package import system, so migration files must be
+self-contained).
 
 Then inspect the generated file (autogenerate is not perfect, especially
 for JSON columns wrapped with `MutableDict.as_mutable`), and apply it:

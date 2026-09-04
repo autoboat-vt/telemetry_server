@@ -13,19 +13,25 @@ the source tree where practical):
 - `conftest.py` — pytest config + shared fixtures + the macOS import bootstrap.
 - `test_init.py` — app factory (`create_app`), CORS resolution, `INSTANCE_DIR`
   discovery, `shared_lock_manager` singleton.
-- `test_models.py` — `TelemetryTable` + `HashTable` (hashing, validation,
-  `to_dict`, the `after_insert` hook, `validate_user` immutability,
-  `MutableDict`/`MutableList` mutation tracking regression tests).
+- `test_models.py` — `TelemetryTable` + `HashTable` + `ImageTable` (hashing,
+  validation, `to_dict`, the `after_insert` hook, `validate_user`
+  immutability, `MutableDict`/`MutableList` mutation tracking regression
+  tests, plus the `TestImageTable` content-addressed UUID tests).
 - `test_migrations.py` — Flask-Migrate wiring + multi-bind migration
-  round-trip (upgrade creates both tables in their respective SQLite DBs,
-  downgrade drops them, upgrade is idempotent). Uses its own
-  `migration_app` fixture (does NOT call `db.create_all()`).
+  round-trip across all three binds (upgrade creates `telemetry_table` /
+  `hash_table` / `image_table` in their respective SQLite DBs, downgrade to
+  `base` drops them, upgrade is idempotent). Uses its own `migration_app`
+  fixture (does NOT call `db.create_all()`). Note: `downgrade()` defaults
+  to `revision="-1"` (one step); the test uses `revision="base"` so every
+  data table is dropped.
 - `test_lock_manager.py` — `ReaderWriterLock` exclusion semantics + the
   `require_read_lock` / `require_write_lock` decorators (blocking vs 429).
 - `test_types.py` — `DiagnosticMessageIntensity` IntEnum mapping (the
   cross-repo wire contract) + type aliases.
 - `test_routes.py` — end-to-end route tests through the Flask test client
-  (status codes, response shapes, the error-code ladder, lock behavior).
+  (status codes, response shapes, the error-code ladder, lock behavior,
+  `TestImageManager` content-addressed upload/get/delete round-trips, and
+  `TestInstanceImage` per-instance image set/get).
 
 Pytest is configured in `pyproject.toml` under `[tool.pytest.ini_options]`:
 `testpaths = ["tests"]`, `pythonpath = ["src"]`, `minversion = "8.0"`. Run
@@ -157,6 +163,17 @@ imports won't be auto-removed and will fail CI.)
    that do `json.loads(request.json)` expect the body to be a JSON-encoded
    *string*. In tests, send `json=json.dumps({...})` (a string), not
    `json={...}` (a dict). `test_routes.py` has examples — copy them.
+7. **Image routes** (`boat_status.set_image`, `image_manager.upload`):
+   send the body either as raw bytes (`data=image_bytes,
+   content_type="application/octet-stream"`) or as multipart matching the
+   boat's `requests.post(files={...})` shape
+   (`data={"file": (io.BytesIO(image_bytes), "img.png", "image/png")},
+   content_type="multipart/form-data"`). Empty-body tests exercise the
+   `TypeError` ladder: `/image_manager/upload` returns **400**, but
+   `/boat_status/set_image/<id>` returns **404** (boat_status lumps input
+   TypeErrors into the `_get_instance` 404 branch — AGENTS.md #3.12).
+   `get_info` / `get_all` responses return only metadata
+   (`image_uuid`, `size_bytes`, `created_at`) — never the binary payload.
 
 ## Asserting on observable behavior, not internals
 
@@ -216,11 +233,13 @@ past a failing test in an emergency, run the `build` job alone via
 
 1. **Put them in the right file.** Match the module under test:
    - `create_app()`, CORS, `INSTANCE_DIR`, `shared_lock_manager` → `test_init.py`
-   - `TelemetryTable` / `HashTable` models → `test_models.py`
+   - `TelemetryTable` / `HashTable` / `ImageTable` models → `test_models.py`
    - Flask-Migrate wiring, multi-bind migration round-trip → `test_migrations.py`
    - `ReaderWriterLock` / `LockManager` → `test_lock_manager.py`
    - `types.py` (enums, type aliases) → `test_types.py`
-   - Any route handler → `test_routes.py` (use the Flask test client)
+   - Any route handler (including `boat_status` `get_image`/`set_image` and
+     the `image_manager` blueprint) → `test_routes.py` (use the Flask test
+     client)
 2. **Add a module docstring** describing what the file covers (every existing
    test file has one — match the style).
 3. **Group related tests into a class** with a short docstring explaining the

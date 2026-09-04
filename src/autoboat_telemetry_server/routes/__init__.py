@@ -23,8 +23,10 @@ Boat Status Routes:
 - `/boat_status/test`: Test route for boat status.
 - `/boat_status/get/<int:instance_id>`: Get the current boat status.
 - `/boat_status/get_new/<int:instance_id>`: Get the latest boat status if it hasn't been seen yet.
+- `/boat_status/get_image/<int:instance_id>`: Get the camera data for the boat status of a specific instance.
 - `/boat_status/set/<int:instance_id>`: Set the boat status from the request data.
 - `/boat_status/set_fast/<int:instance_id>`: Set the boat status using a list of values corresponding to the boat status mapping for the instance.
+- `/boat_status/set_image/<int:instance_id>`: Set the camera data for the boat status of a specific instance.
 - `/boat_status/set_mapping/<int:instance_id>`: Set the boat status mapping for an instance using a list of keys corresponding to the boat status mapping for the instance.
 
 Waypoint Routes:
@@ -49,11 +51,27 @@ Instance Manager Routes:
 - `/instance_manager/get_instance_info/<int:instance_id>`: Get detailed information about a telemetry instance.
 - `/instance_manager/get_all_instance_info`: Get detailed information about all telemetry instances.
 - `/instance_manager/get_ids`: Return all telemetry instance IDs.
+
+Image Manager Routes:
+- `/image_manager/test`: Test route for image management.
+- `/image_manager/get/<image_uuid>`: Get the raw image bytes for a UUID.
+- `/image_manager/get_info/<image_uuid>`: Get metadata for a UUID (no binary payload).
+- `/image_manager/get_all`: Get metadata for all stored images.
+- `/image_manager/upload`: Store a new image (multipart/form-data file or raw body) and return its UUID.
+- `/image_manager/delete/<image_uuid>`: Delete a stored image by UUID.
+- `/image_manager/delete_all`: Delete all stored images.
 """  # noqa: E501
 
-__all__ = ["AutopilotParametersEndpoint", "BoatStatusEndpoint", "InstanceManagerEndpoint", "WaypointEndpoint"]
+__all__ = [
+    "AutopilotParametersEndpoint",
+    "BoatStatusEndpoint",
+    "ImageManagerEndpoint",
+    "InstanceManagerEndpoint",
+    "WaypointEndpoint",
+]
 
 from .autopilot_parameters import AutopilotParametersEndpoint
 from .boat_status import BoatStatusEndpoint
+from .image_manager import ImageManagerEndpoint
 from .instance_manager import InstanceManagerEndpoint
 from .waypoints import WaypointEndpoint

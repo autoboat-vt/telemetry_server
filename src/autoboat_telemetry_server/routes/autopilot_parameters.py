@@ -61,12 +61,12 @@ class AutopilotParametersEndpoint:
 
         Returns
         -------
-        HashTable
+        :class:`HashTable`
             The hash table entry corresponding to the provided configuration hash.
 
         Raises
         ------
-        TypeError
+        :class:`TypeError`
             If the hash entry with the given configuration hash does not exist.
         """
 
@@ -83,7 +83,7 @@ class AutopilotParametersEndpoint:
 
         Returns
         -------
-        str
+        `str`
             Confirmation message indicating the routes have been registered successfully.
         """
 
@@ -96,7 +96,7 @@ class AutopilotParametersEndpoint:
 
             Returns
             -------
-            Literal["autopilot_parameters route testing!"]
+            `Literal["autopilot_parameters route testing!"]`
                 Confirmation message for testing the autopilot parameters route.
             """
 
@@ -117,7 +117,7 @@ class AutopilotParametersEndpoint:
 
             Returns
             -------
-            ResponseType
+            :type:`ResponseType`
                 A tuple containing a JSON response with the autopilot parameters for the specified telemetry instance,
                 or an error message if the instance is not found.
             """
@@ -147,7 +147,7 @@ class AutopilotParametersEndpoint:
 
             Returns
             -------
-            ResponseType
+            :type:`ResponseType`
                 A tuple containing a JSON response with the new autopilot parameters for the specified telemetry instance,
                 or an empty dictionary if there are no new parameters, or an error message if the instance is not found.
             """
@@ -185,7 +185,7 @@ class AutopilotParametersEndpoint:
 
             Returns
             -------
-            ResponseType
+            :type:`ResponseType`
                 A tuple containing a JSON response with the default autopilot parameters for the specified telemetry instance,
                 or an error message if the instance is not found.
             """
@@ -215,7 +215,7 @@ class AutopilotParametersEndpoint:
 
             Returns
             -------
-            ResponseType
+            :type:`ResponseType`
                 A tuple containing a JSON response with the autopilot configuration hash for the specified telemetry instance,
                 or an error message if the instance is not found.
             """
@@ -245,7 +245,7 @@ class AutopilotParametersEndpoint:
 
             Returns
             -------
-            ResponseType
+            :type:`ResponseType`
                 A tuple containing a JSON response with the autopilot configuration for the specified hash,
                 or an error message if the configuration is not found.
             """
@@ -275,7 +275,7 @@ class AutopilotParametersEndpoint:
 
             Returns
             -------
-            ResponseType
+            :type:`ResponseType`
                 A tuple containing a JSON response with the description of the specified autopilot configuration hash,
                 or an error message if an unexpected error occurs.
             """
@@ -300,7 +300,7 @@ class AutopilotParametersEndpoint:
 
             Returns
             -------
-            ResponseType
+            :type:`ResponseType`
                 A tuple containing a JSON response with a list of all stored autopilot configuration hashes,
                 or an error message if an unexpected error occurs.
             """
@@ -336,7 +336,7 @@ class AutopilotParametersEndpoint:
 
             Returns
             -------
-            ResponseType
+            :type:`ResponseType`
                 A tuple containing a JSON response with a boolean indicating whether the configuration hash exists,
                 or an error message if an unexpected error occurs.
             """
@@ -363,7 +363,7 @@ class AutopilotParametersEndpoint:
 
             Returns
             -------
-            ResponseType
+            :type:`ResponseType`
                 A tuple containing a JSON response confirming the autopilot parameters have been updated successfully,
                 or an error message if the instance is not found or if the input format is invalid.
             """
@@ -415,7 +415,7 @@ class AutopilotParametersEndpoint:
 
             Returns
             -------
-            ResponseType
+            :type:`ResponseType`
                 A tuple containing a JSON response confirming the autopilot parameter has been
                 updated successfully, or an error message if the instance is not found, if the
                 parameter key is invalid, or if the input format is invalid.
@@ -471,7 +471,7 @@ class AutopilotParametersEndpoint:
 
             Returns
             -------
-            ResponseType
+            :type:`ResponseType`
                 A tuple containing a JSON response with the new configuration hash,
                 or an error message if the instance is not found or if the input format is invalid.
             """
@@ -528,7 +528,7 @@ class AutopilotParametersEndpoint:
 
             Returns
             -------
-            ResponseType
+            :type:`ResponseType`
                 A tuple containing a JSON response confirming the default autopilot parameters have been updated successfully,
                 or an error message if the instance is not found or if the configuration hash is invalid.
             """
@@ -578,7 +578,7 @@ class AutopilotParametersEndpoint:
 
             Returns
             -------
-            ResponseType
+            :type:`ResponseType`
                 A tuple containing a JSON response confirming the description has been set successfully,
                 or an error message if an unexpected error occurs.
             """
@@ -607,7 +607,7 @@ class AutopilotParametersEndpoint:
 
             Returns
             -------
-            ResponseType
+            :type:`ResponseType`
                 A tuple containing a JSON response with the new configuration hash,
                 or an error message if the input format is invalid or if the hash already exists.
             """
@@ -654,7 +654,7 @@ class AutopilotParametersEndpoint:
 
             Returns
             -------
-            ResponseType
+            :type:`ResponseType`
                 A tuple containing a JSON response confirming the configuration has been deleted successfully,
                 or an error message if the configuration is not found.
             """

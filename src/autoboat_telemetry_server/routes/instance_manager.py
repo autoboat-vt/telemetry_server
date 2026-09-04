@@ -34,12 +34,12 @@ class InstanceManagerEndpoint:
 
         Returns
         -------
-        TelemetryTable
+        :class:`TelemetryTable`
             The telemetry instance corresponding to the provided ID.
 
         Raises
         ------
-        TypeError
+        :class:`TypeError`
             If the instance with the given ID does not exist.
         """
 
@@ -56,7 +56,7 @@ class InstanceManagerEndpoint:
 
         Returns
         -------
-        str
+        `str`
             Confirmation message indicating the routes have been registered successfully.
         """
 
@@ -69,7 +69,7 @@ class InstanceManagerEndpoint:
 
             Returns
             -------
-            Literal["instance_manager route testing!"]
+            `Literal["instance_manager route testing!"]`
                 Confirmation message for testing the instance management route.
             """
 
@@ -85,7 +85,7 @@ class InstanceManagerEndpoint:
 
             Returns
             -------
-            ResponseType
+            :type:`ResponseType`
                 A tuple containing a JSON response with the new instance ID and a status code of 200.
             """
 
@@ -112,7 +112,7 @@ class InstanceManagerEndpoint:
 
             Returns
             -------
-            ResponseType
+            :type:`ResponseType`
                 A tuple containing a JSON response with confirmation or error message and a status code.
             """
 
@@ -139,7 +139,7 @@ class InstanceManagerEndpoint:
 
             Returns
             -------
-            ResponseType
+            :type:`ResponseType`
                 A tuple containing a JSON response with confirmation or error message and a status code.
             """
 
@@ -162,7 +162,7 @@ class InstanceManagerEndpoint:
 
             Returns
             -------
-            ResponseType
+            :type:`ResponseType`
                 A tuple containing a JSON response with confirmation or error message and a status code.
             """
 
@@ -198,7 +198,7 @@ class InstanceManagerEndpoint:
 
             Returns
             -------
-            ResponseType
+            :type:`ResponseType`
                 A tuple containing a JSON response confirming the user has been set and a status code of 200.
             """
 
@@ -234,7 +234,7 @@ class InstanceManagerEndpoint:
 
             Returns
             -------
-            ResponseType
+            :type:`ResponseType`
                 A tuple containing a JSON response with the instance user or an error message if the instance is not found.
             """
 
@@ -265,7 +265,7 @@ class InstanceManagerEndpoint:
 
             Returns
             -------
-            ResponseType
+            :type:`ResponseType`
                 A tuple containing a JSON response confirming the name has been set and a status code of 200.
             """
 
@@ -314,7 +314,7 @@ class InstanceManagerEndpoint:
 
             Returns
             -------
-            ResponseType
+            :type:`ResponseType`
                 A tuple containing a JSON response with the instance name or an error message if the instance is not found.
             """
 
@@ -343,7 +343,7 @@ class InstanceManagerEndpoint:
 
             Returns
             -------
-            ResponseType
+            :type:`ResponseType`
                 A tuple containing a JSON response confirming the diagnostic message has been set and a status code of 200.
             """
 
@@ -397,7 +397,7 @@ class InstanceManagerEndpoint:
 
             Returns
             -------
-            ResponseType
+            :type:`ResponseType`
                 A tuple containing a JSON response with the instance diagnostic message or an error
                 message if the instance is not found.
             """
@@ -427,7 +427,7 @@ class InstanceManagerEndpoint:
 
             Returns
             -------
-            ResponseType
+            :type:`ResponseType`
                 A tuple containing a JSON response with the instance ID or an error message if the instance is not found.
             """
 
@@ -461,7 +461,7 @@ class InstanceManagerEndpoint:
 
             Returns
             -------
-            ResponseType
+            :type:`ResponseType`
                 A tuple containing a JSON response with the instance details and a 200 status,
                 or an error message if the instance is not found.
             """
@@ -486,7 +486,7 @@ class InstanceManagerEndpoint:
 
             Returns
             -------
-            ResponseType
+            :type:`ResponseType`
                 A tuple containing a JSON response with a list of all instance details and a 200 status,
                 or an error message if the retrieval fails.
             """
@@ -534,7 +534,7 @@ class InstanceManagerEndpoint:
 
             Returns
             -------
-            ResponseType
+            :type:`ResponseType`
                 A tuple containing a JSON response with a list of IDs and a 200 status.
             """
 

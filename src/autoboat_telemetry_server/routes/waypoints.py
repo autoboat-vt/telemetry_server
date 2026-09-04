@@ -31,12 +31,12 @@ class WaypointEndpoint:
 
         Returns
         -------
-        TelemetryTable
+        :class:`TelemetryTable`
             The telemetry instance corresponding to the provided ID.
 
         Raises
         ------
-        TypeError
+        :class:`TypeError`
             If the instance with the given ID does not exist.
         """
 
@@ -53,7 +53,7 @@ class WaypointEndpoint:
 
         Returns
         -------
-        str
+        `str`
             Confirmation message indicating the routes have been registered successfully.
         """
 
@@ -66,7 +66,7 @@ class WaypointEndpoint:
 
             Returns
             -------
-            Literal["waypoints route testing!"]
+            `Literal["waypoints route testing!"]`
                 Confirmation message for testing the waypoints route.
             """
 
@@ -87,7 +87,7 @@ class WaypointEndpoint:
 
             Returns
             -------
-            ResponseType
+            :type:`ResponseType`
                 A tuple containing a JSON response with the waypoints for the specified telemetry instance,
                 or an error message if the instance is not found.
             """
@@ -118,7 +118,7 @@ class WaypointEndpoint:
 
             Returns
             -------
-            ResponseType
+            :type:`ResponseType`
                 A tuple containing a JSON response with the waypoints for the specified telemetry instance,
                 or an empty dictionary if there are no new waypoints, or an error message if the instance is not found.
             """
@@ -155,7 +155,7 @@ class WaypointEndpoint:
 
             Returns
             -------
-            ResponseType
+            :type:`ResponseType`
                 A tuple containing a JSON response confirming the waypoints have been updated successfully,
                 or an error message if the instance is not found or if the input format is invalid.
             """

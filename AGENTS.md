@@ -79,7 +79,9 @@ require coordinated updates to all sides.
   Sailboat / Motorboat payloads, GPS sentinel, `BoatWithPosition` type) from
   the client side.
 - **Boat telemetry node (`autoboat-vt/autoboat_vt`)**: publishes boat status,
-  autopilot parameters, and waypoints to this server. Two invariants the node
+  autopilot parameters, waypoints, and camera images to this server. Camera
+  images are uploaded as multipart form-data (`requests.post(files={...})`) or
+  as the raw request body; see #5 (Image routes). Two invariants the node
   must preserve:
   - JSON bodies are sent as **JSON-encoded strings** (double-encoded). The
     server's `json.loads(request.json)` decode (#5) depends on this. See the
@@ -101,7 +103,7 @@ require coordinated updates to all sides.
 | --- | --- |
 | Language | Python 3.12 (`python:3.12-slim` base image; local pyenv alias `telemetry` in `.python-version`) |
 | Framework | Flask 3.x, served by Gunicorn (1 worker, bind `0.0.0.0:8000` prod / `:6001` test) |
-| ORM | Flask-SQLAlchemy 3.x on SQLite (two DBs: `instances.db`, `hashes.db`); schema migrations via Flask-Migrate (Alembic, see #6.2) |
+| ORM | Flask-SQLAlchemy 3.x on SQLite (three DBs: `instances.db`, `hashes.db`, `images.db`); schema migrations via Flask-Migrate (Alembic, see #6.2) |
 | Concurrency | In-process fair reader-writer lock (`src/autoboat_telemetry_server/lock_manager.py`) wrapping all route handlers |
 | Lint/format | Ruff (`ruff.toml`, `select = ["ALL"]` with a long ignore list; numpy-style docstrings; line length 130) |
 | Build backend | setuptools (PEP 621 metadata in `pyproject.toml`) |
@@ -122,18 +124,25 @@ src/
   app.py                                  # WSGI entrypoint: `app = create_app()`
   autoboat_telemetry_server/
     __init__.py                           # App factory `create_app()`, CORS, blueprint registration, INSTANCE_DIR discovery
-    models.py                             # TelemetryTable + HashTable SQLAlchemy models, after_insert hook for instance_identifier
+    models.py                             # TelemetryTable + HashTable + ImageTable SQLAlchemy models, after_insert hook for instance_identifier
     types.py                              # PEP 695 type aliases + DiagnosticMessageIntensity IntEnum
     lock_manager.py                       # ReaderWriterLock + decorator-based require_read_lock / require_write_lock
+    observability.py                      # Structured JSON request logging + Prometheus /metrics blueprint
+    migrations/                           # Alembic env + versions, bundled inside the package (see #6.2)
+      env.py                              # Multi-bind env: autogenerate diffs default bind only, runtime iterates all binds
+      versions/
+        0001_initial_schema.py            # Baseline: telemetry_table (default bind) + hash_table (hashes bind)
+        0002_image_storage.py             # image_table (images bind) + camera_image_uuid column (default bind)
     routes/
-      __init__.py                         # Re-exports the four endpoint classes + full route map docstring
+      __init__.py                         # Re-exports the five endpoint classes + full route map docstring
       autopilot_parameters.py             # CRUD for autopilot params, config hashes, descriptions
-      boat_status.py                      # Boat status get/set/set_fast/set_mapping (ctypes-aligned binary fast updates)
+      boat_status.py                      # Boat status get/set/set_fast/set_mapping (ctypes-aligned binary fast updates) + instance image get/set
       waypoints.py                        # Waypoint sequence get/set
       instance_manager.py                 # Instance lifecycle: create/delete/clean, user/name/diagnostic, get_ids, etc.
+      image_manager.py                    # Content-addressed image store: upload/get/get_info/get_all/delete/delete_all
   instance/
-    config.py                             # SQLAlchemy binds (instances.db + hashes.db), CORS_ORIGINS (the key create_app reads)
-    instances.db, hashes.db               # SQLite DBs (gitignored, persisted via named volume in compose)
+    config.py                             # SQLAlchemy binds (instances.db + hashes.db + images.db), CORS_ORIGINS (the key create_app reads)
+    instances.db, hashes.db, images.db    # SQLite DBs (gitignored, persisted via named volume in compose)
 docker/
   app-entrypoint.sh                       # Restores config.py into the mounted instance volume (no-clobber)
   cloudflared/
@@ -146,10 +155,6 @@ docker/
     Dockerfile                            # FROM tailscale/tailscale:latest, bakes OAuth creds as ENV (TS_AUTHKEY, NOT TS_CLIENT_SECRET — see #9)
 tailscale/
   policy.hujson                           # Tailnet ACL source of truth (synced by .github/workflows/tailscale.yml)
-migrations/                               # Alembic env + versions (Flask-Migrate; see #6.2)
-  env.py                                  # Multi-bind env: autogenerate diffs default bind only, runtime iterates all binds
-  versions/
-    0001_initial_schema.py                # Baseline: telemetry_table (default bind) + hash_table (hashes bind)
 scripts/                                  # Misc helper scripts
 tests/                                    # pytest suite (conftest.py + test_*.py; run with `pytest`)
 .github/
@@ -459,6 +464,34 @@ touch either CORS list, keep them in sync (the `www.autoboat.aoe.vt.edu`
 entry once drifted between the two) and update the `TestDefaultCorsOrigins`
 tests to match.
 
+### 3.15 Images are content-addressed and deduped — never re-key them
+
+`ImageTable` (bind `"images"` -> `images.db`) keys rows by a UUID derived
+from the image bytes themselves:
+`uuid5(NAMESPACE_DNS, f"autoboat-image:{sha256(image_bytes).hexdigest()}")`.
+Consequences:
+
+- **The same image always maps to the same UUID.** Storing an identical
+  image twice is a no-op; `ImageTable.get_or_create(data)` returns the
+  existing row. Never generate a random UUID for an image — that would break
+  dedup and let the same image accumulate under multiple keys.
+- **Images are never updated in place.** A new frame from the camera is a
+  *different* byte string, so it gets a different UUID, and the instance's
+  `camera_image_uuid` is re-pointed at the new row. Old rows are orphaned
+  (reclaimed only via `image_manager/delete` / `delete_all`; there is no
+  automatic GC).
+- **`TelemetryTable.camera_image_uuid` is a soft reference.** There is no FK
+  to `images.db` (cross-bind FKs aren't possible). Deleting an image row
+  that an instance still points at makes `get_image` return 404
+  "Image not found." — that route tolerates the dangling reference, but
+  don't assume the row exists just because `camera_image_uuid` is non-empty.
+- **Existing deployments do NOT get the `"images"` bind automatically.**
+  `src/instance/config.py` is preserved in a named volume per #3.2, so the
+  new bind line (and therefore `images.db`) only lands on fresh installs or
+  where the operator adds it manually. Migrations iterate whatever binds are
+  present in `SQLALCHEMY_BINDS`, so an unstamped-but-old config just won't
+  have an images DB.
+
 ---
 
 ## 4. Code style
@@ -598,6 +631,47 @@ firmature integration. Routes that follow this pattern: `set_route`,
    `current_config_hash` is not a real FK, so the route guards against dangling
    references. Reassign or delete the offending instances first, then retry.
 
+### Instance image routes (boat_status domain)
+
+The instance's *current* camera image is managed on the `boat_status`
+blueprint (per the feature spec); the image store itself is managed on
+`image_manager` (below).
+
+- `GET /boat_status/get_image/<id>` — `@require_read_lock`. Returns the raw
+  image bytes (`Content-Type: application/octet-stream`) for the instance's
+  `camera_image_uuid`. Three distinct 404s: unknown instance, no image set
+  (`camera_image_uuid == ""`), or the referenced row is gone from `images.db`
+  (dangling soft reference, #3.15).
+- `POST /boat_status/set_image/<id>` — `@require_write_lock`. Body is either
+  multipart form-data (uses the first `request.files` field, matching
+  `requests.post(files={"image": ...})`) or the raw request body. Stores the
+  bytes via `ImageTable.get_or_create` (dedup, #3.15), re-points
+  `camera_image_uuid`, commits. Follows the boat_status `TypeError` gotcha:
+  an empty body raises `TypeError` and shares the 404 branch, so empty body
+  returns **404** (not 400 — copy the `set_route` except-ladder if you're
+  unsure).
+
+### Image manager — the content-addressed store
+
+`image_manager` manages `images.db` directly (Blueprint
+`image_manager_page`, `url_prefix="/image_manager"`). Underlying store is
+`ImageTable` (#3.15, #6.1).
+
+- `GET /test` — literal health-check string. Not lock-decorated.
+- `GET /get/<uuid>` — `@require_read_lock`. Raw bytes,
+  `application/octet-stream`. 404 if the UUID isn't stored.
+- `GET /get_info/<uuid>` — `@require_read_lock`. `to_dict()` metadata:
+  `image_uuid`, `size_bytes`, `created_at` (never the binary payload).
+- `GET /get_all` — `@require_read_lock`. List of `to_dict()` for every row.
+- `POST /upload` — `@require_write_lock`. Multipart first-file-field or raw
+  body. Empty body raises `TypeError` -> **400** (this domain maps input
+  TypeErrors to 400; it's only boat_status that lumps them into 404).
+  Returns the UUID — the same UUID every time for the same bytes.
+- `DELETE /delete/<uuid>` — `@require_write_lock`. 404 if missing.
+- `DELETE /delete_all` — `@require_write_lock`. Deletes every row, returns
+  the count. Destructive; not called by cron (there's no image GC — see
+  TODO.md).
+
 ### Instance manager — lifecycle and naming
 
 - `POST /instance_manager/create` — creates a new `TelemetryTable` row. The
@@ -645,7 +719,7 @@ firmature integration. Routes that follow this pattern: `set_route`,
 
 ### 6.1 Models and binds
 
-Models live in `src/autoboat_telemetry_server/models.py`. Two tables:
+Models live in `src/autoboat_telemetry_server/models.py`. Three tables:
 
 - **`TelemetryTable`** — the live state of every instance. Bound to the
   default bind (`None` key → `instances.db`). Columns include `instance_id`
@@ -665,6 +739,18 @@ Models live in `src/autoboat_telemetry_server/models.py`. Two tables:
   `"hashes"` key → `hashes.db` (via `__bind_key__ = "hashes"`). PK is
   `config_hash` (a 64-char SHA-256 hex string). Columns: `config_hash`,
   `data` (the validated config dict), `description` (human-readable).
+- **`ImageTable`** — content-addressed camera images. Bound to the
+  `"images"` key → `images.db` (via `__bind_key__ = "images"`). PK is
+  `image_uuid` (a 36-char UUID string, content-derived — see #3.15).
+  Columns: `image_uuid`, `data` (`LargeBinary` — the raw image bytes),
+  `created_at`. Helpers (use these, don't reimplement):
+  - `ImageTable.compute_uuid(image_data)` -> the deterministic UUID for
+    the given bytes (`uuid5` over the SHA-256 hex digest, DNS namespace).
+  - `ImageTable.get_or_create(image_data)` -> the existing row if the
+    bytes are already stored, else a new row (added to the session;
+    caller still commits).
+  - `ImageTable.to_dict()` -> metadata only: `image_uuid`, `size_bytes`,
+    `created_at` (never includes the bytes).
 
 `HashTable` classmethods you must use (don't reimplement):
 
@@ -691,9 +777,16 @@ Models live in `src/autoboat_telemetry_server/models.py`. Two tables:
 ### 6.2 Migrations: Flask-Migrate (Alembic)
 
 The project uses **Flask-Migrate** (Alembic) for schema migrations. The
-`migrations/` directory at the repo root contains the Alembic env, the
-versions directory, and the initial schema migration
-(`migrations/versions/0001_initial_schema.py`).
+migrations tree lives **inside the package** at
+`src/autoboat_telemetry_server/migrations/` (moved from repo root) and is
+bundled into the wheel/sdist via `[tool.setuptools.package-data]` in
+`pyproject.toml` (`migrations/*.ini`, `*.py`, `*.mako`, `versions/*.py`).
+That bundling is what lets `Migrate(directory=...)` in `create_app()`
+resolve relative to `__file__` when the package is pip-installed into a
+Docker image — without it, the entrypoint's `flask db upgrade` fails with
+"Path doesn't exist: .../migrations" because `__file__` points into
+site-packages and the repo-root `migrations/` was never copied into the
+package. Do not drop the `package-data` globs.
 
 `create_app()` **no longer calls `db.create_all()`** — doing so would race
 with `flask db upgrade` (create_all creates the tables, then the migration's
@@ -728,24 +821,26 @@ together. The workaround in `migrations/env.py`:
 
 - **Autogenerate** (`flask db migrate`) diffs ONLY the default bind (None),
   producing a coherent single-bind migration. You then manually add the
-  `hashes`-bind operations to the generated file.
+  off-default-bind (`hashes`, `images`) operations to the generated file.
 - **Runtime** (`flask db upgrade` / `flask db downgrade`) iterates ALL binds
-  in `SQLALCHEMY_BINDS` (default + "hashes"). Each bind gets its own
-  `alembic_version` table and is migrated independently.
+  in `SQLALCHEMY_BINDS` (default + "hashes" + "images", whatever is
+  configured). Each bind gets its own `alembic_version` table and is
+  migrated independently.
 - The active bind key is stashed in `config.attributes["bind_key"]` by
   `env.py`'s `_stash_bind_key()`. Migration files read it via
   `context.config.attributes.get("bind_key")` to route `op.create_table`
-  to the right bind. See `migrations/versions/0001_initial_schema.py` for
-  the pattern (the `_bind_key()` / `_default_bind()` / `_hashes_bind()`
-  helpers are inlined because Alembic's `load_python_file` bypasses the
-  package import system — migration files must be self-contained).
+  to the right bind. See `migrations/versions/0001_initial_schema.py`
+  (`_hashes_bind()` helpers) and `0002_image_storage.py` (`_images_bind()`)
+  for the pattern — helpers are inlined because Alembic's
+  `load_python_file` bypasses the package import system, so migration files
+  must be self-contained.
 
 When adding a schema change:
 
 1. Edit `src/autoboat_telemetry_server/models.py`.
 2. Run `flask db migrate -m "describe change"` to autogenerate a migration
-   (this only diffs the default bind; add `hashes`-bind ops by hand if
-   `HashTable` changed).
+   (this only diffs the default bind; add `hashes`- or `images`-bind ops by
+   hand if the corresponding model changed).
 3. Inspect the generated file — autogenerate is not perfect, especially for
    JSON columns and the `MutableDict`/`MutableList` wrappers (it may try to
    re-add columns that already exist with a different type decorator).
@@ -768,14 +863,20 @@ switching to a different DB or a cross-process lock (file lock, Postgres
 advisory lock, etc.). If you switch DBs, you can also drop the
 reader-writer lock entirely (Postgres handles concurrent writers natively).
 
-### 6.4 The `hashes` bind
+### 6.4 The `hashes` and `images` binds
 
-The `hashes` bind is configured via `SQLALCHEMY_BINDS` in
+Both off-default binds are configured via `SQLALCHEMY_BINDS` in
 `src/instance/config.py` — `None` key maps to `instances.db`, `"hashes"`
-key maps to `hashes.db`. Both files live in `src/instance/` and are
-gitignored. `HashTable` declares `__bind_key__ = "hashes"` so SQLAlchemy
-routes its queries to `hashes.db` automatically; you never need to specify
-the bind in query code.
+to `hashes.db`, `"images"` to `images.db`. All three files live in
+`src/instance/` and are gitignored. `HashTable` declares
+`__bind_key__ = "hashes"` and `ImageTable` declares `__bind_key__ = "images"`,
+so SQLAlchemy routes their queries to the right DB automatically; you never
+need to specify the bind in query code.
+
+Deployment caveat: the bind table lives in `config.py`, which is
+volume-preserved per #3.2 — pre-existing deployments keep their old
+two-bind `config.py` until the operator updates it. New installs (and
+tests, which copy the shipped `config.py`) get all three binds.
 
 ---
 
