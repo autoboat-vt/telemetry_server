@@ -367,9 +367,8 @@ class TestSqlitePragmas:
 class TestTelemetryTableIndexes:
     """``db.create_all()`` must create indexes on fresh databases.
 
-    See AGENTS.md #6.2: there is no migration framework, so existing
-    deployments need a one-time ``CREATE INDEX`` on the volume. These tests
-    only pin the fresh-DB behavior; they do not exercise the migration path.
+    These tests only pin the fresh-DB behavior; the migration path is covered
+    by ``test_migrations.py``.
     """
 
     def _index_names(self, app: Flask) -> set[str]:
@@ -492,6 +491,80 @@ class TestJsonColumnMutationTracking:
             reloaded = db.session.get(TelemetryTable, instance_id)
             assert reloaded is not None
             assert reloaded.boat_status_mapping[0] == ["heading", "c_int"]
+
+
+# --------------------------------------------------------------------------- #
+# Obstacles / planned path JSON columns
+# --------------------------------------------------------------------------- #
+
+
+class TestObstaclesAndPlannedPathColumns:
+    """The obstacles and planned_path columns default correctly and persist.
+
+    ``obstacles`` is a GeoJSON document (MutableDict), ``planned_path`` is a
+    list of [lat, lon] points (MutableList). Both were added in migration 0003
+    and back the ``obstacles/*`` and ``path/*`` route groups.
+    """
+
+    def test_column_defaults_when_omitted(self, app: Flask) -> None:
+        """A TelemetryTable built without the new fields still persists.
+
+        The columns are NOT NULL, so a Python-side default (dict/list) is what
+        keeps every existing TelemetryTable(...) construction working.
+        """
+
+        with app.app_context():
+            inst = TelemetryTable(default_autopilot_parameters={}, autopilot_parameters={}, boat_status={}, waypoints=[])
+            db.session.add(inst)
+            db.session.commit()
+            instance_id = inst.instance_id
+
+        with app.app_context():
+            reloaded = db.session.get(TelemetryTable, instance_id)
+            assert reloaded is not None
+            assert reloaded.obstacles == {}
+            assert reloaded.obstacles_new_flag is False
+            assert reloaded.planned_path == []
+
+    def test_obstacles_round_trip(self, app: Flask) -> None:
+        obstacles = {"type": "FeatureCollection", "features": []}
+
+        with app.app_context():
+            inst = TelemetryTable(
+                default_autopilot_parameters={},
+                autopilot_parameters={},
+                boat_status={},
+                waypoints=[],
+                obstacles=obstacles,
+                planned_path=[[37.0, -80.0]],
+            )
+            db.session.add(inst)
+            db.session.commit()
+            instance_id = inst.instance_id
+
+        with app.app_context():
+            reloaded = db.session.get(TelemetryTable, instance_id)
+            assert reloaded is not None
+            assert reloaded.obstacles == obstacles
+            assert reloaded.planned_path == [[37.0, -80.0]]
+
+    def test_obstacles_new_flag_mutation_persists(self, app: Flask) -> None:
+        with app.app_context():
+            inst = TelemetryTable(default_autopilot_parameters={}, autopilot_parameters={}, boat_status={}, waypoints=[])
+            db.session.add(inst)
+            db.session.commit()
+            instance_id = inst.instance_id
+
+        with app.app_context():
+            inst = db.session.get(TelemetryTable, instance_id)
+            assert inst is not None
+            inst.obstacles_new_flag = True
+            db.session.commit()
+
+        with app.app_context():
+            reloaded = db.session.get(TelemetryTable, instance_id)
+            assert reloaded is not None
+            assert reloaded.obstacles_new_flag is True
 
 
 # --------------------------------------------------------------------------- #

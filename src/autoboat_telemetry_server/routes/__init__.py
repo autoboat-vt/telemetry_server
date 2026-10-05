@@ -35,6 +35,18 @@ Waypoint Routes:
 - `/waypoints/get_new/<int:instance_id>`: Get the latest waypoints for
 - `/waypoints/set/<int:instance_id>`: Set the waypoints from the request data.
 
+Obstacle Routes:
+- `/obstacles/test`: Test route for obstacles.
+- `/obstacles/get/<int:instance_id>`: Get the stored obstacle GeoJSON document.
+- `/obstacles/get_new/<int:instance_id>`: Get the obstacle GeoJSON document (node de-dupes client side).
+- `/obstacles/set/<int:instance_id>`: Set the obstacle GeoJSON document from the request data (double-encoded).
+
+Planned Path Routes:
+- `/path/test`: Test route for the planned path.
+- `/path/get/<int:instance_id>`: Get the stored obstacle-avoiding planned path.
+- `/path/get_new/<int:instance_id>`: Get the stored planned path (pure read; no new flag).
+- `/path/set/<int:instance_id>`: Set the planned path from the request data (raw list of [lat, lon]).
+
 Instance Manager Routes:
 - `/instance_manager/test`: Test route for instance management.
 - `/instance_manager/create`: Create a new telemetry instance.
@@ -67,6 +79,8 @@ __all__ = [
     "BoatStatusEndpoint",
     "ImageManagerEndpoint",
     "InstanceManagerEndpoint",
+    "ObstaclesEndpoint",
+    "PlannedPathEndpoint",
     "WaypointEndpoint",
 ]
 
@@ -74,4 +88,6 @@ from .autopilot_parameters import AutopilotParametersEndpoint
 from .boat_status import BoatStatusEndpoint
 from .image_manager import ImageManagerEndpoint
 from .instance_manager import InstanceManagerEndpoint
+from .obstacles import ObstaclesEndpoint
+from .planned_path import PlannedPathEndpoint
 from .waypoints import WaypointEndpoint

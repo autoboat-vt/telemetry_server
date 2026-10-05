@@ -6,6 +6,8 @@ Types:
 - WaypointType: A list or tuple representing a waypoint with latitude and longitude.
 - WaypointSequenceType: A list of waypoints, where each waypoint is a list of coordinates
     (latitude and longitude).
+- GeoJSONType: A GeoJSON document (FeatureCollection or Feature) used for the obstacle polygons.
+- PlannedPathType: A list of [latitude, longitude] points describing the obstacle-avoiding path.
 - BoatStatusType: A dictionary representing the boat's status information.
 - BoatStatusMappingType: A list of pairs of field names and their corresponding data types for the boat status.
 - AutopilotParametersType: A dictionary representing the autopilot parameters configuration.
@@ -20,6 +22,8 @@ __all__ = [
     "BoatStatusType",
     "DiagnosticMessageIntensity",
     "DiagnosticMessageType",
+    "GeoJSONType",
+    "PlannedPathType",
     "ResponseType",
     "WaypointSequenceType",
     "WaypointType",
@@ -35,6 +39,14 @@ type ResponseType = tuple[Response, int]
 type CoordinateType = float | int
 type WaypointType = tuple[CoordinateType, CoordinateType]
 type WaypointSequenceType = list[WaypointType]
+
+# a GeoJSON document - a FeatureCollection (or bare Feature) of Polygon geometries
+# holding the obstacle polygons; see AGENTS.md cross-repo contracts and
+# docs/telemetry_server_obstacles_and_path_routes.md in autoboat_vt
+type GeoJSONType = dict[str, Any]
+
+# the obstacle-avoiding path as [latitude, longitude] points, same shape as waypoints
+type PlannedPathType = list[WaypointType]
 
 type BoatStatusType = dict[str, Any]
 

@@ -32,6 +32,8 @@ from autoboat_telemetry_server.routes import (  # noqa: E402
     BoatStatusEndpoint,
     ImageManagerEndpoint,
     InstanceManagerEndpoint,
+    ObstaclesEndpoint,
+    PlannedPathEndpoint,
     WaypointEndpoint,
 )
 
@@ -98,6 +100,8 @@ def create_app() -> _flask:
     app.register_blueprint(BoatStatusEndpoint().blueprint)
     app.register_blueprint(WaypointEndpoint().blueprint)
     app.register_blueprint(ImageManagerEndpoint().blueprint)
+    app.register_blueprint(ObstaclesEndpoint().blueprint)
+    app.register_blueprint(PlannedPathEndpoint().blueprint)
 
     # structured logging + /metrics endpoint; see observability.py and
     # .github/instructions/python-source.instructions.md#Observability

@@ -30,8 +30,9 @@ the source tree where practical):
   cross-repo wire contract) + type aliases.
 - `test_routes.py` — end-to-end route tests through the Flask test client
   (status codes, response shapes, the error-code ladder, lock behavior,
-  `TestImageManager` content-addressed upload/get/delete round-trips, and
-  `TestInstanceImage` per-instance image set/get).
+  `TestImageManager` content-addressed upload/get/delete round-trips,
+  `TestInstanceImage` per-instance image set/get, and `TestObstacles` /
+  `TestPlannedPath` for the double-encoded GeoJSON and raw-list payloads).
 
 Pytest is configured in `pyproject.toml` under `[tool.pytest.ini_options]`:
 `testpaths = ["tests"]`, `pythonpath = ["src"]`, `minversion = "8.0"`. Run

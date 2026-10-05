@@ -28,6 +28,8 @@ from autoboat_telemetry_server.types import (
     BoatStatusMappingType,
     BoatStatusType,
     DiagnosticMessageType,
+    GeoJSONType,
+    PlannedPathType,
     WaypointSequenceType,
 )
 
@@ -120,6 +122,16 @@ class TelemetryTable(db.Model):
     waypoints_new_flag : bool
         Flag indicating if there are new waypoints.
 
+    obstacles : GeoJSONType
+        GeoJSON document (FeatureCollection/Feature of polygons) of the obstacle
+        polygons the pathfinder must avoid. Empty ``{}`` when none are set.
+    obstacles_new_flag : bool
+        Flag indicating if there are new obstacles.
+
+    planned_path : PlannedPathType
+        The obstacle-avoiding path the boat is currently following, as a list of
+        ``[latitude, longitude]`` points. Empty list when none has been set.
+
     camera_image_uuid : str
         UUID of the instance's current camera image in the ``images`` bind
         (see :class:`ImageTable`). Empty string when no image has been set.
@@ -154,6 +166,11 @@ class TelemetryTable(db.Model):
 
     waypoints: Mapped[WaypointSequenceType] = mapped_column(MutableJSONList, nullable=False)
     waypoints_new_flag: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    obstacles: Mapped[GeoJSONType] = mapped_column(MutableJSON, default=dict, nullable=False)
+    obstacles_new_flag: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    planned_path: Mapped[PlannedPathType] = mapped_column(MutableJSONList, default=list, nullable=False)
 
     camera_image_uuid: Mapped[str] = mapped_column(String, default="", nullable=False)
 

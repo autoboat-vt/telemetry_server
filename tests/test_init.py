@@ -252,6 +252,14 @@ class TestCreateApp:
         rules = [r.rule for r in app.url_map.iter_rules()]
         assert any(r.startswith("/waypoints") for r in rules)
 
+    def test_registers_obstacles_blueprint(self, app: Flask) -> None:
+        rules = [r.rule for r in app.url_map.iter_rules()]
+        assert any(r.startswith("/obstacles") for r in rules)
+
+    def test_registers_planned_path_blueprint(self, app: Flask) -> None:
+        rules = [r.rule for r in app.url_map.iter_rules()]
+        assert any(r.startswith("/path") for r in rules)
+
     def test_test_routes_exist(self, client: FlaskClient) -> None:
         """Each blueprint exposes a ``/<domain>/test`` health-check route."""
 
@@ -260,6 +268,8 @@ class TestCreateApp:
             ("/autopilot_parameters/test", b"autopilot_parameters route testing"),
             ("/boat_status/test", b"boat_status route testing"),
             ("/waypoints/test", b"waypoints route testing"),
+            ("/obstacles/test", b"obstacles route testing"),
+            ("/path/test", b"path route testing"),
         ]:
             response = client.get(prefix)
             assert response.status_code == 200, f"{prefix} returned {response.status_code}"

@@ -54,9 +54,9 @@ config to diverge from the baked-in default.
    tables in production. `docker/app-entrypoint.sh` runs `flask db upgrade`
    before gunicorn. The pytest `app` fixture calls `db.create_all()` explicitly
    for throwaway test DBs.
-4. Registers the five blueprints: `InstanceManagerEndpoint`,
+4. Registers the seven blueprints: `InstanceManagerEndpoint`,
    `AutopilotParametersEndpoint`, `BoatStatusEndpoint`, `WaypointEndpoint`,
-   `ImageManagerEndpoint`.
+   `ImageManagerEndpoint`, `ObstaclesEndpoint`, `PlannedPathEndpoint`.
 5. Calls `init_observability(app)` (see "Observability" below).
 6. Adds a trivial `/` index route.
 
@@ -255,8 +255,13 @@ firmware integration. Routes that follow this pattern: `set_route`,
 `set_default_route`, `create_config_route`, `update_existing_parameter_route`.
 
 Routes that take a raw JSON body directly (no double-encoding):
-`boat_status.set_route`, `waypoints.set_route`,
+`boat_status.set_route`, `waypoints.set_route`, `planned_path.set_route`,
 `instance_manager.set_diagnostic_message`.
+
+The newer `obstacles.set_route` route is a `dict` payload like
+`autopilot_parameters`, so it also does `json.loads(request.json)` (the
+GeoJSON document is double-encoded). `path.set_route` is a `list` payload
+like `waypoints`, so it reads `request.json` directly.
 
 ## Boat status fast updates
 

@@ -69,7 +69,7 @@ an AI.
 
 ## Cross-repo contracts
 
-This server is one side of three cross-repo contracts. Wire-format changes
+This server is one side of four cross-repo contracts. Wire-format changes
 require coordinated updates to all sides.
 
 - **Browser consumer (`autoboat-vt/website`)**: `src/lib/telemetry.ts` is a
@@ -90,6 +90,18 @@ require coordinated updates to all sides.
     #3.4) are positional and MUST match the instance's `boat_status_mapping`
     field order exactly. Field-order changes on the firmware side silently
     decode to garbage here.
+- **Obstacles & planned path (`autoboat-vt/autoboat_vt`, `pathfinding`
+  branch)**: the ground station authors obstacle polygons and the boat
+  pathfinder plans around them. The wire contract is specified in that repo's
+  `docs/telemetry_server_obstacles_and_path_routes.md`; the server side is
+  #5 (Obstacles / Planned path). Two encoding notes:
+  - The obstacle document is a GeoJSON `FeatureCollection`, i.e. a `dict`
+    payload, so it is **double-encoded** (`json.dumps` on the client, the
+    server's `json.loads(request.json)` decode) like autopilot parameters.
+  - The planned path is a **raw JSON array** of `[latitude, longitude]`
+    points (`list` payload, like waypoints).
+  - The telemetry node polls these with **non-retrying**, time-limited
+    requests, so a missing route degrades gracefully (logs + continues).
 - **Enum sync**: `DiagnosticMessageIntensity` (1=INFO, 2=WARNING, 3=ERROR) is
   defined here in `src/autoboat_telemetry_server/types.py` and consumed by both
   the website and the ground station. If the int mapping changes, both
@@ -133,11 +145,14 @@ src/
       versions/
         0001_initial_schema.py            # Baseline: telemetry_table (default bind) + hash_table (hashes bind)
         0002_image_storage.py             # image_table (images bind) + camera_image_uuid column (default bind)
+        0003_obstacles_and_planned_path.py # obstacles/obstacles_new_flag/planned_path columns (default bind)
     routes/
-      __init__.py                         # Re-exports the five endpoint classes + full route map docstring
+      __init__.py                         # Re-exports the seven endpoint classes + full route map docstring
       autopilot_parameters.py             # CRUD for autopilot params, config hashes, descriptions
       boat_status.py                      # Boat status get/set/set_fast/set_mapping (ctypes-aligned binary fast updates) + instance image get/set
       waypoints.py                        # Waypoint sequence get/set
+      obstacles.py                        # Obstacle polygon GeoJSON get/get_new/set (double-encoded dict payload)
+      planned_path.py                     # Obstacle-avoiding planned path get/get_new/set (raw list payload)
       instance_manager.py                 # Instance lifecycle: create/delete/clean, user/name/diagnostic, get_ids, etc.
       image_manager.py                    # Content-addressed image store: upload/get/get_info/get_all/delete/delete_all
   instance/
@@ -713,6 +728,46 @@ blueprint (per the feature spec); the image store itself is managed on
   length 2 with numeric coords; 400 otherwise. Sets
   `waypoints_new_flag = True`.
 
+### Obstacles
+
+The obstacle polygons the pathfinder must avoid, stored as a GeoJSON document
+(`FeatureCollection` or bare `Feature` of `Polygon`/`MultiPolygon`). Consumed
+by the boat telemetry node's `update_obstacles_from_telemetry()` poll and by
+the ground station's map. See the cross-repo contract doc
+`docs/telemetry_server_obstacles_and_path_routes.md` in `autoboat-vt/autoboat_vt`.
+
+- `GET /obstacles/test` — literal health-check string. Not lock-decorated.
+- `GET /obstacles/get/<id>` — `@require_read_lock`. Returns the stored GeoJSON
+  object (`{}` when never set).
+- `GET /obstacles/get_new/<id>` — `@require_read_lock`. Returns the current
+  GeoJSON object. It is a **pure read** (no `*_new_flag` to clear) because the
+  node de-dupes client side by comparing the document to its previous
+  response — the contract explicitly permits returning the current value on
+  every call. `obstacles_new_flag` is maintained for change detection but is
+  not consumed by this route.
+- `POST /obstacles/set/<id>` — `@require_write_lock`. Body is a **JSON-encoded
+  string** whose value is the GeoJSON document (**double-encoded**, the `dict`
+  payload convention, like `autopilot_parameters`). Validates `type` is
+  `FeatureCollection` or `Feature`; 400 otherwise. Sets
+  `obstacles_new_flag = (old != new)` and stores the decoded object.
+
+### Planned path
+
+The obstacle-avoiding path the boat's autopilot is actually following,
+published on `/waypoint_path` and forwarded by the telemetry node. Display-only
+(the ground station draws it as a read-only polyline).
+
+- `GET /path/test` — literal health-check string. Not lock-decorated.
+- `GET /path/get/<id>` — `@require_read_lock`. Returns the path as a raw JSON
+  array of `[latitude, longitude]` points (`[]` when none set).
+- `GET /path/get_new/<id>` — `@require_read_lock`. Same shape as `get`; a pure
+  read with no new flag (the ground station polls `get` directly; this route
+  exists so the advertised `get_new_planned_path` key is valid).
+- `POST /path/set/<id>` — `@require_write_lock`. Body is a **raw JSON array**
+  of `[latitude, longitude]` points (the `list` payload convention, like
+  waypoints). Validates each point is a list/tuple of length 2 with numeric
+  coords; 400 otherwise.
+
 ---
 
 ## 6. Database changes
@@ -730,7 +785,9 @@ Models live in `src/autoboat_telemetry_server/models.py`. Three tables:
   `autopilot_parameters_new_flag`, `current_config_hash` (FK-ish to
   `HashTable.config_hash`, but not enforced at the DB level), `waypoints`
   (JSON), `waypoints_new_flag`, `diagnostic_message` (JSON list),
-  `created_at`, `updated_at` (timezone-aware UTC). Indexed columns
+  `obstacles` (JSON — GeoJSON document, `{}` when unset), `obstacles_new_flag`,
+  `planned_path` (JSON list of `[lat, lon]`), `created_at`, `updated_at`
+  (timezone-aware UTC). Indexed columns
   (declared in `__table_args__`): `updated_at` (for the `clean_instances`
   cron filter) and `instance_identifier` (for `get_id/<name>` lookup and
   the `set_name` uniqueness check). See #6.2 for the migration caveat —

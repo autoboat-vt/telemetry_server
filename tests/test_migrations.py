@@ -35,6 +35,17 @@ def _tables_in(db_path: Path) -> list[str]:
         conn.close()
 
 
+def _columns_in(db_path: Path, table: str) -> set[str]:
+    """Return the column names of a table in a SQLite file."""
+
+    conn = sqlite3.connect(db_path)
+    try:
+        rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+        return {r[1] for r in rows}
+    finally:
+        conn.close()
+
+
 @pytest.fixture
 def migration_app(tmp_path: Path) -> Flask:
     """Build an app whose INSTANCE_DIR points at a fresh temp dir.
@@ -120,6 +131,11 @@ class TestMultiBindMigration:
         assert "image_table" in _tables_in(images_path)
         assert "alembic_version" in _tables_in(images_path)
 
+        # migration 0003 adds the obstacles / planned_path columns to the
+        # default bind's telemetry_table
+        columns = _columns_in(instances_path, "telemetry_table")
+        assert {"obstacles", "obstacles_new_flag", "planned_path"}.issubset(columns)
+
     def test_downgrade_drops_all_tables(self, migration_app: Flask, tmp_path: Path) -> None:
         instances_db = migration_app.config["SQLALCHEMY_BINDS"][None]
         hashes_db = migration_app.config["SQLALCHEMY_BINDS"]["hashes"]
@@ -141,6 +157,72 @@ class TestMultiBindMigration:
         assert "telemetry_table" not in _tables_in(instances_path)
         assert "hash_table" not in _tables_in(hashes_path)
         assert "image_table" not in _tables_in(images_path)
+
+    def test_0003_columns_absent_before_0003(self, migration_app: Flask) -> None:
+        """Upgrading only to 0002 does NOT create the obstacles columns.
+
+        The migration must be additive on top of 0002, not folded into an
+        earlier revision (which would break stamped production volumes).
+        """
+
+        instances_db = migration_app.config["SQLALCHEMY_BINDS"][None]
+        instances_path = Path(instances_db.replace("sqlite:///", ""))
+
+        with migration_app.app_context():
+            from flask_migrate import upgrade
+
+            upgrade(revision="0002_image_storage")
+
+        columns = _columns_in(instances_path, "telemetry_table")
+        assert "camera_image_uuid" in columns
+        assert "obstacles" not in columns
+        assert "planned_path" not in columns
+
+    def test_0003_upgrade_on_populated_db_backfills_defaults(self, migration_app: Flask) -> None:
+        """0003 must succeed on a DB that already has rows (the production case).
+
+        The columns are NOT NULL, and SQLite requires a default when adding a
+        NOT NULL column, so the migration uses server_default. If that were
+        missing, upgrading a stamped production volume with existing instances
+        would fail. Insert a row at 0002 with raw SQL (the ORM model already
+        knows the new columns and would error against the older schema), then
+        upgrade and confirm the existing row got the defaults.
+        """
+
+        instances_db = migration_app.config["SQLALCHEMY_BINDS"][None]
+        instances_path = Path(instances_db.replace("sqlite:///", ""))
+
+        with migration_app.app_context():
+            from flask_migrate import upgrade
+
+            upgrade(revision="0002_image_storage")
+
+        # insert a row through raw SQL against the 0002 schema
+        conn = sqlite3.connect(instances_path)
+        try:
+            conn.execute(
+                "INSERT INTO telemetry_table "
+                "(instance_identifier, user, current_config_hash, default_autopilot_parameters, "
+                " autopilot_parameters, autopilot_parameters_new_flag, boat_status, boat_status_mapping, "
+                " boat_status_new_flag, waypoints, waypoints_new_flag, camera_image_uuid, created_at, updated_at) "
+                "VALUES ('legacy', 'unknown', '', '{}', '{}', 0, '{}', '[]', 0, '[]', 0, '', '2026-01-01', '2026-01-01')"
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        with migration_app.app_context():
+            from flask_migrate import upgrade
+
+            upgrade()
+
+        conn = sqlite3.connect(instances_path)
+        try:
+            row = conn.execute("SELECT obstacles, obstacles_new_flag, planned_path FROM telemetry_table").fetchone()
+        finally:
+            conn.close()
+
+        assert row == ("{}", 0, "[]")
 
     def test_upgrade_is_idempotent_when_run_twice(self, migration_app: Flask, tmp_path: Path) -> None:
         """Running upgrade twice should not error (Alembic tracks state)."""

@@ -11,6 +11,8 @@ Coverage:
 - ``boat_status``: get, get_new (flag clearing), set, set_mapping (validation),
   set_fast (binary ctypes decode).
 - ``waypoints``: get, get_new, set (validation).
+- ``obstacles``: get, get_new (pure read), set (double-encoded GeoJSON, type validation).
+- ``path``: get, get_new (pure read), set (raw list validation).
 - ``autopilot_parameters``: create_config, set_default, set, get, get_hash,
   delete_config, double-JSON encoding gotcha.
 """
@@ -44,6 +46,23 @@ def _make_config() -> dict:
     return {
         "speed": {"default": 1.5, "description": "cruise speed in m/s"},
         "heading": {"default": 0.0, "description": "target heading in degrees"},
+    }
+
+
+def _make_obstacles() -> dict:
+    """Return a valid obstacle GeoJSON FeatureCollection."""
+    return {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[[-80.0, 37.0], [-80.001, 37.0], [-80.001, 37.001], [-80.0, 37.0]]],
+                },
+                "properties": {},
+            }
+        ],
     }
 
 
@@ -448,6 +467,160 @@ class TestWaypoints:
         response = client.get(f"/waypoints/get_new/{instance_id}")
         assert response.status_code == 200
         assert response.get_json() == {}
+
+
+# --------------------------------------------------------------------------- #
+# Obstacles
+# --------------------------------------------------------------------------- #
+
+
+class TestObstacles:
+    """Obstacles are stored as a GeoJSON document and sent double-encoded."""
+
+    def test_get_empty_obstacles(self, client: FlaskClient) -> None:
+        instance_id = _create_instance(client)
+        response = client.get(f"/obstacles/get/{instance_id}")
+        assert response.status_code == 200
+        assert response.get_json() == {}
+
+    def test_set_and_get(self, client: FlaskClient) -> None:
+        instance_id = _create_instance(client)
+        obstacles = _make_obstacles()
+        # dict payload -> double-encoded (json.dumps of the dict)
+        response = client.post(f"/obstacles/set/{instance_id}", json=json.dumps(obstacles))
+        assert response.status_code == 200
+
+        response = client.get(f"/obstacles/get/{instance_id}")
+        assert response.status_code == 200
+        assert response.get_json() == obstacles
+
+    def test_set_requires_double_encoding(self, client: FlaskClient) -> None:
+        """Sending the GeoJSON dict directly (not JSON-encoded) is rejected.
+
+        Mirrors the autopilot_parameters double-JSON gotcha: ``request.json``
+        must be a JSON string, not an already-parsed dict.
+        """
+
+        instance_id = _create_instance(client)
+        response = client.post(f"/obstacles/set/{instance_id}", json=_make_obstacles())
+        assert response.status_code == 400
+
+    def test_set_bare_feature_accepted(self, client: FlaskClient) -> None:
+        instance_id = _create_instance(client)
+        feature = {
+            "type": "Feature",
+            "geometry": {"type": "Polygon", "coordinates": [[[-80.0, 37.0], [-80.001, 37.0], [-80.001, 37.001]]]},
+            "properties": {},
+        }
+        response = client.post(f"/obstacles/set/{instance_id}", json=json.dumps(feature))
+        assert response.status_code == 200
+        assert client.get(f"/obstacles/get/{instance_id}").get_json() == feature
+
+    def test_set_non_geojson_type_returns_400(self, client: FlaskClient) -> None:
+        instance_id = _create_instance(client)
+        response = client.post(f"/obstacles/set/{instance_id}", json=json.dumps({"type": "Point", "coordinates": [0, 0]}))
+        assert response.status_code == 400
+
+    def test_set_non_dict_returns_400(self, client: FlaskClient) -> None:
+        instance_id = _create_instance(client)
+        response = client.post(f"/obstacles/set/{instance_id}", json=json.dumps([1, 2, 3]))
+        assert response.status_code == 400
+
+    def test_set_on_nonexistent_returns_400(self, client: FlaskClient) -> None:
+        """Obstacles.set maps all TypeErrors (incl. instance-not-found) to 400."""
+
+        response = client.post("/obstacles/set/9999", json=json.dumps(_make_obstacles()))
+        assert response.status_code == 400
+
+    def test_get_unknown_instance_returns_404(self, client: FlaskClient) -> None:
+        response = client.get("/obstacles/get/9999")
+        assert response.status_code == 404
+
+    def test_get_new_returns_current_document(self, client: FlaskClient) -> None:
+        instance_id = _create_instance(client)
+        obstacles = _make_obstacles()
+        client.post(f"/obstacles/set/{instance_id}", json=json.dumps(obstacles))
+
+        response = client.get(f"/obstacles/get_new/{instance_id}")
+        assert response.status_code == 200
+        assert response.get_json() == obstacles
+
+    def test_get_new_is_pure_read(self, client: FlaskClient) -> None:
+        """get_new does NOT clear state: the node de-dupes client side, so
+        every call returns the current document.
+        """
+
+        instance_id = _create_instance(client)
+        obstacles = _make_obstacles()
+        client.post(f"/obstacles/set/{instance_id}", json=json.dumps(obstacles))
+
+        first = client.get(f"/obstacles/get_new/{instance_id}").get_json()
+        second = client.get(f"/obstacles/get_new/{instance_id}").get_json()
+        assert first == obstacles
+        assert second == obstacles
+
+    def test_get_new_empty_when_never_set(self, client: FlaskClient) -> None:
+        instance_id = _create_instance(client)
+        response = client.get(f"/obstacles/get_new/{instance_id}")
+        assert response.status_code == 200
+        assert response.get_json() == {}
+
+
+# --------------------------------------------------------------------------- #
+# Planned path
+# --------------------------------------------------------------------------- #
+
+
+class TestPlannedPath:
+    """The planned path is posted as a raw JSON array of [lat, lon] points."""
+
+    def test_get_empty_path(self, client: FlaskClient) -> None:
+        instance_id = _create_instance(client)
+        response = client.get(f"/path/get/{instance_id}")
+        assert response.status_code == 200
+        assert response.get_json() == []
+
+    def test_set_and_get(self, client: FlaskClient) -> None:
+        instance_id = _create_instance(client)
+        path = [[37.0, -80.0], [37.001, -80.001]]
+        response = client.post(f"/path/set/{instance_id}", json=path)
+        assert response.status_code == 200
+
+        response = client.get(f"/path/get/{instance_id}")
+        assert response.status_code == 200
+        assert response.get_json() == path
+
+    def test_set_non_list_returns_400(self, client: FlaskClient) -> None:
+        instance_id = _create_instance(client)
+        response = client.post(f"/path/set/{instance_id}", json={"not": "a list"})
+        assert response.status_code == 400
+
+    def test_set_wrong_point_length_returns_400(self, client: FlaskClient) -> None:
+        instance_id = _create_instance(client)
+        response = client.post(f"/path/set/{instance_id}", json=[[37.0, -80.0, 1.0]])
+        assert response.status_code == 400
+
+    def test_set_non_numeric_coord_returns_400(self, client: FlaskClient) -> None:
+        instance_id = _create_instance(client)
+        response = client.post(f"/path/set/{instance_id}", json=[["a", "b"]])
+        assert response.status_code == 400
+
+    def test_set_on_nonexistent_returns_400(self, client: FlaskClient) -> None:
+        response = client.post("/path/set/9999", json=[])
+        assert response.status_code == 400
+
+    def test_get_unknown_instance_returns_404(self, client: FlaskClient) -> None:
+        response = client.get("/path/get/9999")
+        assert response.status_code == 404
+
+    def test_get_new_returns_path(self, client: FlaskClient) -> None:
+        instance_id = _create_instance(client)
+        path = [[37.0, -80.0], [37.001, -80.001]]
+        client.post(f"/path/set/{instance_id}", json=path)
+
+        response = client.get(f"/path/get_new/{instance_id}")
+        assert response.status_code == 200
+        assert response.get_json() == path
 
 
 # --------------------------------------------------------------------------- #
