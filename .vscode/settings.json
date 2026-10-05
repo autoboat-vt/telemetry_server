@@ -1,3 +1,11 @@
 {
-    "ruff.configuration": "${workspaceFolder}/ruff.toml"
+    "git.autofetch": true,
+    "git.mergeEditor": true,
+    "editor.formatOnSave": true,
+    "ruff.configuration": "${workspaceFolder}/ruff.toml",
+    "[python]": {
+        "editor.codeActionsOnSave": {
+            "source.organizeImports.ruff": "explicit"
+        }
+    }
 }

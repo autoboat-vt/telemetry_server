@@ -20,9 +20,10 @@ max-returns         = 10
 max-locals          = 30
 
 [lint.isort]
-combine-as-imports     = true
-order-by-type          = true
-relative-imports-order = "furthest-to-closest"
+combine-as-imports      = true
+order-by-type           = true
+relative-imports-order  = "furthest-to-closest"
+split-on-trailing-comma = false
 
 # Ruff will place the import sections in this order:
 section-order = [
@@ -35,6 +36,9 @@ section-order = [
 
 # A list of modules to consider standard-library, in addition to those known to Ruff in advance.
 extra-standard-library = []
+
+# A list of modules to consider first-party, regardless of whether they can be identified as such via introspection of the local filesystem.
+known-first-party = ["autoboat_telemetry_server", "tests"]
 
 [lint]
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"

@@ -281,7 +281,7 @@ class TestStructuredLogging:
         handler = _CaptureHandler(level=logging.INFO)
         request_logger.addHandler(handler)
         request_logger.setLevel(logging.INFO)
-        
+
         return records, handler
 
     def test_log_record_contains_required_fields(self, client: FlaskClient) -> None:
