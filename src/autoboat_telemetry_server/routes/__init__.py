@@ -1,5 +1,5 @@
 """
-Module containing the routes for the Autoboat telemetry server.
+Module containing the routes for the AutoBoat telemetry server.
 
 Autopilot Routes:
 - `/autopilot_parameters/test`: Test route for autopilot parameters.

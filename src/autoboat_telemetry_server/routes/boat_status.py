@@ -344,8 +344,6 @@ class BoatStatusEndpoint:
 
             try:
                 telemetry_instance = self._get_instance(instance_id)
-
-                # multipart upload (requests.post(files={...})) or raw binary body
                 image_data = next(iter(request.files.values())).read() if request.files else request.get_data(cache=False)
 
                 if not image_data:

@@ -34,12 +34,12 @@ class AutopilotParametersEndpoint:
 
         Returns
         -------
-        TelemetryTable
+        :class:`TelemetryTable`
             The telemetry instance corresponding to the provided ID.
 
         Raises
         ------
-        TypeError
+        :class:`TypeError`
             If the instance with the given ID does not exist.
         """
 
@@ -434,7 +434,6 @@ class AutopilotParametersEndpoint:
                 if parameter_key not in telemetry_instance.default_autopilot_parameters:
                     raise ValueError("Parameter key does not exist in the default autopilot parameters.")
 
-                # copy for a stable diff snapshot — see python-source.instructions.md#update_existing_parameter
                 current_parameters = (
                     dict(telemetry_instance.autopilot_parameters) if telemetry_instance.autopilot_parameters else {}
                 )
@@ -661,8 +660,6 @@ class AutopilotParametersEndpoint:
 
             try:
                 hash_entry = self._get_hash(config_hash)
-
-                # 409 guard — see .github/instructions/python-source.instructions.md#current_config_hash
                 offending_ids: list[int] = (
                     db.session.execute(
                         db.select(TelemetryTable.instance_id).where(TelemetryTable.current_config_hash == config_hash)

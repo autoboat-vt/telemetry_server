@@ -1,6 +1,6 @@
-# Autoboat Telemetry Server
+# Telemetry Server
 
-A lightweight Flask-based web server to collect, display, and manage telemetry data from the Virginia Tech Autoboat project.
+A lightweight Flask-based web server to collect, display, and manage telemetry data.
 
 ## Project Structure
 
@@ -8,15 +8,14 @@ A lightweight Flask-based web server to collect, display, and manage telemetry d
 src/autoboat_telemetry_server/    # Flask app (factory, models, types, lock manager, routes/)
 src/instance/                     # config.py + SQLite DBs (instances.db, hashes.db)
 install.sh                        # One-shot cloud VM installer
-docker/                           # app-entrypoint.sh, cloudflared/, cron/, tailscale/
+docker/                           # app-entrypoint.sh, cron/, tailscale/
 docker-compose.yml                # telemetry-prod, telemetry-test, cloudflared, cron, tailscale
 .github/workflows/                # build.yml (test + per-arch build), push.yml (publish), tailscale.yml, citation.yml
 ```
 
 ## Deployment (Docker + Cloudflare Tunnel)
 
-The production stack runs as four Docker Compose services (plus an optional
-`tailscale` sidecar):
+The production stack runs as four Docker Compose services (plus an optional `tailscale` sidecar):
 
 | Service          | Purpose                                                      |
 | ---------------- | ------------------------------------------------------------ |
@@ -24,53 +23,44 @@ The production stack runs as four Docker Compose services (plus an optional
 | `telemetry-test` | Gunicorn app on `:6001` (testing)                            |
 | `cloudflared`    | Outbound tunnel to Cloudflare; routes hostnames → containers |
 | `cron`           | Calls `/instance_manager/clean_instances` every 5 min        |
-| `tailscale`      | Optional (`--profile tailscale`). Joins your Tailscale tailnet so you can SSH into the container from anywhere on your tailnet. See [.github/instructions/tailscale.instructions.md](.github/instructions/tailscale.instructions.md). |
+| `tailscale`      | Optional (`--profile tailscale`). Joins your Tailscale tailnet so you can SSH into the container from anywhere on your tailnet. |
 
-`cloudflared` dials **out** to Cloudflare's edge, so no inbound ports need to be
-open on the host — works behind NAT, CGNAT, or a firewall. Cloudflare terminates
-TLS at the edge.
+`cloudflared` is used to expose the internal services to the public Internet via a [Cloudflare Tunnel](https://developers.cloudflare.com/tunnel). The tunnel is managed via the Cloudflare dashboard, so you can add/remove public hostnames (routes) without touching the container.
 
 ### Prebuilt image
 
 A multi-arch image (`linux/amd64` + `linux/arm64`) is built by GitHub Actions on
-every push to `main` and published to **both** registries:
+every push to `main` and published to both registries:
 
 - GHCR: `ghcr.io/autoboat-vt/telemetry_server:latest`
 - Docker Hub: `docker.io/vtautoboat/telemetry_server:latest`
 
 Both are public, so `docker compose pull` works without authentication.
 
-### Quick install (cloud VM)
+### Quick Install
 
 One-liner that installs Docker, clones the repo, configures `.env`, pulls the
 prebuilt image, and starts the stack. Works on any Ubuntu/Debian VM:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/autoboat-vt/telemetry_server/main/install.sh \
-  | TUNNEL_TOKEN=eyJ... bash
+curl -fsSL https://raw.githubusercontent.com/autoboat-vt/telemetry_server/main/install.sh | bash
 ```
 
 Get the tunnel token from
-[Cloudflare Zero Trust](https://one.dash.cloudflare.com/) → Networks → Tunnels →
-(your tunnel) → Install.
-
-From an existing checkout:
-
-```bash
-bash install.sh             # or: TUNNEL_TOKEN=eyJ... bash install.sh
-```
+[Cloudflare Zero Trust](https://one.dash.cloudflare.com/) -> Networks -> Tunnels -> (your tunnel) -> Install.
 
 To build locally instead of pulling the prebuilt image:
 
 ```bash
-docker compose up -d --build
+git clone https://github.com/autoboat-vt/telemetry_server.git
+cd telemetry_server && docker compose up -d --build
 ```
 
 ### First-time Cloudflare setup
 
 Dashboard-managed tunnel (recommended):
 
-1. Go to <https://one.dash.cloudflare.com/> → Networks → Tunnels → Create.
+1. Go to <https://one.dash.cloudflare.com/> -> Networks -> Tunnels -> Create.
 2. Create a tunnel; copy the install token into `.env` as `TUNNEL_TOKEN`.
 3. Add public hostnames (Routes) in the dashboard:
 
@@ -86,11 +76,7 @@ Also store the token as a GitHub **organization variable** named `TUNNEL_TOKEN`
 (scoped to this repo) so team members can grab it from the Actions UI when
 provisioning a new host. It's plaintext (not masked) — referenced in workflows
 as `${{ vars.TUNNEL_TOKEN }}`. When rotating, update **both** the org variable
-and `.env` on the host. Full rotation procedure and trade-offs:
-`.github/instructions/deployment-docs.instructions.md`.
-
-For file-managed tunnel mode (routing in `docker/cloudflared/config.yml` instead
-of the dashboard), see `.env.example`.
+and `.env` on the host.
 
 ### Deploying updates
 
@@ -117,9 +103,9 @@ docker compose logs -f telemetry-prod   # app logs
 ## Local Development (no Docker)
 
 ```bash
-pip install -e ".[dev]"          # install with dev extras (ruff, pytest)
-gunicorn "autoboat_telemetry_server:create_app()"   # production-like
-flask run                       # development (auto-reload)
+pip install -e ".[dev]"
+gunicorn "autoboat_telemetry_server:create_app()"
+flask run
 ```
 
 Lint and test:
@@ -129,38 +115,3 @@ ruff check .
 ruff format --check .
 pytest
 ```
-
-## Schema changes (migrations)
-
-Schema migrations are managed with **Flask-Migrate** (Alembic). In
-production, `docker/app-entrypoint.sh` runs `flask db upgrade` before
-starting gunicorn, so pending migrations apply automatically on every
-container start.
-
-To add a new migration locally:
-
-```bash
-flask db migrate -m "describe the change"   # autogenerate (default bind only)
-# inspect + edit migrations/versions/<new>.py, then:
-flask db upgrade                             # apply
-```
-
-> **Note:** autogenerate only diffs the default bind (`instances.db`).
-> If the change affects `HashTable` (the `hashes` bind), add the `hashes`-bind
-> `op.*` calls by hand. See `migrations/versions/0001_initial_schema.py`
-> for the bind-routing pattern.
-
-### Existing volumes that predate Alembic
-
-If a `prod-instance-data` / `test-instance-data` volume was created before
-Flask-Migrate shipped, it has the tables but no `alembic_version` row. The
-first deploy with the new image will fail with `table already exists`. Fix
-it by stamping the DB at head once:
-
-```bash
-docker compose exec telemetry-prod flask db stamp head
-docker compose exec telemetry-test  flask db stamp head
-```
-
-See [`.github/instructions/deployment-docs.instructions.md`](.github/instructions/deployment-docs.instructions.md)
-for the full operator procedure.

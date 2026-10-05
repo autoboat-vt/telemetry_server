@@ -1,10 +1,4 @@
-"""
-Structured logging and Prometheus metrics for the telemetry server.
-
-See `.github/instructions/python-source.instructions.md` #"Observability" for
-the rationale (why JSON, why stdlib logging, cardinality bounds, singleton
-guards, how to add a metric).
-"""
+"""Structured logging and Prometheus metrics for the telemetry server."""
 
 __all__ = ["REQUEST_LOG_FORMAT", "count_429", "count_clean_instances_deletions", "init_app", "setup_logging"]
 
@@ -17,14 +11,11 @@ from typing import Any
 from flask import Blueprint, Flask, Response, g, request
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 
-# re-exported for tests / callers that want the raw formatter string
 REQUEST_LOG_FORMAT = (
     "method=%(method)s path=%(path)s status=%(status)s "
     "duration_ms=%(duration_ms)s response_bytes=%(response_bytes)s request_id=%(request_id)s"
 )
 
-
-# metric singletons — see .github/instructions/python-source.instructions.md#Metric singletons
 _http_requests_total: Counter | None = None
 _http_request_duration_seconds: Histogram | None = None
 _http_429_total: Counter | None = None
@@ -64,13 +55,12 @@ class _JsonFormatter(logging.Formatter):
             "logger": record.name,
         }
 
-        # request records carry the structured fields via extra=; plain
-        # records fall back to getMessage(); see instructions #"Structured logging"
         request_fields = {k: getattr(record, k, None) for k in self._REQUEST_FIELDS}
         if any(v is not None for v in request_fields.values()):
             payload.update({k: v for k, v in request_fields.items() if v is not None})
             if record.getMessage():
                 payload["message"] = record.getMessage()
+
         else:
             payload["message"] = record.getMessage()
 
@@ -83,8 +73,6 @@ class _JsonFormatter(logging.Formatter):
 def setup_logging(*, level: int = logging.INFO) -> None:
     """
     Configure the root logger with the JSON formatter.
-
-    Idempotent — see instructions #"Structured logging".
 
     Parameters
     ----------
@@ -136,8 +124,6 @@ def _ensure_metrics() -> None:
 def _path_label() -> str:
     """
     Return the Flask routing rule as a stable label, not the raw URL.
-
-    See instructions #"Metric cardinality is bounded by design".
 
     Returns
     -------
@@ -209,7 +195,6 @@ def init_app(app: Flask) -> None:
     @app.before_request
     def _start_request_timer() -> None:
         g.request_start = time.perf_counter()
-        # request_id: prefer inbound header (trace propagation), else uuid4
         g.request_id = request.headers.get("X-Request-Id") or uuid.uuid4().hex
 
     @app.after_request
@@ -230,7 +215,6 @@ def init_app(app: Flask) -> None:
 
         return _log_request(response)
 
-    # /metrics endpoint — not CORS-enabled, not lock-decorated; see instructions
     metrics_bp = Blueprint(name="metrics_page", import_name=__name__)
 
     @metrics_bp.route("/metrics", methods=["GET"])

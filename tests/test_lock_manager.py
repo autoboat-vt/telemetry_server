@@ -2,11 +2,9 @@
 Tests for ``autoboat_telemetry_server.lock_manager``.
 
 Covers:
-- ``ReaderWriterLock`` concurrency semantics (read/read, read/write,
-  write/write exclusion, non-blocking write acquisition).
+- ``ReaderWriterLock`` concurrency semantics (read/read, read/write, write/write exclusion, non-blocking write acquisition).
 - ``LockManager.require_read_lock`` (blocking reader decorator).
-- ``LockManager.require_write_lock`` (non-blocking writer decorator,
-  returns HTTP 429 on contention).
+- ``LockManager.require_write_lock`` (non-blocking writer decorator, returns HTTP 429 on contention).
 
 The reader-writer lock is the correctness backbone for SQLite + a single
 Gunicorn worker (#3.6). Breaking its semantics would silently corrupt data
@@ -21,10 +19,6 @@ import pytest
 from flask import Flask
 
 from autoboat_telemetry_server.lock_manager import LockManager, ReaderWriterLock
-
-# --------------------------------------------------------------------------- #
-# ReaderWriterLock -- low-level lock semantics
-# --------------------------------------------------------------------------- #
 
 
 class TestReaderWriterLock:
@@ -147,11 +141,6 @@ class TestReaderWriterLock:
         lock.release_write()
         t.join(timeout=1.0)
         assert results == [True]
-
-
-# --------------------------------------------------------------------------- #
-# LockManager decorators -- require_read_lock / require_write_lock
-# --------------------------------------------------------------------------- #
 
 
 class TestRequireReadLock:
@@ -298,11 +287,6 @@ class TestRequireWriteLock:
         lm._rw_lock.release_write()
         t.join(timeout=2.0)
         assert reader_results == ["done"]
-
-
-# --------------------------------------------------------------------------- #
-# Fairness / integration-ish tests
-# --------------------------------------------------------------------------- #
 
 
 class TestLockFairness:

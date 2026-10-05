@@ -7,8 +7,6 @@ from autoboat_telemetry_server import shared_lock_manager
 from autoboat_telemetry_server.models import TelemetryTable, db
 from autoboat_telemetry_server.types import ResponseType
 
-# GeoJSON document types the server accepts for the obstacle set - see
-# autoboat_vt docs/telemetry_server_obstacles_and_path_routes.md
 _GEOJSON_TYPES = ("FeatureCollection", "Feature")
 
 
@@ -115,14 +113,6 @@ class ObstaclesEndpoint:
 
             Method: GET
 
-            Unlike ``waypoints/get_new`` this is a pure read - there is no flag
-            to clear - so it uses ``require_read_lock``, not the write lock (see
-            python-source.instructions.md#Lock decorators and AGENTS.md #3.6).
-            The telemetry node de-duplicates client side by comparing the
-            returned document against the previous response, and returning the
-            current value on every call is permitted by the contract (see
-            autoboat_vt docs/telemetry_server_obstacles_and_path_routes.md).
-
             Parameters
             ----------
             instance_id
@@ -153,10 +143,6 @@ class ObstaclesEndpoint:
 
             Method: POST
 
-            The body is a JSON-encoded string whose value is a GeoJSON document
-            (double-encoded, the convention for ``dict`` payloads - see
-            autoboat_vt docs/telemetry_server_obstacles_and_path_routes.md).
-
             Parameters
             ----------
             instance_id
@@ -173,8 +159,6 @@ class ObstaclesEndpoint:
             try:
                 telemetry_instance = self._get_instance(instance_id)
 
-                # double-encoded dict payload: request.json is a JSON *string*
-                # that must be decoded once to get the GeoJSON object.
                 try:
                     obstacles_data = json.loads(request.json)
                 except (TypeError, ValueError) as e:
@@ -186,9 +170,6 @@ class ObstaclesEndpoint:
                 if obstacles_data.get("type") not in _GEOJSON_TYPES:
                     raise TypeError(f"Invalid GeoJSON type. Expected one of {_GEOJSON_TYPES}.")
 
-                # track the flag explicitly rather than relying on MutableDict's
-                # top-level change detection - see
-                # python-source.instructions.md#JSON column mutation tracking
                 telemetry_instance.obstacles_new_flag = telemetry_instance.obstacles != obstacles_data
                 telemetry_instance.obstacles = obstacles_data
                 db.session.commit()

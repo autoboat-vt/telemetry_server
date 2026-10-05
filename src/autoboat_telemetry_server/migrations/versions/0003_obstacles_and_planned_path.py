@@ -1,16 +1,17 @@
-"""Add obstacles and planned-path storage.
+"""
+Add obstacles and planned-path storage.
 
 Revision ID: 0003_obstacles_and_path
 Revises: 0002_image_storage
 Create Date: 2026-10-04 00:00:00.000000
 
 Adds (default bind only, on ``telemetry_table``):
-  - ``obstacles`` (JSON): the obstacle polygon GeoJSON document. nullable=False
-    with a server default of ``{}`` so the ALTER works on rows that already
-    exist (SQLite requires a default when adding a NOT NULL column).
-  - ``obstacles_new_flag`` (Boolean): set when the obstacle set changes, so
-    ``obstacles/get_new`` can mirror ``waypoints/get_new``.
-  - ``planned_path`` (JSON): the obstacle-avoiding path the boat is following.
+    - ``obstacles`` (JSON): the obstacle polygon GeoJSON document. nullable=False
+        with a server default of ``{}`` so the ALTER works on rows that already
+        exist (SQLite requires a default when adding a NOT NULL column).
+    - ``obstacles_new_flag`` (Boolean): set when the obstacle set changes, so
+        ``obstacles/get_new`` can mirror ``waypoints/get_new``.
+    - ``planned_path`` (JSON): the obstacle-avoiding path the boat is following.
 
 These feed the new ``obstacles/*`` and ``path/*`` route groups (see
 docs/telemetry_server_obstacles_and_path_routes.md in autoboat_vt). The columns
@@ -33,10 +34,16 @@ depends_on = None
 
 
 def _bind_key() -> str | None:
-    """Return the current bind key (None=default, "hashes"/"images"=that db).
+    """
+    Get the current bind key from the Alembic config attributes.
 
     Alembic loads migration files via ``load_python_file`` which bypasses the
     package import system, so read the bind key directly from the context.
+
+    Returns
+    -------
+    `str | None`
+        The current bind key, or `None` for the default bind.
     """
 
     from alembic import context
@@ -45,6 +52,7 @@ def _bind_key() -> str | None:
 
 
 def _default_bind() -> bool:
+    """Return `True` if the current bind key is the default bind (i.e., `None`)."""
     return _bind_key() is None
 
 

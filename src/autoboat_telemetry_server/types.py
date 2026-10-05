@@ -40,12 +40,8 @@ type CoordinateType = float | int
 type WaypointType = tuple[CoordinateType, CoordinateType]
 type WaypointSequenceType = list[WaypointType]
 
-# a GeoJSON document - a FeatureCollection (or bare Feature) of Polygon geometries
-# holding the obstacle polygons; see AGENTS.md cross-repo contracts and
-# docs/telemetry_server_obstacles_and_path_routes.md in autoboat_vt
+# GeoJSON document (FeatureCollection or Feature) used for the obstacle polygons
 type GeoJSONType = dict[str, Any]
-
-# the obstacle-avoiding path as [latitude, longitude] points, same shape as waypoints
 type PlannedPathType = list[WaypointType]
 
 type BoatStatusType = dict[str, Any]
@@ -56,7 +52,7 @@ type BoatStatusMappingType = list[list[str]]
 # example: {..., "tack_distance": {"default": 100.0, "description": ...}, ...}
 type AutopilotParametersType = dict[str, dict[str, Any]]
 
-# [intensity, message] pair — list not tuple, see python-source.instructions.md#MutableList rejects tuples
+# list of [intensity, message] where intensity is an integer (1=INFO, 2=WARNING, 3=ERROR) and message is a string
 type DiagnosticMessageType = list[DiagnosticMessageIntensity | str]
 
 

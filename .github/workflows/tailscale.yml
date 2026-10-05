@@ -1,9 +1,6 @@
 name: Sync Tailscale ACLs
 
-# Syncs tailscale/policy.hujson to Tailscale on push to main, and validates
-# it on pull requests targeting main. See
-# .github/instructions/tailscale.instructions.md, "Managing the tailnet
-# policy via GitHub".
+# Syncs tailscale/policy.hujson to Tailscale on push to main, and validates it on pull requests targeting main.
 #
 # Required GitHub configuration (org Settings -> Secrets and variables ->
 # Actions -- matches the TUNNEL_TOKEN pattern):

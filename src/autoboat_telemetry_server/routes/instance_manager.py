@@ -366,13 +366,11 @@ class InstanceManagerEndpoint:
                 if not isinstance(message_data[0], int) or not isinstance(message_data[1], str):
                     raise TypeError("Diagnostic message must be a list of [intensity, message] with correct types.")
 
-                # coerce + validate in one step — see python-source.instructions.md#MutableList rejects tuples
                 try:
                     intensity = DiagnosticMessageIntensity(message_data[0])
                 except ValueError as e:
                     raise ValueError("Diagnostic message intensity must be a valid DiagnosticMessageIntensity value.") from e
 
-                # MutableList rejects tuples — see python-source.instructions.md#MutableList rejects tuples
                 telemetry_instance.diagnostic_message = [intensity, message_data[1]]
                 db.session.commit()
 
@@ -498,8 +496,6 @@ class InstanceManagerEndpoint:
             """
 
             try:
-                # column-limited select skips the fat JSON columns — see
-                # python-source.instructions.md#get_all_instance_info
                 rows = cast(
                     "Sequence[tuple[int, str | None, str, str, datetime, datetime]]",
                     db.session.execute(

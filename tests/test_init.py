@@ -1,15 +1,14 @@
 """
-Tests for ``autoboat_telemetry_server.__init__`` (the app factory).
+Tests for :meth:`autoboat_telemetry_server.__init__`.
 
 Covers:
-- ``_parse_cors_origins`` (pure string parsing for the CORS_ORIGINS env var).
+- :meth:`_parse_cors_origins` (pure string parsing for the CORS_ORIGINS env var).
 - ``DEFAULT_CORS_ORIGINS`` contents (the known website + telemetry origins).
-- ``create_app()`` basic behavior (blueprints registered, DB initialized,
-  index route responds, CORS configured).
+- :meth:`create_app()` basic behavior (blueprints registered, DB initialized, index route responds, CORS configured).
 - ``shared_lock_manager`` is a singleton instance.
 
-The conftest bootstraps the ``/home`` discovery so the package imports on
-macOS; these tests build on that by exercising ``create_app()`` against a
+The conftest bootstraps the `/home` discovery so the package imports on
+macOS; these tests build on that by exercising :meth:`create_app()` against a
 temp instance dir.
 """
 
@@ -24,7 +23,7 @@ from flask.testing import FlaskClient
 
 
 class TestParseCorsOrigins:
-    """``_parse_cors_origins`` splits and trims a comma-separated env var."""
+    """:meth:`_parse_cors_origins` splits and trims a comma-separated env var."""
 
     def test_single_origin(self) -> None:
         from autoboat_telemetry_server import _parse_cors_origins
@@ -91,7 +90,8 @@ class TestDefaultCorsOrigins:
         assert all(isinstance(o, str) for o in DEFAULT_CORS_ORIGINS)
 
     def test_includes_www_website_mirror(self) -> None:
-        """The www mirror of the website must be in the default allowlist.
+        """
+        The www mirror of the website must be in the default allowlist.
 
         Regression guard: this entry once lived only in src/instance/config.py
         and was missing from the module-level DEFAULT_CORS_ORIGINS, so the
@@ -104,7 +104,8 @@ class TestDefaultCorsOrigins:
 
 
 class TestCorsPrecedence:
-    """The three CORS_ORIGIN sources resolve in a fixed precedence order.
+    """
+    The three CORS_ORIGIN sources resolve in a fixed precedence order.
 
     Precedence (highest first):
       1. ``CORS_ORIGINS`` env var (comma-separated).
@@ -112,14 +113,14 @@ class TestCorsPrecedence:
       3. ``DEFAULT_CORS_ORIGINS`` (module-level fallback in __init__.py).
 
     Regression guard: config.py once defined ``DEFAULT_CORS_ORIGINS`` instead
-    of ``CORS_ORIGINS``, so Flask loaded it into
-    ``app.config["DEFAULT_CORS_ORIGINS"]`` (a key nothing reads) and the
-    level-2 override was silently dead. These tests pin the keys the app
-    actually reads so that drift can't recur.
+    of ``CORS_ORIGINS``, so Flask loaded it into ``app.config["DEFAULT_CORS_ORIGINS"]``
+    (a key nothing reads) and the level-2 override was silently dead. These tests pin
+    the keys the app actually reads so that drift can't recur.
     """
 
     def test_instance_config_defines_cors_origins_key(self) -> None:
-        """src/instance/config.py must define CORS_ORIGINS (not DEFAULT_CORS_ORIGINS).
+        """
+        `src/instance/config.py` must define CORS_ORIGINS (not DEFAULT_CORS_ORIGINS).
 
         ``create_app()`` reads ``app.config["CORS_ORIGINS"]``; Flask's
         ``from_pyfile`` loads module-level names by their own name, so only

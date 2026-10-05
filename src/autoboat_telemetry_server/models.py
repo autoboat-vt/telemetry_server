@@ -35,15 +35,11 @@ from autoboat_telemetry_server.types import (
 
 __all__ = ["HashTable", "ImageTable", "TelemetryTable", "db"]
 
-# json column mutation tracking — see python-source.instructions.md
-# #"JSON column mutation tracking" and AGENTS.md #3.13
 MutableJSON = MutableDict.as_mutable(_JSON)
 MutableJSONList = MutableList.as_mutable(_JSON)
 
 db = SQLAlchemy()
 
-# connection-scoped sqlite pragmas — see python-source.instructions.md
-# #"SQLite connection pragmas"
 _SQLITE_PRAGMAS = (
     "PRAGMA journal_mode=WAL;",
     "PRAGMA synchronous=NORMAL;",
@@ -144,7 +140,6 @@ class TelemetryTable(db.Model):
 
     __tablename__ = "telemetry_table"
 
-    # indexed columns — see .github/instructions/python-source.instructions.md#TelemetryTable
     __table_args__ = (
         Index("ix_telemetry_table_updated_at", "updated_at"),
         Index("ix_telemetry_table_instance_identifier", "instance_identifier"),
@@ -443,7 +438,6 @@ class ImageTable(db.Model):
             The UUID (canonical string form) for the image data.
         """
 
-        # content-addressed uuid — see python-source.instructions.md#ImageTable
         digest = hashlib.sha256(image_data).hexdigest()
         return str(uuid.uuid5(uuid.NAMESPACE_DNS, f"autoboat-image:{digest}"))
 

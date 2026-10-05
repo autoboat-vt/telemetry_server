@@ -1,12 +1,13 @@
-"""Add content-addressed image storage.
+"""
+Add content-addressed image storage.
 
 Revision ID: 0002_image_storage
 Revises: 0001_initial
 Create Date: 2026-09-04 00:00:00.000000
 
 Adds:
-  - ``camera_image_uuid`` column on ``telemetry_table`` (default bind).
-  - ``image_table`` on the new "images" bind (-> images.db).
+    - ``camera_image_uuid`` column on ``telemetry_table`` (default bind).
+    - ``image_table`` on the new "images" bind (-> images.db).
 
 This migration runs once per bind (see migrations/env.py). Each function
 checks which database it's connected to via the bind key stashed in
@@ -24,10 +25,16 @@ depends_on = None
 
 
 def _bind_key() -> str | None:
-    """Return the current bind key (None=default, "images"=images.db).
+    """
+    Get the current bind key from the Alembic config attributes.
 
     Alembic loads migration files via ``load_python_file`` which bypasses the
     package import system, so read the bind key directly from the context.
+
+    Returns
+    -------
+    `str | None`
+        The current bind key, or `None` for the default bind.
     """
 
     from alembic import context
@@ -36,15 +43,17 @@ def _bind_key() -> str | None:
 
 
 def _default_bind() -> bool:
+    """Return `True` if the current bind key is the default bind (i.e., `None`)."""
     return _bind_key() is None
 
 
 def _images_bind() -> bool:
+    """Return `True` if the current bind key is the "images" bind."""
     return _bind_key() == "images"
 
 
 def upgrade() -> None:
-    """Add the image column to the default bind and create image_table."""
+    """Add the image column to the default bind and create the image table on the "images" bind."""
 
     if _default_bind():
         with op.batch_alter_table("telemetry_table", schema=None) as batch_op:

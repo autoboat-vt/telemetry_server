@@ -12,7 +12,7 @@
 #   - cron            : calls /instance_manager/clean_instances every 5 min
 #
 # Usage:
-#   cp .env.example .env   # set TUNNEL_TOKEN (and DOMAIN, TESTING_DOMAIN)
+#   cp .env.example .env   # set TUNNEL_TOKEN
 #   docker compose up -d        # pulls prebuilt image from GHCR (fast)
 #   docker compose up -d --build  # build locally instead (for development)
 #
@@ -85,8 +85,7 @@ services:
   cloudflared:
     # The cloudflare/cloudflared image is distroless (no shell). Its default
     # ENTRYPOINT is `cloudflared --no-autoupdate`, so we just override CMD.
-    # Dashboard-managed mode: pass `tunnel run --token <TUNNEL_TOKEN>`.
-    # File-managed mode: see the USE_CONFIG_FILE branch below.
+    # Dashboard-managed tunnel: pass `tunnel run --token <TUNNEL_TOKEN>`.
     image: cloudflare/cloudflared:latest
     container_name: telemetry-cloudflared
     restart: unless-stopped
@@ -156,8 +155,6 @@ services:
     #
     # SECURITY: this image is PRIVATE on GHCR (it contains the OAuth client
     # secret). Hosts must `docker login ghcr.io` before `docker compose pull`.
-    # See .github/instructions/tailscale.instructions.md and
-    # docker/tailscale/Dockerfile for details.
     image: ghcr.io/autoboat-vt/telemetry_server-tailscale:latest
     container_name: telemetry-tailscale
     restart: unless-stopped
@@ -209,6 +206,5 @@ networks:
 volumes:
   prod-instance-data:
   test-instance-data:
-  cloudflared-creds:
   cron-logs:
   tailscale-state:

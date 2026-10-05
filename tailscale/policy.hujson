@@ -1,18 +1,4 @@
 // Tailnet policy file for the autoboat/telemetry_server project.
-//
-// This file is the source of truth for the tailnet's ACLs. It is synced to
-// Tailscale by the tailscale/gitops-acl-action GitHub Action in
-// .github/workflows/tailscale.yml — see
-// .github/instructions/tailscale.instructions.md, "Managing the tailnet
-// policy via GitHub".
-//
-// Format: HuJSON (JSON with comments). Tailscale accepts HuJSON for the policy
-// file. The trailing commas and // comments are stripped by Tailscale when it
-// parses the file.
-//
-// Workflow: open a PR -> the action runs `test` (validates without applying)
-// -> merge -> the action runs `apply` (validates and applies). Invalid HuJSON
-// or failing `tests` block the merge, so a bad push can never break SSH access.
 
 {
     // Define the tags which can be applied to devices and by which users.
@@ -27,10 +13,7 @@
     // Define grants that govern access for users, groups, autogroups, tags,
     // Tailscale IP addresses, and subnet ranges.
     "grants": [
-        // Allow all connections. Comment this section out if you want to define
-        // specific restrictions — see "Locking down the wildcard grant (optional)"
-        // in .github/instructions/tailscale.instructions.md for a
-        // tag:server-only SSH grant.
+        // Allow all connections.
         {
             "src": ["*"],
             "dst": ["*"],

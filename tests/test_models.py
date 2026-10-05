@@ -21,10 +21,6 @@ from flask import Flask
 
 from autoboat_telemetry_server.models import HashTable, TelemetryTable, db
 
-# --------------------------------------------------------------------------- #
-# HashTable.compute_hash -- pure function, no app context needed
-# --------------------------------------------------------------------------- #
-
 
 class TestComputeHash:
     """``compute_hash`` must be deterministic and match the documented formula."""
@@ -63,11 +59,6 @@ class TestComputeHash:
 
         h = HashTable.compute_hash({})
         assert h == hashlib.sha256(b"{}").hexdigest()
-
-
-# --------------------------------------------------------------------------- #
-# HashTable.validate_config -- pure function, no app context needed
-# --------------------------------------------------------------------------- #
 
 
 class TestValidateConfig:
@@ -131,11 +122,6 @@ class TestValidateConfig:
         assert "strings" in msg
 
 
-# --------------------------------------------------------------------------- #
-# TelemetryTable.validate_user -- the immutability invariant (#3.3)
-# --------------------------------------------------------------------------- #
-
-
 class TestValidateUser:
     """The ``user`` field can be set once, then is immutable.
 
@@ -183,11 +169,6 @@ class TestValidateUser:
         instance = self._make_instance()
         instance.user = "unknown"
         assert instance.user == "unknown"
-
-
-# --------------------------------------------------------------------------- #
-# DB-backed tests: after_insert hook, to_dict, get_all_ids, check_hash_exists
-# --------------------------------------------------------------------------- #
 
 
 class TestAfterInsertHook:
@@ -325,11 +306,6 @@ class TestHashTableDb:
         assert entry.description == ""
 
 
-# --------------------------------------------------------------------------- #
-# SQLite connection pragmas (WAL, synchronous, etc.)
-# --------------------------------------------------------------------------- #
-
-
 class TestSqlitePragmas:
     """The engine-connect listener must apply performance pragmas to every bind."""
 
@@ -359,11 +335,6 @@ class TestSqlitePragmas:
         assert self._pragma(app, "busy_timeout") == 5000
 
 
-# --------------------------------------------------------------------------- #
-# Indexes on TelemetryTable (updated_at, instance_identifier)
-# --------------------------------------------------------------------------- #
-
-
 class TestTelemetryTableIndexes:
     """``db.create_all()`` must create indexes on fresh databases.
 
@@ -385,20 +356,8 @@ class TestTelemetryTableIndexes:
         assert "ix_telemetry_table_instance_identifier" in self._index_names(app)
 
 
-# --------------------------------------------------------------------------- #
-# MutableDict / MutableList tracking of JSON columns (AGENTS.md #3.13)
-# --------------------------------------------------------------------------- #
-
-
 class TestJsonColumnMutationTracking:
-    """In-place mutation of a JSON column must persist without manual copy.
-
-    Regression guard for the #3.13 bug: JSON columns without MutableDict track
-    changes by identity, so `inst.autopilot_parameters[key] = val;
-    db.session.commit()` was a silent no-op (same object, not dirty). The
-    columns now use MutableDict.as_mutable(JSON), so in-place mutation is
-    detected automatically.
-    """
+    """In-place mutation of a JSON column must persist without manual copy."""
 
     def _make_instance(self, app: Flask) -> TelemetryTable:
         with app.app_context():
@@ -430,7 +389,8 @@ class TestJsonColumnMutationTracking:
             assert reloaded.autopilot_parameters["speed"] == 2.5
 
     def test_in_place_nested_dict_mutation_persists(self, app: Flask) -> None:
-        """Top-level key replacement on a nested-dict column persists.
+        """
+        Top-level key replacement on a nested-dict column persists.
 
         ``default_autopilot_parameters`` is shaped ``{key: {"default": v, ...}}``.
         The routes never mutate ``["key"]["subkey"]`` in place -- they either
@@ -470,11 +430,11 @@ class TestJsonColumnMutationTracking:
             assert reloaded.waypoints == [[0.0, 0.0], [1.0, 1.0]]
 
     def test_in_place_list_of_lists_mutation_persists(self, app: Flask) -> None:
-        """boat_status_mapping is a list of [name, type] pairs; mutating a
+        """
+        ``boat_status_mapping`` is a list of `[name, type]` pairs; mutating a
         nested entry must persist (MutableList tracks the outer list, but a
-        nested list inside a MutableList-wrapped column is itself a MutableDict
-        only if it's a dict; for lists of lists we rely on the parent tracking
-        identity reassignment. This test documents the actual behavior..
+        nested list inside a :class:`MutableList`-wrapped column is itself a :class:`MutableDict`
+        only if it's a dict; for lists of lists we rely on the parent tracking identity reassignment.
         """
 
         instance_id = self._make_instance(app).instance_id
@@ -493,13 +453,9 @@ class TestJsonColumnMutationTracking:
             assert reloaded.boat_status_mapping[0] == ["heading", "c_int"]
 
 
-# --------------------------------------------------------------------------- #
-# Obstacles / planned path JSON columns
-# --------------------------------------------------------------------------- #
-
-
 class TestObstaclesAndPlannedPathColumns:
-    """The obstacles and planned_path columns default correctly and persist.
+    """
+    The obstacles and planned_path columns default correctly and persist.
 
     ``obstacles`` is a GeoJSON document (MutableDict), ``planned_path`` is a
     list of [lat, lon] points (MutableList). Both were added in migration 0003
@@ -507,7 +463,8 @@ class TestObstaclesAndPlannedPathColumns:
     """
 
     def test_column_defaults_when_omitted(self, app: Flask) -> None:
-        """A TelemetryTable built without the new fields still persists.
+        """
+        A :class:`TelemetryTable` built without the new fields still persists.
 
         The columns are NOT NULL, so a Python-side default (dict/list) is what
         keeps every existing TelemetryTable(...) construction working.
@@ -567,13 +524,9 @@ class TestObstaclesAndPlannedPathColumns:
             assert reloaded.obstacles_new_flag is True
 
 
-# --------------------------------------------------------------------------- #
-# ImageTable -- content-addressed image storage
-# --------------------------------------------------------------------------- #
-
-
 class TestImageTable:
-    """``ImageTable`` UUIDs are derived from the image bytes, so identical
+    """
+    ``ImageTable`` UUIDs are derived from the image bytes, so identical
     images always map to the same row and distinct images never collide.
     """
 

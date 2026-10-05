@@ -1,4 +1,4 @@
-"""Tests for ``autoboat_telemetry_server.observability`` — see instructions #"Observability"."""
+"""Tests for :mod:`autoboat_telemetry_server.observability`."""
 
 from __future__ import annotations
 
@@ -19,7 +19,8 @@ from autoboat_telemetry_server import observability
 
 
 def _counter_value(metric: Counter, labels: dict[str, str]) -> float:
-    """Read the current value of a labeled counter.
+    """
+    Read the current value of a labeled counter.
 
     Parameters
     ----------
@@ -276,13 +277,11 @@ class TestStructuredLogging:
                 records.append(record)
 
         request_logger = logging.getLogger("autoboat_telemetry_server.request")
-        # a prior test (or pytest's logging plugin) may have set
-        # ``disabled=True`` on this logger; clear it so our handler receives
-        # records — see AGENTS.md #"Observability testing" for the saga
         request_logger.disabled = False
         handler = _CaptureHandler(level=logging.INFO)
         request_logger.addHandler(handler)
         request_logger.setLevel(logging.INFO)
+        
         return records, handler
 
     def test_log_record_contains_required_fields(self, client: FlaskClient) -> None:

@@ -1,20 +1,19 @@
 """
 Pytest configuration and shared fixtures.
 
-The package's ``__init__.py`` discovers the instance directory at import time
-by scanning ``/home`` for user directories (it expects exactly one entry in
-``/home`` and uses it as ``HOME_DIR``, then derives
-``INSTANCE_DIR = HOME_DIR / "telemetry_server" / "src" / "instance"``).
+The package's `__init__.py` discovers the instance directory at import time
+by scanning `/home` for user directories (it expects exactly one entry in
+`/home` and uses it as ``HOME_DIR``, then derives ``INSTANCE_DIR = HOME_DIR / "telemetry_server" / "src" / "instance"``).
 
-On macOS (and any non-Linux dev machine) ``/home`` is empty or missing, so the
-import raises ``RuntimeError``. This conftest monkeypatches
-``pathlib.Path.iterdir`` to return a fake ``/home`` listing pointing at the
+On macOS (and any non-Linux dev machine) `/home` is empty or missing, so the
+import raises :class:`RuntimeError`. This conftest monkeypatches
+:meth:`pathlib.Path.iterdir` to return a fake `/home` listing pointing at the
 repo's parent directory before the package is imported, so the tests can run
-anywhere. The repo's parent directory contains ``telemetry_server/src/instance``
-(the real, checked-in ``config.py``), which satisfies the discovery logic.
+anywhere. The repo's parent directory contains `telemetry_server/src/instance`
+(the real, checked-in `config.py`), which satisfies the discovery logic.
 
 Per-test isolation is provided by the ``app`` fixture, which monkeypatches
-``INSTANCE_DIR`` to a temp directory (with a copy of ``config.py``) so the
+``INSTANCE_DIR`` to a temp directory (with a copy of `config.py`) so the
 SQLite DBs are created in a tmp_path and dropped after each test.
 """
 
@@ -36,19 +35,21 @@ from sqlalchemy.orm import scoped_session
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SRC_INSTANCE = REPO_ROOT / "src" / "instance"
+
 # The package computes INSTANCE_DIR = HOME_DIR / "telemetry_server" / "src" / "instance".
 # For that to resolve to the repo's src/instance, HOME_DIR must be the repo's parent.
 FAKE_HOME = REPO_ROOT.parent
 
 
 def _bootstrap_package_import() -> None:
-    """Make ``autoboat_telemetry_server`` importable off macOS.
+    """
+    Make ``autoboat_telemetry_server`` importable off macOS.
 
-    Patches ``Path.iterdir`` so that ``Path("/home").iterdir()`` returns the
-    repo's parent directory (a real, existing directory) as the sole ``/home``
-    entry. ``is_dir()`` then returns True naturally, and the downstream
+    Patches :meth:`Path.iterdir` so that ``Path("/home").iterdir()`` returns the
+    repo's parent directory (a real, existing directory) as the sole `/home`
+    entry. :meth:`is_dir()` then returns `True` naturally, and the downstream
     ``INSTANCE_DIR = HOME_DIR / "telemetry_server" / "src" / "instance"``
-    resolves to the repo's checked-in ``src/instance/config.py``.
+    resolves to the repo's checked-in `src/instance/config.py`.
     """
 
     if "autoboat_telemetry_server" in sys.modules:
@@ -70,7 +71,8 @@ _bootstrap_package_import()
 
 @pytest.fixture
 def tmp_instance_dir(tmp_path: Path) -> Iterator[Path]:
-    """Provide a fresh temp instance dir with a config.py for each test.
+    """
+    Provide a fresh temp instance dir with a `config.py` for each test.
 
     Yields the temp directory path. The caller should point the Flask app
     config at this directory. Tests that need a DB should use the ``app``
@@ -85,7 +87,8 @@ def tmp_instance_dir(tmp_path: Path) -> Iterator[Path]:
 
 @pytest.fixture
 def app(tmp_instance_dir: Path) -> Generator[Flask, Any, None]:
-    """Build a Flask app instance whose INSTANCE_DIR is the temp dir.
+    """
+    Build a Flask app instance whose INSTANCE_DIR is the temp dir.
 
     The app factory reads ``INSTANCE_DIR`` at module import time, so we
     monkeypatch the module attribute and reload the config. SQLite DBs are

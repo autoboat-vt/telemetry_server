@@ -15,6 +15,7 @@ Flask-Migrate API directly (the same API the CLI uses).
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Generator
 from pathlib import Path
 
 import pytest
@@ -47,7 +48,7 @@ def _columns_in(db_path: Path, table: str) -> set[str]:
 
 
 @pytest.fixture
-def migration_app(tmp_path: Path) -> Flask:
+def migration_app(tmp_path: Path) -> Generator[Flask, None, None]:
     """Build an app whose INSTANCE_DIR points at a fresh temp dir.
 
     The temp dir has empty instances.db / hashes.db files. We do NOT call

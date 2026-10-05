@@ -8,7 +8,6 @@ SQLALCHEMY_BINDS = {
 }
 SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-# see .github/instructions/python-source.instructions.md#CORS precedence
 CORS_ORIGINS: list[str] = [
     "https://autoboat.aoe.vt.edu",
     "https://www.autoboat.aoe.vt.edu",

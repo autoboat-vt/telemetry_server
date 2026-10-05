@@ -1,12 +1,13 @@
-"""Initial schema for both binds.
+"""
+Initial schema for both binds.
 
 Revision ID: 0001_initial
-Revises:
+Revises: None
 Create Date: 2026-08-17 19:00:00.000000
 
-Baseline schema for both binds (AGENTS.md #6.4):
-  - default bind (None -> instances.db): telemetry_table
-  - "hashes" bind (-> hashes.db):        hash_table
+Baseline schema for both binds:
+    - default bind (instances.db):
+    - ``telemetry_table``: the main table for telemetry data.
 
 This migration runs once per bind (see migrations/env.py). Each function
 checks which database it's connected to via the bind key stashed in
@@ -24,11 +25,16 @@ depends_on = None
 
 
 def _bind_key() -> str | None:
-    """Return the current bind key (None=default, "hashes"=hashes.db).
+    """
+    Get the current bind key from the Alembic config attributes.
 
     Alembic loads migration files via ``load_python_file`` which bypasses the
-    package import system, so we can't ``from migrations._bind_helpers import``
-    here. Instead, read the bind key directly from the alembic context.
+    package import system, so read the bind key directly from the context.
+
+    Returns
+    -------
+    `str | None`
+        The current bind key, or `None` for the default bind.
     """
 
     from alembic import context
@@ -37,10 +43,12 @@ def _bind_key() -> str | None:
 
 
 def _default_bind() -> bool:
+    """Return `True` if the current bind key is the default bind (i.e., `None`)."""
     return _bind_key() is None
 
 
 def _hashes_bind() -> bool:
+    """Return `True` if the current bind key is the "hashes" bind."""
     return _bind_key() == "hashes"
 
 
@@ -67,6 +75,7 @@ def upgrade() -> None:
             sa.Column("updated_at", sa.DateTime(), nullable=False),
             sa.PrimaryKeyConstraint("instance_id"),
         )
+
         with op.batch_alter_table("telemetry_table", schema=None) as batch_op:
             batch_op.create_index("ix_telemetry_table_instance_identifier", ["instance_identifier"], unique=False)
             batch_op.create_index("ix_telemetry_table_updated_at", ["updated_at"], unique=False)
@@ -92,4 +101,5 @@ def downgrade() -> None:
         with op.batch_alter_table("telemetry_table", schema=None) as batch_op:
             batch_op.drop_index("ix_telemetry_table_updated_at")
             batch_op.drop_index("ix_telemetry_table_instance_identifier")
+
         op.drop_table("telemetry_table")

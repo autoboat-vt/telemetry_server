@@ -110,11 +110,6 @@ class PlannedPathEndpoint:
 
             Method: GET
 
-            Mirrors ``waypoints/get_new`` in shape (a list of points) but is a
-            pure read: the planned path is display-only, so there is no "new"
-            flag to clear. The ground station polls ``path/get`` directly; this
-            route exists so the advertised ``get_new_planned_path`` key is valid.
-
             Parameters
             ----------
             instance_id
@@ -145,9 +140,6 @@ class PlannedPathEndpoint:
 
             Method: POST
 
-            The body is a raw JSON array of [latitude, longitude] points, the
-            same encoding the waypoints routes use for list payloads.
-
             Parameters
             ----------
             instance_id
@@ -175,7 +167,6 @@ class PlannedPathEndpoint:
                     if not all(isinstance(coord, (int, float)) for coord in point):
                         raise TypeError("Invalid coordinate type. Each coordinate must be an integer or float.")
 
-                # MutableList rejects tuples — see python-source.instructions.md#MutableList rejects tuples
                 telemetry_instance.planned_path = path_data
                 db.session.commit()
 

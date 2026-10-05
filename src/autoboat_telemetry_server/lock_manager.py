@@ -42,7 +42,8 @@ class ReaderWriterLock:
                 self._cond.notify_all()
 
     def acquire_write(self, *, blocking: bool = True) -> bool:
-        """Acquire a write lock. Blocks if readers or a writer hold the lock.
+        """
+        Acquire a write lock. Blocks if readers or a writer hold the lock.
 
         Parameters
         ----------
@@ -161,7 +162,6 @@ class LockManager:
             """
 
             if not self._rw_lock.acquire_write(blocking=False):
-                # write-lock contention counter — see observability.py
                 count_429()
                 return jsonify("Write operation in progress. Please try again later."), 429
 

@@ -37,8 +37,6 @@ from autoboat_telemetry_server.routes import (  # noqa: E402
     WaypointEndpoint,
 )
 
-# cors origins — lowest-precedence fallback; see
-# .github/instructions/python-source.instructions.md#CORS precedence and #App factory
 DEFAULT_CORS_ORIGINS: list[str] = [
     "https://autoboat.aoe.vt.edu",
     "https://www.autoboat.aoe.vt.edu",
@@ -71,7 +69,6 @@ def create_app() -> _flask:
     config_path = INSTANCE_DIR / "config.py"
     app.config.from_pyfile(config_path)
 
-    # cors origins — see .github/instructions/python-source.instructions.md#CORS precedence
     env_origins = os.environ.get("CORS_ORIGINS")
     if env_origins:
         origins: str | list[str] = _parse_cors_origins(env_origins)
@@ -79,19 +76,8 @@ def create_app() -> _flask:
         origins = app.config.get("CORS_ORIGINS", DEFAULT_CORS_ORIGINS)
 
     CORS(app, origins=origins)
-
     db.init_app(app)
 
-    # migrations are the only path that creates tables in prod; see
-    # .github/instructions/python-source.instructions.md#App factory and AGENTS.md #6.2
-    #
-    # the migrations tree is bundled INSIDE the package (see
-    # pyproject.toml [tool.setuptools.package-data]) so this resolution works
-    # whether the package is installed editable, from a wheel, or baked into
-    # a Docker image. previously this walked up three parents from __file__,
-    # which resolved correctly in a source checkout but pointed into
-    # site-packages at runtime (e.g. venv/lib/python3.12/migrations) and made
-    # the entrypoint's `flask db upgrade` fail with "Path doesn't exist".
     migrate = Migrate()
     migrate.init_app(app, db, directory=str(Path(__file__).resolve().parent / "migrations"))
 
@@ -103,8 +89,6 @@ def create_app() -> _flask:
     app.register_blueprint(ObstaclesEndpoint().blueprint)
     app.register_blueprint(PlannedPathEndpoint().blueprint)
 
-    # structured logging + /metrics endpoint; see observability.py and
-    # .github/instructions/python-source.instructions.md#Observability
     init_observability(app)
 
     @app.route("/")
