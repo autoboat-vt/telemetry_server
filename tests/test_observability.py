@@ -255,6 +255,159 @@ class TestCleanInstancesCounter:
         assert after == before
 
 
+class TestHttpRequestBytesTotal:
+    """``http_request_bytes_total`` counts inbound request body bytes."""
+
+    def test_increments_by_request_body_size(self, client: FlaskClient) -> None:
+        """A POST with a body increments the counter by the body size."""
+
+        payload = {"lat": 1.5, "lon": -2.5}
+        body_size = len(json.dumps(payload).encode())
+
+        create_response = client.get("/instance_manager/create")
+        instance_id = create_response.get_json()
+
+        try:
+            before = _counter_value(
+                observability._http_request_bytes_total, {"method": "POST", "path": "/boat_status/set/<int:instance_id>"}
+            )
+            response = client.post(f"/boat_status/set/{instance_id}", json=payload)
+            assert response.status_code == 200
+            after = _counter_value(
+                observability._http_request_bytes_total, {"method": "POST", "path": "/boat_status/set/<int:instance_id>"}
+            )
+            assert after == before + body_size
+        finally:
+            client.delete(f"/instance_manager/delete/{instance_id}")
+
+
+class TestDbQueryMetrics:
+    """SQLAlchemy event hooks feed ``db_queries_total`` / ``db_query_duration_seconds``."""
+
+    def test_queries_are_counted_by_operation(self, client: FlaskClient) -> None:
+        """Creating an instance records an INSERT and several SELECTs."""
+
+        before_insert = _counter_value(observability._db_queries_total, {"operation": "INSERT"})
+        before_select = _counter_value(observability._db_queries_total, {"operation": "SELECT"})
+
+        create_response = client.get("/instance_manager/create")
+        instance_id = create_response.get_json()
+
+        try:
+            after_insert = _counter_value(observability._db_queries_total, {"operation": "INSERT"})
+            after_select = _counter_value(observability._db_queries_total, {"operation": "SELECT"})
+            assert after_insert > before_insert
+            assert after_select > before_select
+        finally:
+            client.delete(f"/instance_manager/delete/{instance_id}")
+
+    def test_duration_histogram_observes_queries(self, client: FlaskClient) -> None:
+        """The DB latency histogram accumulates samples."""
+
+        client.get("/")
+        # _count is cumulative over the process lifetime, so just assert > 0
+        assert observability._db_query_duration_seconds.labels(operation="SELECT")._sum.get() > 0  # type: ignore[attr-defined]
+
+
+class TestStateGauges:
+    """The ``*_total`` gauges reflect current DB row counts on each scrape."""
+
+    def test_instances_total_tracks_row_count(self, client: FlaskClient) -> None:
+        """Creating an instance raises instances_total; deleting lowers it."""
+
+        client.get("/metrics")
+
+        before = observability._instances_total._value.get()  # type: ignore[attr-defined]
+
+        create_response = client.get("/instance_manager/create")
+        instance_id = create_response.get_json()
+
+        body = client.get("/metrics").get_data(as_text=True)
+        assert f"instances_total {before + 1.0:.1f}" in body
+
+        client.delete(f"/instance_manager/delete/{instance_id}")
+
+        body = client.get("/metrics").get_data(as_text=True)
+        assert f"instances_total {before:.1f}" in body
+
+    def test_config_hashes_gauge_present(self, client: FlaskClient) -> None:
+        """The config-hash gauge is exposed on /metrics."""
+
+        body = client.get("/metrics").get_data(as_text=True)
+        assert "config_hashes_total" in body
+
+    def test_image_gauges_present(self, client: FlaskClient) -> None:
+        """The image gauges are exposed on /metrics."""
+
+        body = client.get("/metrics").get_data(as_text=True)
+        assert "images_stored_total" in body
+        assert "image_storage_bytes" in body
+
+    def test_info_gauge_has_version_label(self, client: FlaskClient) -> None:
+        """telemetry_server_info exposes a version label."""
+
+        body = client.get("/metrics").get_data(as_text=True)
+        assert "telemetry_server_info{version=" in body
+
+    def test_gauges_survive_db_failure(self, app: Flask, client: FlaskClient) -> None:
+        """A broken DB must not break the /metrics endpoint.
+
+        refresh_state_gauges swallows per-gauge errors so the endpoint that
+        reports ill health can still be scraped.
+        """
+
+        from autoboat_telemetry_server.models import db
+
+        with app.app_context():
+            db.drop_all()
+
+        response = client.get("/metrics")
+        assert response.status_code == 200
+
+        with app.app_context():
+            db.create_all()
+
+
+class TestImageMetrics:
+    """Image uploads are counted with their payload sizes."""
+
+    def test_upload_increments_image_counters(self, client: FlaskClient) -> None:
+        """An upload increments images_uploaded_total and image_bytes_received_total."""
+
+        payload = b"\x89PNG\r\n\x1a\nfake-image-bytes"
+
+        before_count = _counter_total(observability._images_uploaded_total)
+        before_bytes = _counter_total(observability._image_bytes_received_total)
+
+        response = client.post("/image_manager/upload", data=payload, content_type="application/octet-stream")
+        assert response.status_code == 200
+
+        # clean up the stored image row
+        image_uuid = response.get_json()
+        client.delete(f"/image_manager/delete/{image_uuid}")
+
+        assert _counter_total(observability._images_uploaded_total) == before_count + 1.0
+        assert _counter_total(observability._image_bytes_received_total) == before_bytes + len(payload)
+
+
+class TestBoatStatusPayloadMetrics:
+    """Boat status payload sizes are recorded per encoding."""
+
+    def test_json_set_records_payload_size(self, client: FlaskClient) -> None:
+        """The JSON /set route observes a sample on the json encoding label."""
+
+        create_response = client.get("/instance_manager/create")
+        instance_id = create_response.get_json()
+
+        try:
+            before = observability._boat_status_payload_bytes.labels(encoding="json")._sum.get()  # type: ignore[attr-defined]
+            client.post(f"/boat_status/set/{instance_id}", json={"lat": 1.0})
+            after = observability._boat_status_payload_bytes.labels(encoding="json")._sum.get()  # type: ignore[attr-defined]
+            assert after > before
+        finally:
+            client.delete(f"/instance_manager/delete/{instance_id}")
+
+
 class TestStructuredLogging:
     """The JSON request logger emits one structured record per request."""
 

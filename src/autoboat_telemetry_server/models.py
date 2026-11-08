@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+import time
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -23,6 +24,7 @@ from sqlalchemy.ext.mutable import MutableDict, MutableList
 from sqlalchemy.orm import Mapped, Mapper, mapped_column, validates
 from sqlalchemy.types import JSON as _JSON
 
+from autoboat_telemetry_server.observability import observe_db_query
 from autoboat_telemetry_server.types import (
     AutopilotParametersType,
     BoatStatusMappingType,
@@ -73,6 +75,63 @@ def _set_sqlite_pragmas(dbapi_connection: object, _connection_record: object) ->
 
     finally:
         cursor.close()
+
+
+@event.listens_for(Engine, "before_cursor_execute")
+def _record_query_start(
+    _conn: Connection, _cursor: object, _statement: str, _parameters: object, context: object, _executemany: object
+) -> None:
+    """
+    Stash the start time of a statement so ``after_cursor_execute`` can time it.
+
+    Parameters
+    ----------
+    _conn
+        The SQLAlchemy connection (unused).
+    _cursor
+        The DBAPI cursor (unused).
+    _statement
+        The SQL string (unused).
+    _parameters
+        The bind parameters (unused).
+    context
+        The execution context; carries our ``_ats_query_start`` attribute.
+    _executemany
+        Whether this is an executemany call (unused).
+    """
+
+    context._ats_query_start = time.perf_counter()  # type: ignore[attr-defined]
+
+
+@event.listens_for(Engine, "after_cursor_execute")
+def _record_query_end(
+    _conn: Connection, _cursor: object, statement: str, _parameters: object, context: object, _executemany: object
+) -> None:
+    """
+    Record statement latency and count, labelled by the statement verb.
+
+    Parameters
+    ----------
+    _conn
+        The SQLAlchemy connection (unused).
+    _cursor
+        The DBAPI cursor (unused).
+    statement
+        The SQL string that was executed.
+    _parameters
+        The bind parameters (unused).
+    context
+        The execution context; carries our ``_ats_query_start`` attribute.
+    _executemany
+        Whether this is an executemany call (unused).
+    """
+
+    started = getattr(context, "_ats_query_start", None)
+    if started is None:
+        return
+
+    operation = statement.lstrip().split(None, 1)[0].upper() if statement.strip() else "UNKNOWN"
+    observe_db_query(operation, time.perf_counter() - started)
 
 
 class TelemetryTable(db.Model):

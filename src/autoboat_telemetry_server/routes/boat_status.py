@@ -5,6 +5,7 @@ from flask import Blueprint, Response, jsonify, request
 
 from autoboat_telemetry_server import shared_lock_manager
 from autoboat_telemetry_server.models import ImageTable, TelemetryTable, db
+from autoboat_telemetry_server.observability import record_boat_status_payload
 from autoboat_telemetry_server.types import ResponseType
 
 
@@ -166,6 +167,7 @@ class BoatStatusEndpoint:
                 if not isinstance(new_status, dict):
                     raise TypeError("Invalid boat status format. Expected a dictionary.")
 
+                record_boat_status_payload(encoding="json", size_bytes=len(request.get_data(cache=True)))
                 telemetry_instance.boat_status = new_status
                 telemetry_instance.boat_status_new_flag = True
                 db.session.commit()
@@ -206,6 +208,7 @@ class BoatStatusEndpoint:
                     raise TypeError("Set variable mapping for the instance before using the fast update route.")
 
                 update_data: bytes = request.get_data(cache=False)
+                record_boat_status_payload(encoding="binary", size_bytes=len(update_data))
 
                 class TempPayload(ctypes.LittleEndianStructure):
                     _pack_: ClassVar[int] = 1

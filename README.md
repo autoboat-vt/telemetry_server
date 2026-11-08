@@ -145,6 +145,50 @@ Note that the `prometheus` job scrapes Prometheus itself, not a node exporter.
 For host CPU/RAM/disk you'd need a `node-exporter` service plus a job targeting
 `node-exporter:9100`.
 
+#### Exposed metrics
+
+HTTP (all label `path` with the Flask rule, never the raw URL, to keep
+cardinality bounded):
+
+| Metric                          | Type      | Labels                        | Meaning                          |
+| ------------------------------- | --------- | ----------------------------- | -------------------------------- |
+| `http_requests_total`           | counter   | `method`, `path`, `status`    | Requests by outcome              |
+| `http_request_duration_seconds` | histogram | `method`, `path`              | Request latency                  |
+| `http_request_bytes_total`      | counter   | `method`, `path`              | Inbound body bytes               |
+| `http_response_bytes_total`     | counter   | `method`, `path`              | Outbound body bytes              |
+| `http_exceptions_total`         | counter   | `method`, `path`, `exception` | Unhandled exceptions             |
+| `http_429_total`                | counter   | —                             | Write-lock contention rejections |
+
+Database (fed by SQLAlchemy `before/after_cursor_execute` hooks on every bind):
+
+| Metric                      | Type      | Labels      | Meaning                                    |
+| --------------------------- | --------- | ----------- | ------------------------------------------ |
+| `db_queries_total`          | counter   | `operation` | Statements by verb (`SELECT`, `INSERT`, …) |
+| `db_query_duration_seconds` | histogram | `operation` | Statement latency                          |
+
+Domain:
+
+| Metric                          | Type      | Labels     | Meaning                                          |
+| ------------------------------- | --------- | ---------- | ------------------------------------------------ |
+| `boat_status_payload_bytes`     | histogram | `encoding` | Decoded payload size (`json` / `binary`)         |
+| `images_uploaded_total`         | counter   | —          | Images received (includes de-duplicated uploads) |
+| `image_bytes_received_total`    | counter   | —          | Raw image payload bytes received                 |
+| `clean_instances_deleted_total` | counter   | —          | Instances reaped by the cron route               |
+
+State gauges (re-read from the DB on every scrape, so they never go stale):
+
+| Metric                  | Meaning                                  |
+| ----------------------- | ---------------------------------------- |
+| `instances_total`       | Live telemetry instances                 |
+| `config_hashes_total`   | Stored autopilot-parameter config hashes |
+| `images_stored_total`   | Distinct images stored                   |
+| `image_storage_bytes`   | Total stored image payload bytes         |
+| `telemetry_server_info` | Constant `1`, labeled with `version`     |
+
+Gauges refresh inside a per-gauge try/except: if the DB is unavailable the
+endpoint still returns 200 with the counters intact, rather than 500-ing the one
+endpoint meant to report ill health.
+
 ## Local Development (no Docker)
 
 ```bash

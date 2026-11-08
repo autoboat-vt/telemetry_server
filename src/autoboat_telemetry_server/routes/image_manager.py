@@ -6,6 +6,7 @@ from flask import Blueprint, Response, jsonify, request
 
 from autoboat_telemetry_server import shared_lock_manager
 from autoboat_telemetry_server.models import ImageTable, db
+from autoboat_telemetry_server.observability import record_image_bytes
 from autoboat_telemetry_server.types import ResponseType
 
 
@@ -181,6 +182,7 @@ class ImageManagerEndpoint:
 
             try:
                 image_data = self._extract_image_data()
+                record_image_bytes(len(image_data))
                 image = ImageTable.get_or_create(image_data)
                 db.session.commit()
                 return jsonify(image.image_uuid), 200
