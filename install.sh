@@ -150,7 +150,7 @@ start_cloud_stack() {
     configure_env
 
     info "Pulling prebuilt images"
-    $DOCKER compose pull telemetry-prod telemetry-test cloudflared
+    $DOCKER compose pull telemetry-prod telemetry-test cloudflared prometheus
     ok "Images pulled"
 
     info "Starting the stack"
@@ -181,7 +181,7 @@ start_cloud_stack() {
     echo "  docker compose ps                     # status"
     echo "  docker compose logs -f cloudflared    # tunnel logs"
     echo "  docker compose logs -f telemetry-prod # app logs"
-    echo "  git pull && docker compose pull && docker compose up -d  # deploy updates"
+    echo "  git pull && docker compose pull telemetry-prod telemetry-test cloudflared prometheus && docker compose up -d  # deploy updates"
     echo
     warn "IMPORTANT: if you were running this stack elsewhere (e.g. your Mac),"
     warn "stop it there so the tunnel connector moves to this host:"

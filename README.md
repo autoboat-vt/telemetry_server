@@ -83,9 +83,14 @@ and `.env` on the host.
 
 ```bash
 git pull
-docker compose pull telemetry-prod telemetry-test cloudflared
+docker compose pull telemetry-prod telemetry-test cloudflared prometheus
 docker compose up -d
 ```
+
+Images are pinned to a service list on purpose: `cron` is built locally from
+`docker/cron/Dockerfile` and has no registry image, so a bare
+`docker compose pull` fails with `pull access denied for telemetry-cron`.
+Use `docker compose pull --ignore-buildable` if you'd rather not enumerate.
 
 ### Workflow split
 
