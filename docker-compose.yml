@@ -133,6 +133,12 @@ services:
     restart: unless-stopped
     volumes:
       - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      # Grafana Cloud remote_write token, read via password_file in
+      # prometheus.yml. Kept out of the tracked config so the secret never
+      # lands in git. Create it on the host:
+      #   printf '%s' 'glc_...' > docker/prometheus/grafana_token
+      #   chmod 600 docker/prometheus/grafana_token
+      - ./docker/prometheus/grafana_token:/etc/prometheus/grafana_token:ro
       # TSDB + WAL, so scrape history survives container recreation.
       - prometheus-data:/prometheus
     expose:

@@ -106,6 +106,45 @@ docker compose logs -f cloudflared      # tunnel logs
 docker compose logs -f telemetry-prod   # app logs
 ```
 
+### Metrics (Prometheus + Grafana Cloud)
+
+The `prometheus` service scrapes `/metrics` from both app containers every 60s
+and `remote_write`s everything to Grafana Cloud. It publishes **no host port**
+and has no cloudflared route, so its UI is not publicly reachable.
+
+**The Grafana token is a secret and is not in git.** `prometheus.yml` is a
+tracked file, so the token lives in a separate gitignored file that the config
+reads via `password_file`:
+
+```bash
+# on the host, once:
+printf '%s' 'glc_...' > docker/prometheus/grafana_token
+chmod 600 docker/prometheus/grafana_token
+```
+
+`docker-compose.yml` binds that file to `/etc/prometheus/grafana_token` inside
+the container. Rotate the token in Grafana Cloud -> Access Policies, then update
+the file and `docker compose restart prometheus`.
+
+Verify scraping and remote write:
+
+```bash
+docker compose exec prometheus wget -qO- localhost:9090/-/healthy
+docker compose exec prometheus wget -qO- 'localhost:9090/api/v1/targets?state=active'
+# remote write should show samples sent, 0 failed, 0 pending:
+docker compose exec prometheus wget -qO- localhost:9090/metrics |
+  grep 'prometheus_remote_storage_samples_\(total\|failed\|pending\)'
+```
+
+`telemetry-test` may report `health=down`: the `:testing` image is built from
+the `testing` branch and can lag `main`. If it predates `observability.py` it has
+no `/metrics` route and returns 404 — a stale image, not a config bug. Rebuild
+with `docker compose up -d --build telemetry-test`.
+
+Note that the `prometheus` job scrapes Prometheus itself, not a node exporter.
+For host CPU/RAM/disk you'd need a `node-exporter` service plus a job targeting
+`node-exporter:9100`.
+
 ## Local Development (no Docker)
 
 ```bash

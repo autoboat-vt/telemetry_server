@@ -3,6 +3,9 @@
 .env
 .ruff_cache
 
+# Prometheus -> Grafana Cloud remote_write credentials (never commit)
+docker/prometheus/grafana_token
+
 # Python caches and build artifacts
 __pycache__
 **/__pycache__

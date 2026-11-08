@@ -4,7 +4,7 @@
 # /etc/prometheus/prometheus.yml (see docker-compose.yml).
 #
 # Targets use CONTAINER NAME + INTERNAL PORT, not localhost:
-#   localhost:8000  -> Prometheus itself
+#   localhost:9090       -> Prometheus itself
 #   telemetry-prod:8000  -> prod gunicorn app
 #   telemetry-test:6001  -> test gunicorn app
 # Everything resolves over the `telemetry-net` bridge network that all
@@ -13,11 +13,28 @@
 # The /metrics endpoint comes from
 # src/autoboat_telemetry_server/observability.py (init_app registers a
 # Blueprint serving prometheus_client.generate_latest()).
+#
+# SECURITY: this file is TRACKED IN GIT. Never inline the Grafana token here.
+# The password is read from the gitignored docker/prometheus/grafana_token
+# file instead (see .gitignore).
 
 global:
-  scrape_interval: 15s
+  scrape_interval: 60s
+
+# Push every scrape to Grafana Cloud.
+# Endpoint + username come from the Grafana Cloud stack's "Prometheus" details
+# page. The password is a Grafana Cloud access policy token (metrics:write)
+# stored OUTSIDE this file.
+remote_write:
+  - url: https://prometheus-prod-66-prod-us-east-3.grafana.net/api/prom/push
+    basic_auth:
+      username: 3749800
+      password_file: /etc/prometheus/grafana_token
 
 scrape_configs:
+  # Prometheus scraping itself. NOTE: this is NOT a node exporter — if you want
+  # host CPU/RAM/disk metrics you need a separate node-exporter service and a
+  # job pointing at node-exporter:9100.
   - job_name: prometheus
     static_configs:
       - targets: ["localhost:9090"]
