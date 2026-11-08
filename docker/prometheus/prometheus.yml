@@ -1,0 +1,31 @@
+# Prometheus scrape configuration for the Autoboat telemetry server.
+#
+# Mounted read-only into the `prometheus` service at
+# /etc/prometheus/prometheus.yml (see docker-compose.yml).
+#
+# Targets use CONTAINER NAME + INTERNAL PORT, not localhost:
+#   localhost:8000  -> Prometheus itself
+#   telemetry-prod:8000  -> prod gunicorn app
+#   telemetry-test:6001  -> test gunicorn app
+# Everything resolves over the `telemetry-net` bridge network that all
+# services share. Neither app publishes ports to the host.
+#
+# The /metrics endpoint comes from
+# src/autoboat_telemetry_server/observability.py (init_app registers a
+# Blueprint serving prometheus_client.generate_latest()).
+
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: telemetry-prod
+    static_configs:
+      - targets: ["telemetry-prod:8000"]
+
+  - job_name: telemetry-test
+    static_configs:
+      - targets: ["telemetry-test:6001"]

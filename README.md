@@ -8,21 +8,22 @@ A lightweight Flask-based web server to collect, display, and manage telemetry d
 src/autoboat_telemetry_server/    # Flask app (factory, models, types, lock manager, routes/)
 src/instance/                     # config.py + SQLite DBs (instances.db, hashes.db)
 install.sh                        # One-shot cloud VM installer
-docker/                           # app-entrypoint.sh, cron/, tailscale/
-docker-compose.yml                # telemetry-prod, telemetry-test, cloudflared, cron, tailscale
+docker/                           # app-entrypoint.sh, cron/, prometheus/, tailscale/
+docker-compose.yml                # telemetry-prod, telemetry-test, cloudflared, cron, prometheus, tailscale
 .github/workflows/                # build.yml (test + per-arch build), push.yml (publish), tailscale.yml, citation.yml
 ```
 
 ## Deployment (Docker + Cloudflare Tunnel)
 
-The production stack runs as four Docker Compose services (plus an optional `tailscale` sidecar):
+The production stack runs as five Docker Compose services (plus an optional `tailscale` sidecar):
 
-| Service          | Purpose                                                      |
-| ---------------- | ------------------------------------------------------------ |
-| `telemetry-prod` | Gunicorn app on `:8000` (production)                         |
-| `telemetry-test` | Gunicorn app on `:6001` (testing)                            |
-| `cloudflared`    | Outbound tunnel to Cloudflare; routes hostnames → containers |
-| `cron`           | Calls `/instance_manager/clean_instances` every 5 min        |
+| Service          | Purpose                                                                                                                         |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `telemetry-prod` | Gunicorn app on `:8000` (production)                                                                                            |
+| `telemetry-test` | Gunicorn app on `:6001` (testing)                                                                                               |
+| `cloudflared`    | Outbound tunnel to Cloudflare; routes hostnames → containers                                                                    |
+| `cron`           | Calls `/instance_manager/clean_instances` every 5 min                                                                           |
+| `prometheus`     | Scrapes `/metrics` from both apps (no published host port)                                                                      |
 | `tailscale`      | Optional (`--profile tailscale`). Joins your Tailscale tailnet so you can SSH into the container from anywhere on your tailnet. |
 
 `cloudflared` is used to expose the internal services to the public Internet via a [Cloudflare Tunnel](https://developers.cloudflare.com/tunnel). The tunnel is managed via the Cloudflare dashboard, so you can add/remove public hostnames (routes) without touching the container.

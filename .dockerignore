@@ -22,4 +22,5 @@ venv/
 # Docker deployment files that are not needed in the app image.
 !docker/app-entrypoint.sh
 docker/cron/
+docker/prometheus/
 TODO.md

@@ -112,6 +112,37 @@ services:
     networks:
       - telemetry-net
 
+  prometheus:
+    # Scrapes /metrics from both app containers over telemetry-net.
+    #
+    # Config lives at docker/prometheus/prometheus.yml and is mounted
+    # read-only so you can edit + restart without rebuilding anything:
+    #   docker compose restart prometheus
+    #
+    # No published host port — like the apps, this is reachable only inside
+    # telemetry-net. To reach the UI, add a cloudflared route to
+    # http://prometheus:9090, or use Tailscale:
+    #   tailscale ssh telemetry-server
+    #   docker compose exec prometheus wget -qO- localhost:9090/-/healthy
+    #
+    # Quick check that scraping works (targets should report UP):
+    #   docker compose exec prometheus \
+    #     wget -qO- 'localhost:9090/api/v1/targets?state=active'
+    image: prom/prometheus:latest
+    container_name: telemetry-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      # TSDB + WAL, so scrape history survives container recreation.
+      - prometheus-data:/prometheus
+    expose:
+      - "9090"
+    depends_on:
+      - telemetry-prod
+      - telemetry-test
+    networks:
+      - telemetry-net
+
   tailscale:
     # Optional: joins your Tailscale tailnet so you can SSH into the host from
     # anywhere on your tailnet. Opt in with:
@@ -208,3 +239,4 @@ volumes:
   test-instance-data:
   cron-logs:
   tailscale-state:
+  prometheus-data:
