@@ -35,7 +35,7 @@ dependencies = [
     "Flask-Cors>=5.0,<7.0",
     "Flask-SQLAlchemy>=3.1,<4.0",
     "Flask-Migrate>=4.0,<5.0",
-    "gunicorn>=23.0,<27.0",
+    "gunicorn>=23.0,<28.0",
     "SQLAlchemy>=2.0,<3.0",
     "prometheus-client>=0.20,<1.0",
 ]
